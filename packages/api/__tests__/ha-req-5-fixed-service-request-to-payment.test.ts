@@ -5,13 +5,21 @@
 // from the wallet. Every step runs through the mounted routes and real SQL.
 // No money logic changed for D38: acceptQuote and the wallet payment are the
 // existing code paths, and this test proves they still apply to a request
-// made on a fixed-price service.
+// made on a fixed-price service. Milestone 2 (D38, E83 interim default): the
+// quote carries the provider's earliest date and window, and accepting it
+// sets the job time to that window's start (08:00 Manila for a morning two
+// days out) instead of the placeholder made from the request's urgency.
+// D38 Milestone 2 (package P2): a job request now stores the request-engine
+// columns of migration 183 and its fan-out records invites, so this file runs
+// on withRequestEngineDatabase (the same Milestone 1 fixture plus the real
+// migrations 183 and 184). The behaviour under test is unchanged.
 import {
   bookingIntegrationIt as it, customerA, customerWalletA, escrowWallet, providerA, providerUserA,
 } from './helpers/booking-participant-postgres';
 import {
-  withJobRequestDatabase, marketplaceHttp, jobRequestBody, waitForLeadFanOut, fixedService,
+  marketplaceHttp, jobRequestBody, waitForLeadFanOut, fixedService,
 } from './helpers/job-request-postgres';
+import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
 
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -23,7 +31,7 @@ jest.mock('../src/services/notification.service', () => ({
 }));
 
 it('HA-REQ-5: a fixed-price service request goes request, quote, accept, payment_pending at the quote price, then wallet payment', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const customer = marketplaceHttp(customerA, 'customer');
     const provider = marketplaceHttp(providerUserA, 'provider');
 
@@ -35,10 +43,14 @@ it('HA-REQ-5: a fixed-price service request goes request, quote, accept, payment
     const bookingId = created.body.data.id as string;
     await waitForLeadFanOut(mockPush, 1);
 
-    // 2. The provider who received the lead sends a price.
+    // 2. The provider who received the lead sends a price and the earliest
+    //    slot they can start: a morning two days from today (Manila).
+    const earliestDate = new Date(Date.now() + 2 * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
     const quoted = await provider.quote(bookingId, {
       quotedPrice: 80000,
       description: 'Clean and re-gas the bedroom split-type unit, check the drain line.',
+      earliestDate,
+      earliestTimeWindow: 'morning',
     });
     expect(quoted.status).toBe(201);
     const quoteId = quoted.body.data.id as string;
@@ -48,12 +60,17 @@ it('HA-REQ-5: a fixed-price service request goes request, quote, accept, payment
     // 3. The customer accepts. The fixture's 25% customer fee makes 100,000.
     const accepted = await customer.accept(bookingId, quoteId);
     expect(accepted.status).toBe(200);
-    expect(accepted.body.data).toEqual({ quoteId, providerId: providerA, totalAmount: 100000 });
+    const windowStart = new Date(`${earliestDate}T08:00:00+08:00`);
+    expect(accepted.body.data).toEqual({
+      quoteId, providerId: providerA, totalAmount: 100000,
+      scheduledAt: windowStart.toISOString(), scheduledWindow: 'morning',
+    });
     expect((await database.query(`SELECT status, booking_type, provider_id, subcategory_id,
         service_price::text AS price, service_fee::text AS fee, total_amount::text AS total,
-        escrow_status FROM bookings WHERE id=$1`, [bookingId])).rows).toEqual([{
+        escrow_status, scheduled_at, scheduled_window FROM bookings WHERE id=$1`, [bookingId])).rows).toEqual([{
       status: 'payment_pending', booking_type: 'quote_based', provider_id: providerA,
       subcategory_id: fixedService, price: '80000', fee: '20000', total: '100000', escrow_status: 'pending',
+      scheduled_at: windowStart, scheduled_window: 'morning',
     }]);
     expect((await database.query(`SELECT fixed_by_event, provider_id, service_price_centavos::text AS price,
         total_amount_centavos::text AS total FROM booking_financial_terms WHERE booking_id=$1 ORDER BY version`,

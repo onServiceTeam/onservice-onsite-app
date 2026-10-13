@@ -1,129 +1,62 @@
 /**
- * D27 Phase 1 — unit tests for custom-quote lead discovery.
- * Mocks db.query + the notification/socket side effects. Covers:
- *   - notifyProvidersOfJobRequest fans out to each matched provider + counts
- *   - getOpenJobRequestsForProvider 404s without a provider profile
- *   - getOpenJobRequestsForProvider maps rows, rounds distance, and the query
- *     excludes already-quoted + already-accepted requests
+ * D27 Phase 1 — custom-quote lead discovery (job-leads.service).
+ *
+ * D38 Milestone 2 (package P2) rewrite. The file used to mock db.query and
+ * assert on SQL text. Its four cases are now covered as follows:
+ *   - "notifies every matched provider and returns the count" and "matches by
+ *     category + service radius": REPLACED by the real-database fan-out tests
+ *     HA-M2-41 (ranked and capped at request_max_invites), HA-M2-42 (offline
+ *     and rating-floor providers skipped), HA-M2-43 (a second run pushes
+ *     nothing), HA-M2-27 (a provider without coordinates is not notified),
+ *     HA-M2-46 (no candidate flags the request) and HA-M2-309 (concurrent
+ *     runs). The fan-out no longer notifies "every matched provider": it
+ *     ranks them and records an invite per provider. The old "matches by
+ *     category" case also asserted, as SQL text, that a provider serving
+ *     only a subcategory of the request's category matches; that roll-up is
+ *     now HA-M2-314 (invited, sees the lead, admitted to quote, on real rows).
+ *   - "404s when the caller has no provider profile" and "maps rows, rounds
+ *     distance, and excludes already-quoted/accepted requests": KEPT below,
+ *     now on the guarded PostgreSQL fixture with real rows. The customer name
+ *     is now first name and last initial (HA-M2-58).
  */
-
-const dbQueryMock = jest.fn();
-const sendPushMock = jest.fn();
-const emitToUserMock = jest.fn();
-
-jest.mock('../src/models/db', () => ({
-  db: { query: (...args: unknown[]) => dbQueryMock(...args) },
-}));
-jest.mock('../src/services/notification.service', () => ({
-  sendPushNotification: (...args: unknown[]) => sendPushMock(...args),
-}));
-jest.mock('../src/services/socket.service', () => ({
-  emitToUser: (...args: unknown[]) => emitToUserMock(...args),
-}));
-
+import { bookingIntegrationIt as it, customerB } from './helpers/booking-participant-postgres';
+import {
+  withRequestFlowDatabase, insertQuoteRequest, insertQuote, providerA, providerB, providerUserA,
+} from './helpers/request-flow-postgres';
 import * as svc from '../src/services/job-leads.service';
 
-beforeEach(() => {
-  dbQueryMock.mockReset();
-  sendPushMock.mockReset();
-  emitToUserMock.mockReset();
-});
-
-function rows<T>(data: T[]): { rows: T[]; rowCount: number } {
-  return { rows: data, rowCount: data.length };
-}
-
-const PROVIDER_USER = '22222222-2222-2222-2222-222222222222';
-const BOOKING_ID = '11111111-1111-1111-1111-111111111111';
-
-describe('notifyProvidersOfJobRequest', () => {
-  it('notifies every matched provider and returns the count', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ user_id: 'u1' }, { user_id: 'u2' }])) // matched providers
-      .mockResolvedValueOnce(rows([{ name: 'Plumbing' }])); // category name
-
-    const n = await svc.notifyProvidersOfJobRequest({
-      id: BOOKING_ID,
-      category_id: 'cat1',
-      latitude: 10.3,
-      longitude: 123.9,
-      city: 'Cebu City',
-    });
-
-    expect(n).toBe(2);
-    expect(sendPushMock).toHaveBeenCalledTimes(2);
-    expect(emitToUserMock).toHaveBeenCalledTimes(2);
-    // Type + payload carry the bookingId so the provider can open it.
-    expect(sendPushMock.mock.calls[0][3]).toBe('new_job_request');
-    expect(sendPushMock.mock.calls[0][4]).toMatchObject({ bookingId: BOOKING_ID });
-  });
-
-  it('matches by category + service radius (query references provider_services + radius)', async () => {
-    dbQueryMock.mockResolvedValueOnce(rows([])).mockResolvedValueOnce(rows([{ name: 'x' }]));
-    await svc.notifyProvidersOfJobRequest({
-      id: BOOKING_ID, category_id: 'cat1', latitude: 10, longitude: 123, city: 'X',
-    });
-    const sql = dbQueryMock.mock.calls[0][0] as string;
-    expect(sql).toMatch(/provider_services/);
-    expect(sql).toMatch(/p\.status = 'approved'/);
-    expect(sql).toMatch(/service_radius_km/);
-    // Subcategory-only providers (category_id NULL, migration 013) must still match.
-    expect(sql).toMatch(/service_subcategories WHERE category_id = \$1/);
-  });
-});
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
 
 describe('getOpenJobRequestsForProvider', () => {
   it('404s when the caller has no provider profile', async () => {
-    dbQueryMock.mockResolvedValueOnce(rows([]));
-    await expect(svc.getOpenJobRequestsForProvider(PROVIDER_USER)).rejects.toMatchObject({ statusCode: 404 });
-  });
+    await withRequestFlowDatabase(async () => {
+      await expect(svc.getOpenJobRequestsForProvider(customerB)).rejects.toMatchObject({ statusCode: 404 });
+    });
+  }, 90000);
 
   it('maps rows, rounds distance, and excludes already-quoted/accepted requests', async () => {
-    dbQueryMock
-      .mockResolvedValueOnce(rows([{ id: 'p1', latitude: '10.3', longitude: '123.9', service_radius_km: 15 }]))
-      .mockResolvedValueOnce(rows([{ count: '1' }]))
-      .mockResolvedValueOnce(
-        rows([
-          {
-            id: BOOKING_ID,
-            category_id: 'cat1',
-            category_name: 'Plumbing',
-            service_name: 'Plumbing',
-            subcategory_id: null,
-            description: 'Leaking pipe under the sink',
-            urgency: 'same_day',
-            budget_min: 50000,
-            budget_max: 150000,
-            job_photos: ['https://x/a.jpg'],
-            job_video_url: null,
-            barangay: 'Lahug',
-            city: 'Cebu City',
-            province: 'Cebu',
-            customer_first: 'Joe',
-            customer_last: 'Cust',
-            distance_km: '3.456',
-            created_at: new Date('2026-06-29T00:00:00Z'),
-          },
-        ]),
-      );
+    await withRequestFlowDatabase(async database => {
+      const open = await insertQuoteRequest(database, { budgetMin: 50000, budgetMax: 150000 });
+      const alreadyQuotedByA = await insertQuoteRequest(database);
+      await insertQuote(database, { bookingId: alreadyQuotedByA, providerId: providerA });
+      const acceptedElsewhere = await insertQuoteRequest(database, { status: 'quoted' });
+      await insertQuote(database, { bookingId: acceptedElsewhere, providerId: providerB, status: 'accepted' });
 
-    const out = await svc.getOpenJobRequestsForProvider(PROVIDER_USER, { page: 1, pageSize: 20 });
-    expect(out.total).toBe(1);
-    expect(out.requests).toHaveLength(1);
-    expect(out.requests[0]).toMatchObject({
-      id: BOOKING_ID,
-      categoryName: 'Plumbing',
-      serviceName: 'Plumbing',
-      customerName: 'Joe Cust',
-      distanceKm: 3.5, // rounded to 1 dp
-      budgetMin: 50000,
+      const out = await svc.getOpenJobRequestsForProvider(providerUserA, { page: 1, pageSize: 20 });
+
+      expect(out.total).toBe(1);
+      expect(out.requests).toHaveLength(1);
+      expect(out.requests[0]).toMatchObject({
+        id: open,
+        categoryName: 'Aircon Services',
+        serviceName: 'Aircon repair',
+        customerName: 'Ana R.',
+        distanceKm: 2.3, // 2.254 km, rounded to 1 dp
+        budgetMin: 50000,
+        budgetMax: 150000,
+      });
     });
-
-    // The list query must exclude requests this provider already quoted and any
-    // request that already has an accepted quote.
-    const listSql = dbQueryMock.mock.calls[2][0] as string;
-    expect(listSql).toMatch(/NOT EXISTS .*q\.provider_id = \$1/s);
-    expect(listSql).toMatch(/q2\.status = 'accepted'/);
-    expect(listSql).toMatch(/b\.status IN \('requested', 'quoted'\)/);
-  });
+  }, 90000);
 });

@@ -1,9 +1,12 @@
 import { submitQuoteSchema } from '../src/validators/booking.validators';
 
 it('Bug FIN-007 — quote validation rejects whitespace scope and line labels before money is stored', () => {
+  // D38 Milestone 2: a valid quote also carries the earliest date and window.
   const base = {
     quotedPrice: 10_000,
     description: 'Replace the damaged drain safely.',
+    earliestDate: '2026-11-02',
+    earliestTimeWindow: 'afternoon',
     lineItems: [{ description: 'Labor', quantity: 1, unit: 'job', unitPrice: 10_000 }],
   };
 

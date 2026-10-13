@@ -6,13 +6,14 @@ import {
   createBookingSchema,
   updateBookingStatusSchema,
   submitQuoteSchema,
+  declineQuoteSchema,
   createJobRequestSchema,
   createChangeOrderSchema,
   pricingPreviewSchema,
 } from '../validators/booking.validators';
 import { db } from '../models/db';
 import * as bookingService from '../services/booking.service';
-import * as jobLeadsService from '../services/job-leads.service';
+import * as jobRequestEvents from '../services/job-request-events.service';
 import * as matchingService from '../services/matching.service';
 import * as notificationService from '../services/notification.service';
 import * as escrowService from '../services/escrow.service';
@@ -27,6 +28,29 @@ import * as rebookingService from '../services/rebooking.service';
 import * as slotWaitlistService from '../services/slot-waitlist.service';
 import * as bookingProofService from '../services/booking-proof.service';
 import * as financialTermsService from '../services/booking-financial-terms.service';
+
+/**
+ * D38 (merged plan 2.3): apps older than 1.0.4 send quotes without an
+ * earliest date and declines without a reason. They get 400
+ * APP_UPDATE_REQUIRED, checked after sign-in and before the body schema, so
+ * the app can show "Please update the app" instead of a validation list.
+ */
+function requireUpdatedApp(field: string, message: string) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const body = req.body as Record<string, unknown> | undefined;
+    if (!body || typeof body !== 'object' || body[field] === undefined) {
+      next(Object.assign(createAppError(message, 400), { code: 'APP_UPDATE_REQUIRED' }));
+      return;
+    }
+    next();
+  };
+}
+
+function getQuoteParamId(req: AuthenticatedRequest): string {
+  const quoteId = req.params.quoteId;
+  if (typeof quoteId !== 'string' || !quoteId) throw createAppError('Quote ID is required.', 400);
+  return quoteId;
+}
 
 function getParamId(req: AuthenticatedRequest): string {
   const id = req.params.id;
@@ -135,6 +159,15 @@ function canDirectlyAssignProvider(status: string): status is BookingStatus {
   return DIRECT_ASSIGNMENT_STATUSES.has(status as BookingStatus);
 }
 
+/** D38: a quote request still collecting quotes (no accepted quote yet). */
+function isOpenQuoteRequest(bookingType: string, status: string): boolean {
+  return bookingType === 'quote_based' && (status === 'requested' || status === 'quoted');
+}
+
+function quoteRequestNotAssignableError(): Error {
+  return Object.assign(createAppError('Choose a quote from a pro.', 409), { code: 'QUOTE_REQUEST_NOT_ASSIGNABLE' });
+}
+
 interface BookingRow {
   id: string;
   customer_id: string;
@@ -193,6 +226,14 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     budget_max?: number | null;
     job_video_url?: string | null;
     intake_answers?: Record<string, unknown> | null;
+    // D38 quote-request fields (migration 183); request_stage and
+    // open_quote_count come only from the booking list query.
+    budget_unknown?: boolean;
+    request_round?: number;
+    request_ops_review_at?: Date | null;
+    scheduled_window?: string | null;
+    request_stage?: string | null;
+    open_quote_count?: number | null;
   };
   return {
     id: row.id,
@@ -231,6 +272,13 @@ function formatBookingResponse(b: BookingRow): Record<string, unknown> {
     budgetMin: row.budget_min ?? null,
     budgetMax: row.budget_max ?? null,
     intakeAnswers: row.intake_answers ?? null,
+    budgetUnknown: row.budget_unknown ?? false,
+    requestRound: row.request_round ?? 1,
+    requestOpsReviewAt: row.request_ops_review_at ?? null,
+    scheduledWindow: row.scheduled_window ?? null,
+    // Present on booking-list rows of quote requests only.
+    ...(row.request_stage != null ? { requestStage: row.request_stage } : {}),
+    ...(row.open_quote_count != null ? { openQuoteCount: Number(row.open_quote_count) } : {}),
     providerBeforePhotos: row.provider_before_photos ?? [],
     providerAfterPhotos: row.provider_after_photos ?? [],
     createdAt: row.created_at,
@@ -333,19 +381,18 @@ router.post(
   validationMiddleware(createJobRequestSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const booking = await bookingService.createJobRequest(req.user!.userId, req.body);
-      // D27 Phase 1 — fan the new request out to category + service-area matched
-      // providers so it actually reaches someone who can quote. Best-effort and
-      // non-blocking: the request is already saved; a notify failure must not
-      // fail the customer's request.
-      void jobLeadsService
-        .notifyProvidersOfJobRequest({
-          id: booking.id,
-          category_id: booking.category_id,
-          latitude: booking.latitude,
-          longitude: booking.longitude,
-          city: booking.city,
-        })
+      const { booking, replayed } = await bookingService.createJobRequest(req.user!.userId, req.body);
+      if (replayed) {
+        // D38 (critique M9): a repeated clientRequestId returns the first
+        // request and sends nothing to providers a second time.
+        res.status(200).json({ success: true, data: { ...formatBookingResponse(booking as BookingRow), replayed: true } });
+        return;
+      }
+      // D27 Phase 1 / D38 — send round 1 to the best-matching providers.
+      // Best-effort and non-blocking: the request is already saved, and the
+      // worker re-runs a lost fan-out (refanoutStaleRounds, critique M5).
+      void jobRequestEvents
+        .requestCreated({ id: booking.id, customer_id: booking.customer_id })
         .catch((err) => logger.warn('job-request lead fan-out failed', { bookingId: booking.id, err: String(err) }));
       res.status(201).json({ success: true, data: formatBookingResponse(booking as BookingRow) });
     } catch (error) {
@@ -523,6 +570,21 @@ router.delete(
       if (!waitlistId) throw createAppError('waitlistId is required.', 400);
       await slotWaitlistService.cancelSlotWaitlist(waitlistId, req.user!.userId);
       res.json({ success: true, message: 'Waitlist entry cancelled.' });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// --- D38 customer request summary (must be before /:id) ---
+
+router.get(
+  '/requests/summary',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const summary = await bookingService.getCustomerRequestSummary(req.user!.userId);
+      res.json({ success: true, data: summary });
     } catch (error) {
       next(error);
     }
@@ -717,6 +779,20 @@ router.patch(
   },
 );
 
+// D38: where the customer's quote request stands (merged plan 2.3).
+router.get(
+  '/:id/request-status',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const status = await bookingService.getRequestStatus(getParamId(req), req.user!.userId);
+      res.json({ success: true, data: status });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/:id/match',
   authMiddleware,
@@ -789,6 +865,14 @@ router.post(
       const isBookingOwner = booking.customer_id === userId;
       if (!isAdmin && !isBookingOwner) {
         throw createAppError('Only the booking owner or an admin can assign providers.', 403);
+      }
+
+      // D38 (critique M1): a quote request that is still collecting quotes
+      // goes to a provider only through a quote the customer accepts.
+      // Assigning a provider directly skipped the price, the terms and the
+      // payment. Refused for every role, before anything is written or logged.
+      if (isOpenQuoteRequest(booking.booking_type, booking.status)) {
+        throw quoteRequestNotAssignableError();
       }
 
       // MED-N86 fix: customer self-assigning a SPECIFIC provider
@@ -881,11 +965,12 @@ router.post(
           customer_id: string;
           provider_id: string | null;
           status: string;
+          booking_type: string;
           escrow_status: string | null;
           service_price: string;
           total_amount: string;
         }>(
-          `SELECT customer_id, provider_id, status, escrow_status,
+          `SELECT customer_id, provider_id, status, escrow_status, booking_type,
                   service_price::text, total_amount::text
              FROM bookings
             WHERE id = $1
@@ -894,6 +979,9 @@ router.post(
         );
         const lockedBooking = lockedResult.rows[0];
         if (!lockedBooking) throw createAppError('Booking not found.', 404);
+        if (isOpenQuoteRequest(lockedBooking.booking_type, lockedBooking.status)) {
+          throw quoteRequestNotAssignableError();
+        }
         if (!canDirectlyAssignProvider(lockedBooking.status)) {
           throw createAppError(
             `Cannot assign provider — booking status "${lockedBooking.status}" does not allow matching.`,
@@ -1036,6 +1124,14 @@ router.post(
       if (!isAdmin && !isOwner) {
         throw createAppError('Only the booking owner or an admin can dispatch.', 403);
       }
+      // D38 (merged plan bad news 8): the fixed-price offer cycle never starts
+      // on a quote request. Route-only guard; the offer service is untouched (E33).
+      if (booking.booking_type === 'quote_based') {
+        throw Object.assign(
+          createAppError('A quote request goes to pros through their quotes, not dispatch.', 409),
+          { code: 'QUOTE_REQUEST_NOT_DISPATCHABLE' },
+        );
+      }
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const offerSvc = require('../services/booking-offer.service');
       const offer = await offerSvc.kickOfferCycle(id);
@@ -1116,20 +1212,32 @@ router.post(
 router.post(
   '/:id/quotes',
   authMiddleware,
+  requireUpdatedApp('earliestDate', 'Please update the onService app to send quotes.'),
   validationMiddleware(submitQuoteSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
-      if (req.body.lineItems) {
-        const result = await bookingService.submitStructuredQuote(id, req.user!.userId, req.body);
-        res.status(201).json({ success: true, data: result });
-      } else {
-        const quote = await bookingService.submitQuote(
-          id, req.user!.userId,
-          req.body.quotedPrice, req.body.description, req.body.estimatedDurationMinutes,
-        );
-        res.status(201).json({ success: true, data: quote });
+      const admission = req.body.lineItems
+        ? await bookingService.submitStructuredQuote(id, req.user!.userId, req.body)
+        : await bookingService.submitQuote(id, req.user!.userId, req.body);
+      if (admission.replayed) {
+        // D38: the same provider repeated their clientRequestId. Nothing new
+        // was written, so nothing is announced again.
+        res.status(200).json({ success: true, data: { ...admission.quote, replayed: true } });
+        return;
       }
+      // After the commit: the customer hears about the quote, and at the
+      // open-quote cap the other invited providers see the request close.
+      await jobRequestEvents.quoteAdmitted({
+        bookingId: id,
+        quoteId: admission.quote.id,
+        customerId: admission.customerId,
+        providerName: admission.providerName,
+        serviceName: admission.serviceName,
+        quotedPrice: Number(admission.quote.quoted_price),
+        takenProviderUserIds: admission.takenProviderUserIds,
+      });
+      res.status(201).json({ success: true, data: admission.quote });
     } catch (error) {
       next(error);
     }
@@ -1160,9 +1268,26 @@ router.get(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
-      await verifyBookingAccess(id, req.user!.userId, req.user!.role);
-      const quotes = await bookingService.getBookingQuotes(id);
+      // D38 (merged plan bad news 8): a provider, including the booked one,
+      // sees only their own quote; the customer and admins see every quote.
+      const quotes = await bookingService.getBookingQuotesForViewer(id, req.user!.userId, req.user!.role);
       res.json({ success: true, data: quotes });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// D38: the confirm screen's read-only preview of accepting a quote.
+router.get(
+  '/:id/quotes/:quoteId/confirm-preview',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      const preview = await bookingService.getQuoteConfirmPreview(
+        getParamId(req), getQuoteParamId(req), req.user!.userId,
+      );
+      res.json({ success: true, data: preview });
     } catch (error) {
       next(error);
     }
@@ -1175,10 +1300,26 @@ router.post(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
-      const quoteId = req.params.quoteId;
-      if (typeof quoteId !== 'string') throw createAppError('Quote ID is required.', 400);
+      const quoteId = getQuoteParamId(req);
       const result = await bookingService.acceptQuote(id, quoteId, req.user!.userId);
-      res.json({ success: true, data: result });
+      // After the commit: the winner and the not-selected providers are told,
+      // and every open invite closes.
+      await jobRequestEvents.quoteAccepted({
+        bookingId: id,
+        quoteId,
+        winnerProviderId: result.providerId,
+        notSelected: result.notSelected,
+      });
+      res.json({
+        success: true,
+        data: {
+          quoteId: result.quoteId,
+          providerId: result.providerId,
+          totalAmount: result.totalAmount,
+          scheduledAt: result.scheduledAt,
+          scheduledWindow: result.scheduledWindow,
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -1188,13 +1329,67 @@ router.post(
 router.post(
   '/:id/quotes/:quoteId/decline',
   authMiddleware,
+  requireUpdatedApp('reason', 'Please update the onService app to decline a quote.'),
+  validationMiddleware(declineQuoteSchema),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const id = getParamId(req);
-      const quoteId = req.params.quoteId;
-      if (typeof quoteId !== 'string') throw createAppError('Quote ID is required.', 400);
-      const result = await bookingService.declineQuote(id, quoteId, req.user!.userId);
-      res.json({ success: true, data: result });
+      const quoteId = getQuoteParamId(req);
+      const outcome = await bookingService.declineQuote(id, quoteId, req.user!.userId, req.body);
+      await jobRequestEvents.quoteDeclined({
+        bookingId: outcome.bookingId,
+        quoteId: outcome.quoteId,
+        customerId: outcome.customerId,
+        providerUserId: outcome.providerUserId,
+        serviceName: outcome.serviceName,
+        reason: outcome.reason,
+        declinedAmount: outcome.declinedAmount,
+        reopened: outcome.reopened,
+        round: outcome.round,
+        opsReviewFlagged: outcome.opsReviewFlagged,
+      });
+      res.json({
+        success: true,
+        data: {
+          quoteId: outcome.quoteId,
+          bookingStatus: outcome.bookingStatus,
+          round: outcome.round,
+          reopened: outcome.reopened,
+          opsReview: outcome.opsReview,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// D38 (critique M13): a provider withdraws their own live quote.
+router.post(
+  '/:id/quotes/:quoteId/withdraw',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      if (req.user!.role !== 'provider') throw createAppError('Only the provider who sent a quote can withdraw it.', 403);
+      const outcome = await bookingService.withdrawQuote(getParamId(req), getQuoteParamId(req), req.user!.userId);
+      await jobRequestEvents.quoteWithdrawn({
+        bookingId: outcome.bookingId,
+        quoteId: outcome.quoteId,
+        customerId: outcome.customerId,
+        providerName: outcome.providerName,
+        reopened: outcome.reopened,
+        round: outcome.round,
+        opsReviewFlagged: outcome.opsReviewFlagged,
+      });
+      res.json({
+        success: true,
+        data: {
+          quoteId: outcome.quoteId,
+          bookingStatus: outcome.bookingStatus,
+          round: outcome.round,
+          reopened: outcome.reopened,
+        },
+      });
     } catch (error) {
       next(error);
     }

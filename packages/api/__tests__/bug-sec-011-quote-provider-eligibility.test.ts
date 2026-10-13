@@ -37,6 +37,9 @@ it('Bug SEC-011 — an approved provider cannot quote outside their active categ
   await expect(submitStructuredQuote('booking-1', 'provider-user-1', {
     quotedPrice: 50_000,
     description: 'Replace the damaged pipe and test the repaired connection.',
+    // D38 Milestone 2: quotes carry the earliest date and window.
+    earliestDate: '2026-11-02',
+    earliestTimeWindow: 'morning',
     lineItems: [{ description: 'Plumbing labor', quantity: 1, unit: 'job', unitPrice: 50_000, itemType: 'labor' }],
   })).rejects.toMatchObject({ statusCode: 403 });
 

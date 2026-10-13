@@ -1,11 +1,16 @@
 // HA-REQ-1 (customer human audit 2026-10-13, D38): with request_first_booking
 // on, "describe your job" works for every active service, fixed-price ones
 // included, and the request still reaches the matching provider.
+// D38 Milestone 2 (package P2): a job request now stores the request-engine
+// columns of migration 183 and its fan-out records invites, so this file runs
+// on withRequestEngineDatabase (the same Milestone 1 fixture plus the real
+// migrations 183 and 184). The behaviour under test is unchanged.
 import { bookingIntegrationIt as it, customerA, providerUserA } from './helpers/booking-participant-postgres';
 import {
-  withJobRequestDatabase, marketplaceHttp, jobRequestBody, waitForLeadFanOut,
+  marketplaceHttp, jobRequestBody, waitForLeadFanOut,
   fixedService, hourlyService, perUnitService, quoteService, inactiveService,
 } from './helpers/job-request-postgres';
+import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
 
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -19,7 +24,7 @@ jest.mock('../src/services/notification.service', () => ({
 beforeEach(() => mockPush.mockClear());
 
 it('HA-REQ-1: with the switch on, a request for a fixed-price service is accepted as a quote request and reaches the provider', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({ subcategoryId: fixedService }));
 
     expect(response.status).toBe(201);
@@ -39,7 +44,7 @@ it('HA-REQ-1: with the switch on, a request for a fixed-price service is accepte
 
 for (const [kind, service] of [['hourly', hourlyService], ['per_unit', perUnitService], ['quote', quoteService]] as const) {
   it(`HA-REQ-1: with the switch on, a request for a ${kind} service is accepted`, async () => {
-    await withJobRequestDatabase(async database => {
+    await withRequestEngineDatabase(async database => {
       const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({ subcategoryId: service }));
 
       expect(response.status).toBe(201);
@@ -51,7 +56,7 @@ for (const [kind, service] of [['hourly', hourlyService], ['per_unit', perUnitSe
 }
 
 it('HA-REQ-1: an inactive service is refused even with the switch on, and nothing is saved', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = (await database.query('SELECT count(*)::int AS n FROM bookings')).rows[0].n;
 
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({ subcategoryId: inactiveService }));
@@ -64,7 +69,7 @@ it('HA-REQ-1: an inactive service is refused even with the switch on, and nothin
 }, 60000);
 
 it('HA-REQ-1: a provider account cannot send a service request, and nothing is saved', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = (await database.query('SELECT count(*)::int AS n FROM bookings')).rows[0].n;
 
     const response = await marketplaceHttp(providerUserA, 'provider').jobRequest(jobRequestBody({ subcategoryId: fixedService }));

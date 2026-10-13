@@ -1,44 +1,46 @@
-const dbQueryMock = jest.fn();
+// Bug OPS-262: an eligible provider must be able to open a quote lead's
+// detail (to price it) without the assigned-booking endpoint, and the lead
+// must be redacted: area only, no street address or map pin.
+//
+// D38 Milestone 2 (package P2) rewrite. The detail now applies the shared
+// eligibility rule and the open-quote cap, and the customer's name is shown
+// as first name and last initial ("Ana R.", merged plan 2.3; it was the full
+// name). Before this rewrite the test mocked the SQL calls and asserted on
+// SQL text; it now calls the mounted provider route over real rows on the
+// guarded PostgreSQL fixture.
+import { bookingIntegrationIt as it } from './helpers/booking-participant-postgres';
+import {
+  withRequestFlowDatabase, flowHttp, insertQuoteRequest, providerUserA,
+} from './helpers/request-flow-postgres';
 
-jest.mock('../src/models/db', () => ({
-  db: { query: (...args: unknown[]) => dbQueryMock(...args) },
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../src/services/notification.service', () => ({ sendPushNotification: jest.fn() }));
-jest.mock('../src/services/socket.service', () => ({ emitToUser: jest.fn() }));
-
-import { getOpenJobRequestForProvider } from '../src/services/job-leads.service';
 
 it('Bug OPS-262 — an eligible provider can open a redacted quote lead without using the assigned-booking endpoint', async () => {
-  dbQueryMock
-    .mockResolvedValueOnce({
-      rows: [{ id: 'provider-1', latitude: '10.3', longitude: '123.9', service_radius_km: 15 }],
-      rowCount: 1,
-    })
-    .mockResolvedValueOnce({
-      rows: [{
-        id: 'booking-1', category_id: 'category-1', category_name: 'Plumbing', service_name: 'Sink repair',
-        subcategory_id: null, description: 'Repair the leaking sink drain', urgency: 'same_day',
-        budget_min: 50000, budget_max: 150000, job_photos: ['job/photo.jpg'],
-        job_video_url: null, intake_answers: { sink_type: 'Double bowl' },
-        barangay: 'Lahug', city: 'Cebu City', province: 'Cebu',
-        customer_first: 'Customer', customer_last: 'One', distance_km: '3.456',
-        created_at: new Date('2026-09-01T00:00:00.000Z'),
-      }],
-      rowCount: 1,
+  await withRequestFlowDatabase(async database => {
+    const bookingId = await insertQuoteRequest(database, { budgetMin: 50000, budgetMax: 150000 });
+
+    const response = await flowHttp(providerUserA, 'provider').lead(bookingId);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      id: bookingId,
+      categoryName: 'Aircon Services',
+      serviceName: 'Aircon repair',
+      customerName: 'Ana R.',
+      barangay: 'Kamputhaw',
+      city: 'Cebu City',
+      budgetMin: 50000,
+      budgetMax: 150000,
+      myQuote: null,
     });
-
-  const request = await getOpenJobRequestForProvider('provider-user-1', 'booking-1');
-
-  expect(request).toMatchObject({
-    id: 'booking-1', categoryName: 'Plumbing', serviceName: 'Sink repair',
-    customerName: 'Customer One', distanceKm: 3.5,
+    // Provider A sits about 2.25 km from the request pin; shown to 0.1 km.
+    expect(response.body.data.distanceKm).toBe(2.3);
+    expect(response.body.data).not.toHaveProperty('address');
+    expect(response.body.data).not.toHaveProperty('latitude');
+    expect(response.body.data).not.toHaveProperty('longitude');
+    expect(JSON.stringify(response.body.data)).not.toContain('22 Mango Avenue');
+    expect(JSON.stringify(response.body.data)).not.toContain('Reyes');
   });
-  expect(request).not.toHaveProperty('address');
-  expect(request).not.toHaveProperty('latitude');
-  expect(request).not.toHaveProperty('longitude');
-  const sql = String(dbQueryMock.mock.calls[1]?.[0]);
-  expect(sql).toContain("b.booking_type = 'quote_based'");
-  expect(sql).toContain('provider_services');
-  expect(sql).toContain("q2.status = 'accepted'");
-  expect(dbQueryMock.mock.calls[1]?.[1]).toEqual(['provider-1', '10.3', '123.9', 15, 'booking-1']);
-});
+}, 90000);

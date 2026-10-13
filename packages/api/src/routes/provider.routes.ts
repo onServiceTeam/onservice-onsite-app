@@ -27,6 +27,7 @@ import * as financialTermsService from '../services/booking-financial-terms.serv
 import * as serviceAreaChangeService from '../services/service-area-change.service';
 import { createAppError } from '../middleware/error.middleware';
 import { privateResponse } from '../middleware/private-response.middleware';
+import { logger } from '../utils/logger';
 
 const router = Router();
 // Every provider route currently requires an account, including profile reads.
@@ -1120,6 +1121,23 @@ router.get(
   },
 );
 
+// D38 (critique L3): registered before /me/job-requests/:bookingId, or
+// "summary" would be read as a booking id.
+router.get(
+  '/me/job-requests/summary',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      await providerService.getProviderByUserId(req.user!.userId);
+      const summary = await jobLeadsService.getRequestSummary(req.user!.userId);
+      res.json({ success: true, data: summary });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 router.get(
   '/me/job-requests/:bookingId',
   authMiddleware,
@@ -1130,11 +1148,49 @@ router.get(
       if (!bookingId || typeof bookingId !== 'string') {
         throw createAppError('bookingId is required.', 400);
       }
+      await providerService.getProviderByUserId(req.user!.userId);
       const request = await jobLeadsService.getOpenJobRequestForProvider(
         req.user!.userId,
         bookingId,
       );
+      // D38: opening an open request marks this provider's invite viewed (or
+      // records an inbox invite). The detail read itself stays side-effect
+      // free; a read-only view of a request they already quoted marks nothing.
+      if (!request.myQuote) {
+        try {
+          await jobLeadsService.markRequestViewed(req.user!.userId, bookingId);
+        } catch (markError) {
+          logger.warn('Marking a job request viewed failed', {
+            bookingId,
+            error: markError instanceof Error ? markError.message : String(markError),
+          });
+        }
+      }
       res.json({ success: true, data: request });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// D38: the provider's own quotes and what became of each (My quotes).
+router.get(
+  '/me/quotes',
+  authMiddleware,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    try {
+      requireProvider(req);
+      await providerService.getProviderByUserId(req.user!.userId);
+      const result = await jobLeadsService.getMyQuotes(req.user!.userId, {
+        status: typeof req.query.status === 'string' ? req.query.status : undefined,
+        page: Number(req.query.page ?? 1),
+        pageSize: Number(req.query.pageSize ?? 20),
+      });
+      res.json({
+        success: true,
+        data: result.quotes,
+        meta: { page: result.page, pageSize: result.pageSize, total: result.total },
+      });
     } catch (error) {
       next(error);
     }

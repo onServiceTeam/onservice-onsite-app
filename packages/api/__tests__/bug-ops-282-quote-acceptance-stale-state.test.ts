@@ -1,3 +1,7 @@
+// D38 Milestone 2 (package P2) update: acceptQuote now reads
+// request_slot_lead_minutes through getRequestPolicy before its transaction,
+// so the settings mock provides it. The bug's assertion is unchanged: a
+// booking already resolved is refused with 409 after one locked read.
 const transactionMock = jest.fn();
 jest.mock('../src/models/db', () => ({
   db: { query: jest.fn(), transaction: (...args: unknown[]) => transactionMock(...args) },
@@ -7,7 +11,11 @@ jest.mock('../src/utils/logger', () => ({
 }));
 jest.mock('../src/services/booking-financial-terms.service', () => ({ appendPricingTermsInTransaction: jest.fn() }));
 jest.mock('../src/services/suki.service', () => ({ calculateSukiDiscountForBooking: jest.fn() }));
-jest.mock('../src/services/settings.service', () => ({ getSettingPercent: jest.fn(), getSettingNumber: jest.fn() }));
+jest.mock('../src/services/settings.service', () => ({
+  getSettingPercent: jest.fn(),
+  getSettingNumber: jest.fn(),
+  getRequestPolicy: jest.fn().mockResolvedValue({ slotLeadMinutes: 60 }),
+}));
 jest.mock('../src/services/service-area.service', () => ({ checkCoverage: jest.fn() }));
 jest.mock('../src/services/pricing.service', () => ({ calculatePricing: jest.fn() }));
 jest.mock('../src/services/slot-waitlist.service', () => ({ markWaitlistAsBooked: jest.fn() }));

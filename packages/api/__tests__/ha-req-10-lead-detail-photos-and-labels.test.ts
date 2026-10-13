@@ -3,10 +3,15 @@
 // and each answer under the admin-written question label, and still never
 // returns the street address or the exact map pin to a provider who has not
 // been booked. Real SQL on the guarded PostgreSQL fixture.
+// D38 Milestone 2 (package P2): a job request now stores the request-engine
+// columns of migration 183 and its fan-out records invites, so this file runs
+// on withRequestEngineDatabase (the same Milestone 1 fixture plus the real
+// migrations 183 and 184). The behaviour under test is unchanged.
 import { bookingIntegrationIt as it, customerA, providerUserA } from './helpers/booking-participant-postgres';
 import {
-  withJobRequestDatabase, marketplaceHttp, jobRequestBody, waitForLeadFanOut, quoteService,
+  marketplaceHttp, jobRequestBody, waitForLeadFanOut, quoteService,
 } from './helpers/job-request-postgres';
+import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
 import { getOpenJobRequestForProvider } from '../src/services/job-leads.service';
 
 jest.mock('../src/utils/logger', () => ({
@@ -19,7 +24,7 @@ jest.mock('../src/services/notification.service', () => ({
 }));
 
 it('HA-REQ-10: lead detail returns the photo URLs and question labels in admin order, without the street address', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     await database.query(`INSERT INTO subcategory_intake_fields
         (subcategory_id, field_key, label, field_type, unit, sort_order, is_active) VALUES
       ($1, 'has_power', 'Does the unit still turn on?', 'boolean', NULL, 2, TRUE),

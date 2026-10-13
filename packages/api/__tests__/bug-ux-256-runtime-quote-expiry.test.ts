@@ -1,41 +1,36 @@
-const clientQueryMock = jest.fn();
-const getQuotePolicyMock = jest.fn();
+// Bug UX-256: a submitted quote must expire after the live admin duration
+// (quote_expiry_hours) read at submit time.
+//
+// D38 Milestone 2 (package P2) rewrite. The expiry is now worked out on the
+// database clock and capped at the end of the provider's slot minus the
+// lead time (critique M2, covered by HA-M2-292). With a slot three days out
+// the cap does not apply, so the quote must expire exactly 36 hours after it
+// was stored when the setting is 36. Before this rewrite the test mocked the
+// SQL calls and the JavaScript clock; it now runs quote admission on the
+// guarded PostgreSQL fixture and compares the stored timestamps.
+import { bookingIntegrationIt as it } from './helpers/booking-participant-postgres';
+import {
+  withRequestFlowDatabase, flowHttp, insertQuoteRequest, upsertPlatformSetting, quoteBody, platformDate,
+  providerUserA,
+} from './helpers/request-flow-postgres';
 
-jest.mock('../src/models/db', () => ({
-  db: {
-    query: jest.fn(),
-    transaction: (callback: (client: { query: typeof clientQueryMock }) => unknown) => callback({ query: clientQueryMock }),
-  },
-}));
-jest.mock('../src/services/settings.service', () => ({
-  getQuotePolicy: (...args: unknown[]) => getQuotePolicyMock(...args),
-}));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-import { submitQuote } from '../src/services/booking.service';
-
 it('Bug UX-256 — a submitted quote expires using the live admin duration', async () => {
-  jest.useFakeTimers().setSystemTime(new Date('2026-08-24T00:00:00.000Z'));
-  getQuotePolicyMock.mockResolvedValueOnce({ expiryHours: 36, maxPerBooking: 5 });
-  clientQueryMock
-    .mockResolvedValueOnce({ rows: [{ id: 'provider-1' }] })
-    .mockResolvedValueOnce({ rows: [{
-      id: 'booking-1', booking_type: 'quote_based', status: 'quoted',
-      category_id: 'category-1', latitude: null, longitude: null,
-    }] })
-    .mockResolvedValueOnce({ rows: [{ eligible: true }] })
-    .mockResolvedValueOnce({ rows: [{ count: '0' }] })
-    .mockResolvedValueOnce({ rows: [{ count: '1' }] })
-    .mockResolvedValueOnce({ rows: [{
-      id: 'quote-1', booking_id: 'booking-1', provider_id: 'provider-1',
-      quoted_price: 100_000, description: 'Quoted repair',
-    }] });
+  await withRequestFlowDatabase(async database => {
+    await upsertPlatformSetting(database, 'quote_expiry_hours', '36');
+    const bookingId = await insertQuoteRequest(database);
 
-  await submitQuote('booking-1', 'provider-user-1', 100_000, 'Quoted repair');
+    const response = await flowHttp(providerUserA, 'provider').quote(bookingId, quoteBody({ earliestDate: platformDate(3) }));
 
-  const insertCall = clientQueryMock.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO booking_quotes'));
-  expect(insertCall?.[1]?.[5]).toEqual(new Date('2026-08-25T12:00:00.000Z'));
-  jest.useRealTimers();
-});
+    expect(response.status).toBe(201);
+    const stored = (await database.query(`SELECT EXTRACT(EPOCH FROM (expires_at - created_at))::float8 AS lifetime_seconds
+      FROM booking_quotes WHERE id = $1`, [response.body.data.id])).rows[0];
+    // created_at is the transaction start and expires_at is read from the
+    // clock a moment later, so allow a few seconds of difference.
+    expect(stored.lifetime_seconds).toBeGreaterThanOrEqual(36 * 3600);
+    expect(stored.lifetime_seconds).toBeLessThan(36 * 3600 + 5);
+  });
+}, 90000);

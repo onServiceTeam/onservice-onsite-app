@@ -21,6 +21,8 @@ import * as emailLinkCleanupService from '../services/email-link-cleanup.service
 import * as emailSignInCleanupService from '../services/email-sign-in-cleanup.service';
 import * as emailCodeAuthService from '../services/email-code-auth.service';
 import * as feedbackStudyService from '../services/feedback-study.service';
+import * as jobLeadsService from '../services/job-leads.service';
+import * as jobRequestEvents from '../services/job-request-events.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -35,6 +37,12 @@ interface ExpiredQuoteRow {
   id: string;
   booking_id: string;
   provider_id: string;
+}
+
+interface ExpiredQuoteProviderRow {
+  user_id: string;
+  provider_name: string;
+  booking_status: string | null;
 }
 
 interface ExpiringNbiRow {
@@ -144,20 +152,34 @@ async function expireStaleQuotes(): Promise<number> {
      RETURNING id, booking_id, provider_id`,
   );
 
+  const lapsedProviderNames = new Map<string, string[]>();
   for (const quote of expired.rows) {
     try {
-      const providerUser = await db.query<{ user_id: string }>(
-        `SELECT user_id FROM providers WHERE id = $1`,
-        [quote.provider_id],
+      const providerUser = await db.query<ExpiredQuoteProviderRow>(
+        `SELECT p.user_id, COALESCE(NULLIF(TRIM(p.business_name), ''), 'Your pro') AS provider_name,
+                b.status AS booking_status
+           FROM providers p
+           LEFT JOIN bookings b ON b.id = $2
+          WHERE p.id = $1`,
+        [quote.provider_id, quote.booking_id],
       );
-      if (providerUser.rows[0]) {
-        await notificationService.createPushNotification({
-          userId: providerUser.rows[0].user_id,
-          type: 'quote_expired',
-          title: 'Quote Expired',
-          body: 'Your quote was not accepted within the time limit and has expired.',
-          data: { bookingId: quote.booking_id, quoteId: quote.id },
-        });
+      const provider = providerUser.rows[0];
+      if (provider) {
+        lapsedProviderNames.set(quote.booking_id, [
+          ...(lapsedProviderNames.get(quote.booking_id) ?? []),
+          provider.provider_name,
+        ]);
+        // D38 (critique M12): a request the customer cancelled already told
+        // these providers; its leftover quotes expire without another notice.
+        if (provider.booking_status === 'requested' || provider.booking_status === 'quoted') {
+          await notificationService.createPushNotification({
+            userId: provider.user_id,
+            type: 'quote_expired',
+            title: 'Quote Expired',
+            body: 'Your quote was not accepted within the time limit and has expired.',
+            data: { bookingId: quote.booking_id, quoteId: quote.id },
+          });
+        }
       }
     } catch (err) {
       logger.error('Failed to notify quote expiry', {
@@ -167,34 +189,109 @@ async function expireStaleQuotes(): Promise<number> {
     }
   }
 
+  // D38 (critique M3): a request whose last live quote lapsed reopens for a
+  // new round, the customer is told and the new round goes to other
+  // providers. Each request is handled on its own, so one failure never
+  // blocks the rest.
+  for (const bookingId of new Set(expired.rows.map((quote) => quote.booking_id))) {
+    await reopenLapsedRequest(bookingId, lapsedProviderNames.get(bookingId) ?? []);
+  }
+
   return expired.rows.length;
+}
+
+/** Reopen one quote request after its quotes lapsed; legacy rows reopen silently. */
+async function reopenLapsedRequest(bookingId: string, providerNames: string[]): Promise<void> {
+  try {
+    const outcome = await bookingService.reconcileRequestAfterQuoteLapse(bookingId);
+    if (outcome && !outcome.legacy) {
+      await jobRequestEvents.requestLapsed({
+        bookingId,
+        customerId: outcome.customerId,
+        round: outcome.round,
+        reopened: outcome.reopened,
+        opsReviewFlagged: outcome.opsReviewFlagged,
+        providerNames,
+      });
+    }
+  } catch (err) {
+    logger.error('Reopening a quote request after its quotes lapsed failed', {
+      bookingId,
+      error: err instanceof Error ? err.message : 'Unknown',
+    });
+  }
+}
+
+/**
+ * D38 legacy sweep: quote requests stuck in 'quoted' with no live and no
+ * accepted quote (from before the reopen rules existed, or a reconcile that
+ * failed). reconcileRequestAfterQuoteLapse reopens each; a row that stalled
+ * more than an hour ago reopens silently with its round clock backdated, so
+ * the expiry below can close it in the same run.
+ */
+async function reconcileStalledQuoteRequests(): Promise<number> {
+  let stalled: { id: string }[];
+  try {
+    stalled = (await db.query<{ id: string }>(
+      `SELECT b.id FROM bookings b
+        WHERE b.booking_type = 'quote_based' AND b.status = 'quoted'
+          AND NOT EXISTS (
+            SELECT 1 FROM booking_quotes q
+             WHERE q.booking_id = b.id
+               AND ((q.status = 'submitted' AND q.expires_at > NOW()) OR q.status = 'accepted'))
+        ORDER BY b.created_at
+        LIMIT 200`,
+    )).rows;
+  } catch (err) {
+    logger.error('Finding stalled quote requests failed', { error: err instanceof Error ? err.message : 'Unknown' });
+    return 0;
+  }
+  for (const row of stalled) {
+    await reopenLapsedRequest(row.id, []);
+  }
+  return stalled.length;
 }
 
 interface ExpiredUnmatchedRow {
   id: string;
   customer_id: string;
+  booking_type: string;
 }
 
 async function expireUnmatchedBookings(): Promise<number> {
   const expiryHours = platformConfig.unmatchedBookingExpiryHours ?? 72;
 
+  await reconcileStalledQuoteRequests();
+
+  // D38: a quote request's clock restarts with each round
+  // (request_round_opened_at), a request under back-office review is not
+  // expired (critique question 19 default), and an expired quote request is
+  // recorded as 'expired_no_provider'. A fixed-price booking keeps its reason.
   const expired = await db.query<ExpiredUnmatchedRow>(
     `UPDATE bookings
-     SET status = 'cancelled_by_admin', updated_at = NOW()
+     SET status = 'cancelled_by_admin',
+         cancelled_at = NOW(),
+         cancellation_reason = CASE WHEN booking_type = 'quote_based'
+                                    THEN 'expired_no_provider' ELSE cancellation_reason END,
+         updated_at = NOW()
      WHERE status = 'requested'
        AND provider_id IS NULL
-       AND created_at < NOW() - INTERVAL '1 hour' * $1
-     RETURNING id, customer_id`,
+       AND request_ops_review_at IS NULL
+       AND COALESCE(request_round_opened_at, created_at) < NOW() - INTERVAL '1 hour' * $1
+     RETURNING id, customer_id, booking_type`,
     [expiryHours],
   );
 
   for (const booking of expired.rows) {
+    const isQuoteRequest = booking.booking_type === 'quote_based';
     try {
       await notificationService.createPushNotification({
         userId: booking.customer_id,
         type: 'booking_expired',
-        title: 'Booking Expired',
-        body: 'We were unable to find a provider for your booking. It has been cancelled. Please try booking again.',
+        title: isQuoteRequest ? 'Request closed' : 'Booking Expired',
+        body: isQuoteRequest
+          ? 'No pro could take your request in time, so it has been closed. You can post it again.'
+          : 'We were unable to find a provider for your booking. It has been cancelled. Please try booking again.',
         data: { bookingId: booking.id },
       });
     } catch (err) {
@@ -203,6 +300,16 @@ async function expireUnmatchedBookings(): Promise<number> {
         error: err instanceof Error ? err.message : 'Unknown',
       });
     }
+    if (isQuoteRequest) {
+      try {
+        await jobLeadsService.closeRequest(booking.id, 'expired');
+      } catch (err) {
+        logger.error('Closing an expired quote request failed', {
+          bookingId: booking.id,
+          error: err instanceof Error ? err.message : 'Unknown',
+        });
+      }
+    }
   }
 
   if (expired.rows.length > 0) {
@@ -210,6 +317,44 @@ async function expireUnmatchedBookings(): Promise<number> {
   }
 
   return expired.rows.length;
+}
+
+/**
+ * D38: the customer's one "still looking for a pro" notice, for a request
+ * with no live quote request_customer_still_looking_minutes after its round
+ * opened. The claim UPDATE sends it exactly once per request.
+ */
+async function notifyStillLooking(): Promise<number> {
+  const policy = await settingsService.getRequestPolicy();
+  const claimed = await jobLeadsService.claimStillLookingRequests(
+    policy.stillLookingMinutes,
+    platformConfig.unmatchedBookingExpiryHours ?? 72,
+  );
+  for (const row of claimed) {
+    await jobRequestEvents.stillLooking(row.customer_id, row.id);
+  }
+  return claimed.length;
+}
+
+/**
+ * D38 (critique M5): the fan-out after a request is posted or reopened runs
+ * after the commit and is lost if the process stops. Re-run it for open
+ * rounds the engine opened in the last hour that have no pushed invite
+ * (jobLeadsService.findRoundsNeedingFanOut says why each rule is there); the
+ * fan-out is idempotent. Silently reopened legacy rows and requests posted
+ * before the engine went live are never picked up.
+ */
+async function refanoutStaleRounds(): Promise<number> {
+  const stale = await jobLeadsService.findRoundsNeedingFanOut(platformConfig.unmatchedBookingExpiryHours ?? 72);
+  for (const row of stale) {
+    await jobRequestEvents.fanOutRequest(row.id, {
+      round: row.request_round,
+      reopened: row.request_round > 1
+        ? { declineReason: row.decline_reason, declinedAmount: row.declined_amount }
+        : undefined,
+    });
+  }
+  return stale.length;
 }
 
 async function checkNbiExpiry(): Promise<number> {
@@ -430,6 +575,12 @@ const schedulerWorker = new Worker(
       case 'expire-unmatched':
         results.expiredUnmatched = await expireUnmatchedBookings();
         break;
+      case 'request-still-looking':
+        results.stillLooking = await notifyStillLooking();
+        break;
+      case 'request-refanout':
+        results.refanout = await refanoutStaleRounds();
+        break;
       case 'nbi-check':
         results.notified = await checkNbiExpiry();
         break;
@@ -528,6 +679,10 @@ const schedulerWorker = new Worker(
         results.expiredUnmatched = await expireUnmatchedBookings();
         results.flagged = await detectNoShows();
         results.disputesEscalated = await disputeService.autoEscalateStaleDisputes();
+        // D38 request engine steps, after the existing ones so a failure here
+        // never holds them up.
+        results.stillLooking = await notifyStillLooking();
+        results.refanout = await refanoutStaleRounds();
         break;
       }
       default:
@@ -673,7 +828,7 @@ export async function initScheduledJobs(): Promise<void> {
     removeOnFail: 30,
   });
 
-  logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate every 5 min (all), booking offer sweep every 5 seconds, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
+  logger.info('Scheduled jobs initialized: auto-confirm/expire-quotes/no-show/dispute-escalate/request still-looking and re-fan-out every 5 min (all), booking offer sweep every 5 seconds, NBI check daily midnight PHT, bypass detection weekly Sunday midnight PHT, recurring bookings daily 6AM PHT, invoice generation 1st of month midnight PHT, overdue check daily midnight PHT, slot waitlist expiry daily 1AM PHT, data export processing every 10 min, account deletion processing daily 2AM PHT, suspicious IP detection every 5 min, security cleanup monthly 3AM PHT, quality score compute weekly 4AM PHT Monday, dispute escalation every 6 hours');
   logger.info('Provider application draft expiry scheduled every 5 minutes, at most 100 expired rows per attempt; uploaded objects and submitted evidence are not removed');
   logger.info('Email-link cleanup scheduled every 5 minutes: at most 100 proof expiries and 100 old request removals per attempt; verified identities and audits are retained');
   logger.info('The same email cleanup job also expires at most 100 sign-in proofs and removes at most 100 old sign-in requests; no new queue or process');

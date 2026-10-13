@@ -2,10 +2,15 @@
 // in a request. A written description alone is enough, and so is one photo
 // or one answered quick question. Before D38 a request needed 50+ characters
 // and at least 2 photos.
+// D38 Milestone 2 (package P2): a job request now stores the request-engine
+// columns of migration 183 and its fan-out records invites, so this file runs
+// on withRequestEngineDatabase (the same Milestone 1 fixture plus the real
+// migrations 183 and 184). The behaviour under test is unchanged.
 import { bookingIntegrationIt as it, customerA } from './helpers/booking-participant-postgres';
 import {
-  withJobRequestDatabase, marketplaceHttp, jobRequestBody, waitForLeadFanOut, quoteService,
+  marketplaceHttp, jobRequestBody, waitForLeadFanOut, quoteService,
 } from './helpers/job-request-postgres';
+import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
 
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -19,7 +24,7 @@ jest.mock('../src/services/notification.service', () => ({
 beforeEach(() => mockPush.mockClear());
 
 it('HA-REQ-3: a request with only a 10+ character description and no photos is accepted', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const response = await marketplaceHttp(customerA, 'customer')
       .jobRequest(jobRequestBody({ subcategoryId: quoteService, description: 'Aircon leaks' }));
 
@@ -33,7 +38,7 @@ it('HA-REQ-3: a request with only a 10+ character description and no photos is a
 }, 60000);
 
 it('HA-REQ-3: a request with only one photo and no description is accepted', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({
       subcategoryId: quoteService, description: undefined, jobPhotos: ['https://app.onservice.ph/uploads/job-request/a.jpg'],
     }));
@@ -48,7 +53,7 @@ it('HA-REQ-3: a request with only one photo and no description is accepted', asy
 }, 60000);
 
 it('HA-REQ-3: a request with only one answered quick question is accepted', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({
       subcategoryId: quoteService, description: '', intakeAnswers: { unit_count: 2 },
     }));
@@ -61,7 +66,7 @@ it('HA-REQ-3: a request with only one answered quick question is accepted', asyn
 }, 60000);
 
 it('HA-REQ-3: a budget range in centavos is saved as sent', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({
       subcategoryId: quoteService, budgetMin: 150000, budgetMax: 250000,
     }));

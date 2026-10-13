@@ -1,3 +1,10 @@
+// D38 Milestone 2 (package P2) update: after the unchanged expiry UPDATE, the
+// worker reads the provider together with the request's status (a provider
+// whose request was already cancelled gets no expiry notice, critique M12),
+// and then asks booking.service to reopen each request whose quotes lapsed
+// (reconcileRequestAfterQuoteLapse, covered on a real database by HA-M2-67
+// and HA-M2-302). This test still pins the bug: the worker honours each
+// quote's stored expires_at and never re-reads the expiry setting.
 type SchedulerProcessor = (job: { name: string }) => Promise<Record<string, unknown>>;
 
 let mockSchedulerProcessor: SchedulerProcessor | undefined;
@@ -5,6 +12,7 @@ const mockQueueAdd = jest.fn().mockResolvedValue(undefined);
 const mockDbQuery = jest.fn();
 const mockGetQuotePolicy = jest.fn().mockResolvedValue({ expiryHours: 1, maxPerBooking: 5 });
 const mockNotify = jest.fn().mockResolvedValue({ id: 'quote-expired-notification' });
+const mockReconcile = jest.fn().mockResolvedValue(null);
 
 jest.mock('bullmq', () => ({
   Queue: jest.fn().mockImplementation(() => ({
@@ -27,6 +35,9 @@ jest.mock('../src/services/settings.service', () => ({
 jest.mock('../src/services/notification.service', () => ({
   createPushNotification: (...args: unknown[]) => mockNotify(...args),
 }));
+jest.mock('../src/services/booking.service', () => ({
+  reconcileRequestAfterQuoteLapse: (...args: unknown[]) => mockReconcile(...args),
+}));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
@@ -39,7 +50,10 @@ it('Bug UX-993 — quote expiry worker honors each submitted quote snapshot inst
       rows: [{ id: 'quote-1', booking_id: 'booking-1', provider_id: 'provider-1' }],
       rowCount: 1,
     })
-    .mockResolvedValueOnce({ rows: [{ user_id: 'provider-user-1' }], rowCount: 1 });
+    .mockResolvedValueOnce({
+      rows: [{ user_id: 'provider-user-1', provider_name: 'Synthetic Aircon Team A', booking_status: 'quoted' }],
+      rowCount: 1,
+    });
 
   expect(mockSchedulerProcessor).toBeDefined();
   await expect(mockSchedulerProcessor!({ name: 'expire-quotes' })).resolves.toEqual({ expired: 1 });
@@ -55,5 +69,6 @@ it('Bug UX-993 — quote expiry worker honors each submitted quote snapshot inst
     type: 'quote_expired',
     data: { bookingId: 'booking-1', quoteId: 'quote-1' },
   }));
+  expect(mockReconcile).toHaveBeenCalledWith('booking-1');
   expect(mockQueueAdd).not.toHaveBeenCalled();
 });

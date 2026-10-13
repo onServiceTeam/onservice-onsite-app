@@ -3,10 +3,15 @@
 // is refused with a clear message, and the D38 photo and budget bounds hold.
 // One rule per test: a reversed budget and a negative budget are refused; a 0
 // budget (sent by APKs up to 1.0.2) is read as no budget.
+// D38 Milestone 2 (package P2): a job request now stores the request-engine
+// columns of migration 183 and its fan-out records invites, so this file runs
+// on withRequestEngineDatabase (the same Milestone 1 fixture plus the real
+// migrations 183 and 184). The behaviour under test is unchanged.
 import { bookingIntegrationIt as it, customerA } from './helpers/booking-participant-postgres';
 import {
-  withJobRequestDatabase, marketplaceHttp, jobRequestBody, quoteService, waitForLeadFanOut,
+  marketplaceHttp, jobRequestBody, quoteService, waitForLeadFanOut,
 } from './helpers/job-request-postgres';
+import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
 import type { Pool } from 'pg';
 import { JOB_REQUEST_EMPTY_MESSAGE } from '../src/validators/booking.validators';
 
@@ -26,7 +31,7 @@ async function bookingCount(database: Pool): Promise<number> {
 }
 
 it('HA-REQ-4: an empty request (no description, no photo, no answers) is refused with a clear message and nothing is saved', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = await bookingCount(database);
 
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({
@@ -44,7 +49,7 @@ it('HA-REQ-4: an empty request (no description, no photo, no answers) is refused
 }, 60000);
 
 it('HA-REQ-4: 9 letters padded with spaces and a blank answer still count as an empty request', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = await bookingCount(database);
 
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({
@@ -58,7 +63,7 @@ it('HA-REQ-4: 9 letters padded with spaces and a blank answer still count as an 
 }, 60000);
 
 it('HA-REQ-4: a request with 11 photos is refused (the server limit stays 10 for older APKs)', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = await bookingCount(database);
     const photos = Array.from({ length: 11 }, (_, i) => `https://app.onservice.ph/uploads/job-request/${i}.jpg`);
 
@@ -74,7 +79,7 @@ it('HA-REQ-4: a request with 11 photos is refused (the server limit stays 10 for
 }, 60000);
 
 it('HA-REQ-4: a budget whose maximum is below its minimum is refused and nothing is saved', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = await bookingCount(database);
 
     const response = await marketplaceHttp(customerA, 'customer')
@@ -89,7 +94,7 @@ it('HA-REQ-4: a budget whose maximum is below its minimum is refused and nothing
 }, 60000);
 
 it('HA-REQ-4: a negative budget is refused and nothing is saved', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = await bookingCount(database);
 
     const response = await marketplaceHttp(customerA, 'customer')
@@ -105,7 +110,7 @@ it('HA-REQ-4: a negative budget is refused and nothing is saved', async () => {
 // Refusing it would break those requests; a 0 never meant a real price, so it
 // is read as "no budget" and is never stored.
 it('HA-REQ-4: a zero budget from an older app is saved as no budget instead of being refused', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const response = await marketplaceHttp(customerA, 'customer')
       .jobRequest(jobRequestBody({ subcategoryId: quoteService, budgetMin: 0, budgetMax: 300000 }));
 

@@ -1,36 +1,37 @@
-const clientQueryMock = jest.fn();
-const getQuotePolicyMock = jest.fn();
+// Bug UX-255: quote admission must enforce the live admin limit, read at
+// submit time, not a value baked into code.
+//
+// D38 Milestone 2 (package P2) rewrite. The limit is now
+// request_max_open_quotes and it counts LIVE quotes (submitted and not
+// expired); the old max_quotes_per_booking counted every quote ever sent and
+// is retired (HA-M2-12). With the setting at 2, a third provider is refused
+// with "maximum of 2 quotes" and nothing of theirs is stored. Before this
+// rewrite the test mocked every SQL call in a fixed order; it now runs quote
+// admission over real rows on the guarded PostgreSQL fixture.
+import { bookingIntegrationIt as it } from './helpers/booking-participant-postgres';
+import {
+  withRequestFlowDatabase, flowHttp, insertQuoteRequest, upsertPlatformSetting, addProvider,
+  providerUserA, providerUserB, providerC, providerUserC,
+} from './helpers/request-flow-postgres';
 
-jest.mock('../src/models/db', () => ({
-  db: {
-    query: jest.fn(),
-    transaction: (callback: (client: { query: typeof clientQueryMock }) => unknown) => callback({ query: clientQueryMock }),
-  },
-}));
-jest.mock('../src/services/settings.service', () => ({
-  getQuotePolicy: (...args: unknown[]) => getQuotePolicyMock(...args),
-}));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-import { submitQuote } from '../src/services/booking.service';
-
 it('Bug UX-255 — quote admission enforces the live maximum-per-booking setting', async () => {
-  getQuotePolicyMock.mockResolvedValueOnce({ expiryHours: 48, maxPerBooking: 2 });
-  clientQueryMock
-    .mockResolvedValueOnce({ rows: [{ id: 'provider-1' }] })
-    .mockResolvedValueOnce({ rows: [{
-      id: 'booking-1', booking_type: 'quote_based', status: 'quoted',
-      category_id: 'category-1', latitude: null, longitude: null,
-    }] })
-    .mockResolvedValueOnce({ rows: [{ eligible: true }] })
-    .mockResolvedValueOnce({ rows: [{ count: '0' }] })
-    .mockResolvedValueOnce({ rows: [{ count: '2' }] });
+  await withRequestFlowDatabase(async database => {
+    await upsertPlatformSetting(database, 'request_max_open_quotes', '2');
+    await addProvider(database, { providerId: providerC, userId: providerUserC });
+    const bookingId = await insertQuoteRequest(database);
+    expect((await flowHttp(providerUserA, 'provider').quote(bookingId)).status).toBe(201);
+    expect((await flowHttp(providerUserB, 'provider').quote(bookingId)).status).toBe(201);
 
-  await expect(
-    submitQuote('booking-1', 'provider-user-1', 100_000, 'Quoted repair'),
-  ).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/maximum of 2 quotes/) });
-  expect(getQuotePolicyMock).toHaveBeenCalledTimes(1);
-  expect(clientQueryMock.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO booking_quotes'))).toBe(false);
-});
+    const third = await flowHttp(providerUserC, 'provider').quote(bookingId);
+
+    expect(third.status).toBe(409);
+    expect(third.body.error.code).toBe('REQUEST_TAKEN');
+    expect(third.body.error.message).toMatch(/maximum of 2 quotes/);
+    expect((await database.query(`SELECT COUNT(*)::int AS n FROM booking_quotes WHERE booking_id = $1 AND provider_id = $2`,
+      [bookingId, providerC])).rows[0].n).toBe(0);
+  });
+}, 90000);

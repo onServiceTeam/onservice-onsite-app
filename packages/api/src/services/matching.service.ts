@@ -21,7 +21,10 @@ import * as settingsService from './settings.service';
  * suspension immediately removes a provider from dispatch.
  */
 
-interface MatchableProvider {
+// D38: exported (with rankCandidates) so the quote-request fan-out in
+// job-leads.service ranks providers with exactly the same rating floor,
+// reliability and score as fixed-price dispatch. No behaviour change here.
+export interface MatchableProvider {
   provider_id: string;
   user_id: string;
   business_name: string;
@@ -195,7 +198,7 @@ async function loadAcceptanceRates(providerIds: string[]): Promise<Map<string, n
  * left untouched (it is the dispatch hot path); all quality logic lives here
  * in plain, testable code operating on the returned rows.
  */
-async function rankCandidates(rows: MatchableProvider[]): Promise<ScoredProvider[]> {
+export async function rankCandidates(rows: MatchableProvider[]): Promise<ScoredProvider[]> {
   if (rows.length === 0) return [];
   const { floor, minReviews } = await loadRatingFloor();
   const eligible = rows.filter(

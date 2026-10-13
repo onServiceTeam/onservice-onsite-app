@@ -98,9 +98,31 @@ export const updateBookingStatusSchema = z.object({
   longitude: z.number().min(116, 'Must be within Philippines').max(127.5, 'Must be within Philippines').optional(),
 });
 
+/** A real calendar date written YYYY-MM-DD (2026-02-30 is refused, not rolled over). */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+/** "What's included" is capped at 300 characters on a D38 quote (critique L14, brief). */
+export const QUOTE_INCLUDED_MAX_CHARS = 300;
+
+// D38 (merged plan 2.3): a quote now carries the earliest date and time
+// window, optional "could change if" text, the accept-the-budget choice and
+// the provider app's idempotency key. A request without earliestDate (APK
+// 1.0.3 and older) is answered with APP_UPDATE_REQUIRED by the route before
+// this schema runs. quotedPrice may be left out only with acceptBudget (the
+// server prices the quote at the customer's budget_max). An itemized quote
+// cannot also accept the budget.
 export const submitQuoteSchema = z.object({
-  quotedPrice: z.number().int().min(platformConfig.minimumQuoteAmount, `Minimum quote is ${formatPHP(platformConfig.minimumQuoteAmount)}`),
+  quotedPrice: z.number().int().min(platformConfig.minimumQuoteAmount, `Minimum quote is ${formatPHP(platformConfig.minimumQuoteAmount)}`).optional(),
   description: z.string().trim().min(10).max(2000),
+  couldChangeIf: z.string().trim().max(QUOTE_INCLUDED_MAX_CHARS, '"Could change if" must be 300 characters or fewer').optional(),
+  earliestDate: z.string().refine(isCalendarDate, 'Earliest date must be a real date written YYYY-MM-DD'),
+  earliestTimeWindow: z.enum(['morning', 'afternoon', 'evening', 'asap']),
+  acceptBudget: z.boolean().optional(),
+  clientRequestId: z.string().uuid('clientRequestId must be a UUID').optional(),
   estimatedDurationMinutes: z.number().int().min(15).max(1440).optional(),
   estimatedDays: z.number().int().min(1).max(365).optional(),
   notes: z.string().max(2000).optional(),
@@ -112,6 +134,33 @@ export const submitQuoteSchema = z.object({
     unitPrice: z.number().int().min(1),
     itemType: z.enum(['labor', 'materials', 'equipment', 'other']).optional(),
   }).strict()).min(1).max(20).optional(),
+}).strict().superRefine((value, context) => {
+  if (value.description.length > QUOTE_INCLUDED_MAX_CHARS) {
+    context.addIssue({
+      code: 'custom',
+      path: ['description'],
+      message: `What's included must be ${QUOTE_INCLUDED_MAX_CHARS} characters or fewer`,
+    });
+  }
+  if (value.acceptBudget !== true && value.quotedPrice === undefined) {
+    context.addIssue({ code: 'custom', path: ['quotedPrice'], message: 'Enter your price for this job' });
+  }
+  if (value.acceptBudget === true && value.lineItems !== undefined) {
+    context.addIssue({
+      code: 'custom',
+      path: ['acceptBudget'],
+      message: "Accept the customer's budget or send an itemized price, not both",
+    });
+  }
+});
+
+// D38: declining a quote needs a reason (D38, merged plan conflict 6). The
+// note is optional, kept for the back office and never shown to providers.
+// A request without a reason (APK 1.0.3 and older) is answered with
+// APP_UPDATE_REQUIRED by the route before this schema runs.
+export const declineQuoteSchema = z.object({
+  reason: z.enum(['too_expensive', 'timing', 'changed_mind', 'other']),
+  note: z.string().trim().max(300, 'The note must be 300 characters or fewer').optional(),
 }).strict();
 
 // D38 (Ken, 2026-10-13): request-first booking. "Describe your job" is the
@@ -178,7 +227,18 @@ export const createJobRequestSchema = z.object({
   // keyed by field_key. Validated against the field set on the client; stored
   // as-is (a bounded JSON object) for the provider to read.
   intakeAnswers: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+  // D38: "Not sure, let the pro quote". Refused together with a budget.
+  budgetUnknown: z.boolean().optional(),
+  // D38 (critique M9): the app's idempotency key for this request.
+  clientRequestId: z.string().uuid('clientRequestId must be a UUID').optional(),
 }).superRefine((data, context) => {
+  if (data.budgetUnknown === true && (data.budgetMin != null || data.budgetMax != null)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['budgetUnknown'],
+      message: 'Choose a budget or "Not sure", not both',
+    });
+  }
   if (data.budgetMin != null && data.budgetMax != null && data.budgetMax < data.budgetMin) {
     context.addIssue({
       code: 'custom',

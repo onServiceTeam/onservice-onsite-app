@@ -1,7 +1,7 @@
 import { db } from '../models/db';
 import { BookingStatus, canTransition, VALID_TRANSITIONS } from '../types/booking.types';
 import { platformConfig } from '../config/platform.config';
-import { createAppError } from '../middleware/error.middleware';
+import { createAppError, type AppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as pricingService from './pricing.service';
 import * as slotWaitlistService from './slot-waitlist.service';
@@ -18,6 +18,10 @@ import * as financialTermsService from './booking-financial-terms.service';
 import * as escrowService from './escrow.service';
 import * as bookingCancelService from './booking-cancel.service';
 import * as businessInvoiceControlService from './business-invoice-control.service';
+import * as jobLeadsService from './job-leads.service';
+import * as quoteSlot from './booking/quote-slot';
+import { providerEligibleForRequestSql } from './booking/request-eligibility';
+import { liveQuoteCountSql, requestStageSql } from './booking/request-stage';
 
 interface BookingRow {
   id: string;
@@ -59,6 +63,17 @@ interface BookingRow {
   // query reads SELECT *, and the UX-302 tests fail if the timer falls back
   // to updated_at while the marker is set.
   work_started_at?: Date | null;
+  // D38 quote-request columns (migration 183). Optional for the same reason.
+  budget_min?: number | null;
+  budget_max?: number | null;
+  budget_unknown?: boolean;
+  request_round?: number;
+  request_round_opened_at?: Date | null;
+  request_declined_rounds?: number;
+  request_ops_review_at?: Date | null;
+  request_ops_review_reason?: string | null;
+  scheduled_window?: string | null;
+  client_request_id?: string | null;
 }
 
 interface CountRow {
@@ -662,6 +677,9 @@ export async function listBookings(
   // BUG-PHASE77-01 — also join the customer's user row so list
   // responses include `customer_name`. Provider-side dashboard +
   // jobs list need it for the customer-name column on each card.
+  // D38: quote requests also carry their stage and live-quote count, from
+  // the same SQL as GET /bookings/:id/request-status, so the Bookings tab can
+  // say "Waiting for pros" or "Quote to review" instead of a 0 price.
   const result = await db.query<BookingRow>(
     `SELECT b.*,
        c.name AS category_name,
@@ -669,7 +687,9 @@ export async function listBookings(
        CASE WHEN pu.id IS NOT NULL
          THEN CONCAT(pu.first_name, ' ', pu.last_name)
          ELSE NULL END AS provider_name,
-       CONCAT(cu.first_name, ' ', cu.last_name) AS customer_name
+       CONCAT(cu.first_name, ' ', cu.last_name) AS customer_name,
+       CASE WHEN b.booking_type = 'quote_based' THEN ${requestStageSql('b')} END AS request_stage,
+       CASE WHEN b.booking_type = 'quote_based' THEN ${liveQuoteCountSql('b')} END AS open_quote_count
      FROM bookings b
      LEFT JOIN providers p ON b.provider_id = p.id
      LEFT JOIN users pu ON p.user_id = pu.id
@@ -882,6 +902,24 @@ export async function transitionBookingStatus(
   }
 
   kickSlotWaitlistAfterCancellation(updated, bookingId, newStatus);
+
+  // D38 (critique M12): a cancelled quote request leaves every provider's
+  // Requests list now, and providers holding a live quote are told. After the
+  // commit and best effort: the cancellation itself already stands.
+  if (
+    bookingCancelService.isCancellationTarget(newStatus)
+    && updated.booking_type === 'quote_based'
+    && (currentStatus === 'requested' || currentStatus === 'quoted')
+  ) {
+    try {
+      await jobLeadsService.closeRequest(bookingId, 'cancelled');
+    } catch (err) {
+      logger.warn('Closing a cancelled quote request failed after commit', {
+        bookingId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   return updated;
 }
@@ -1139,6 +1177,14 @@ interface QuoteRow {
   is_accepted: boolean;
   expires_at: Date;
   created_at: Date;
+  // D38 (migration 183). earliest_date is always YYYY-MM-DD text here.
+  status?: string;
+  round?: number;
+  could_change_if?: string | null;
+  earliest_date?: string | null;
+  earliest_time_window?: string | null;
+  accepted_customer_budget?: boolean;
+  client_request_id?: string | null;
 }
 
 interface QueryClient {
@@ -1148,93 +1194,227 @@ interface QueryClient {
   ) => Promise<import('pg').QueryResult<T>>;
 }
 
+function requestError(message: string, statusCode: number, code: string): AppError {
+  return Object.assign(createAppError(message, statusCode), { code });
+}
+
+/**
+ * A quote row as the provider who sent it may see it: earliest_date as
+ * YYYY-MM-DD text (node-pg turns a DATE into a Date at local midnight, which
+ * would shift the calendar day when it is serialised, so every quote read
+ * selects the text form alongside), and never the customer's decline note,
+ * which may hold contact details (merged plan 2.3). The quote routes return
+ * this row to the provider, including a replay after the customer declined.
+ */
+function normalizeQuoteRow(
+  row: QuoteRow & { earliest_date_text?: string | null; decline_note?: string | null },
+): QuoteRow {
+  const { earliest_date_text: earliestDateText, decline_note: _declineNote, ...rest } = row;
+  return { ...rest, earliest_date: earliestDateText ?? null };
+}
+
+/** D38 quote submission (merged plan 2.3). quotedPrice is in centavos. */
+export interface QuoteSubmission {
+  /** Required unless acceptBudget (the price is then the customer's budget_max). */
+  quotedPrice?: number;
+  /** "What's included". */
+  description: string;
+  estimatedDurationMinutes?: number;
+  /** Earliest start date, YYYY-MM-DD in the platform time zone. */
+  earliestDate: string;
+  earliestTimeWindow: quoteSlot.QuoteTimeWindow;
+  couldChangeIf?: string;
+  acceptBudget?: boolean;
+  /** The provider app's idempotency key: a retry with the same key returns the first quote. */
+  clientRequestId?: string;
+}
+
+/** The itemized fields submitStructuredQuote adds to its response (the existing shape). */
+interface StructuredQuoteExtras {
+  laborAmount: number;
+  materialsAmount: number;
+  estimatedDays: number | null;
+  notes: string;
+  lineItems: LineItemInput[];
+}
+
+/** What a quote submission did, for the route's response and its after-commit events. */
+export interface QuoteAdmission {
+  quote: QuoteRow & Partial<StructuredQuoteExtras>;
+  /** True when this was a retry of an already stored quote: nothing was written. */
+  replayed: boolean;
+  round: number;
+  customerId: string;
+  serviceName: string;
+  providerName: string;
+  /** True when this quote filled the request's last open-quote place. */
+  capReached: boolean;
+  /** Invited providers whose open invites became 'taken' (they get job_request:closed). */
+  takenProviderUserIds: string[];
+}
+
+function requestTakenError(maxOpenQuotes: number): AppError {
+  return requestError(
+    maxOpenQuotes === 1
+      ? 'Another pro already responded to this request.'
+      : `This request already has the maximum of ${maxOpenQuotes} quotes.`,
+    409,
+    'REQUEST_TAKEN',
+  );
+}
+
+/**
+ * D38 quote admission (merged plan P2 algorithm 1, critique L1, L2, M2, H1),
+ * inside the caller's transaction. Order:
+ *   1. the provider (approved);
+ *   2. the request row FOR UPDATE: the one lock that orders admission,
+ *      decline, withdrawal, acceptance and the lapse reconcile, so with
+ *      request_max_open_quotes = 1 exactly one quote is admitted;
+ *   3. replay: the same provider sending the same clientRequestId gets the
+ *      stored quote back, before any status check (critique L2);
+ *   4. type and status (409 REQUEST_CLOSED), one quote per provider per
+ *      request (409 QUOTE_ALREADY_SUBMITTED; the unique index backstops it);
+ *   5. eligibility through the shared providerEligibleForRequestSql;
+ *   6. live quotes (submitted and unexpired) under the cap, else 409
+ *      REQUEST_TAKEN. Declined, withdrawn and expired quotes do not count;
+ *   7. "accept the customer's budget": the price becomes budget_max, refused
+ *      when there is no usable budget (400 ACCEPT_BUDGET_UNAVAILABLE);
+ *   8. the slot on the database clock (400 QUOTE_SLOT_INVALID);
+ *   9. insert, with expires_at = LEAST(now + quote_expiry_hours, slot end - lead);
+ *  10. the provider's invite becomes 'quoted' (an 'inbox' invite if new);
+ *  11. the request becomes 'quoted';
+ *  12. at the cap, every open invite becomes 'taken'.
+ */
 async function submitQuoteInTransaction(
   client: QueryClient,
   bookingId: string,
   providerUserId: string,
-  quotedPrice: number,
-  description: string,
+  input: QuoteSubmission,
   quotePolicy: settingsService.QuotePolicy,
-  estimatedDurationMinutes?: number,
-): Promise<QuoteRow> {
-  interface ProviderRow { id: string }
-
-  const providerResult = await client.query<ProviderRow>(
+  requestPolicy: settingsService.RequestPolicy,
+): Promise<QuoteAdmission> {
+  const providerResult = await client.query<{ id: string }>(
     `SELECT id FROM providers WHERE user_id = $1 AND status = 'approved'`,
     [providerUserId],
   );
-
-  if (providerResult.rows.length === 0) {
+  const providerId = providerResult.rows[0]?.id;
+  if (!providerId) {
     throw createAppError('Provider profile not found or not approved.', 403);
   }
 
-  const providerId = providerResult.rows[0]!.id;
-  // Lock the booking while checking state + quote counts so simultaneous
-  // providers cannot both pass the final-slot check.
   const bookingResult = await client.query<BookingRow>(
     `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
     [bookingId],
   );
   const booking = bookingResult.rows[0];
   if (!booking) throw createAppError('Booking not found.', 404);
+
+  const priorResult = await client.query<QuoteRow & { earliest_date_text: string | null }>(
+    `SELECT bq.*, to_char(bq.earliest_date, 'YYYY-MM-DD') AS earliest_date_text
+       FROM booking_quotes bq
+      WHERE bq.booking_id = $1 AND bq.provider_id = $2`,
+    [bookingId, providerId],
+  );
+  const prior = priorResult.rows[0];
+  if (prior && input.clientRequestId && prior.client_request_id === input.clientRequestId) {
+    return {
+      quote: normalizeQuoteRow(prior),
+      replayed: true,
+      round: Number(prior.round ?? 1),
+      customerId: booking.customer_id,
+      serviceName: '',
+      providerName: '',
+      capReached: false,
+      takenProviderUserIds: [],
+    };
+  }
+
   if (booking.booking_type !== 'quote_based') {
     throw createAppError('This booking does not accept quotes.', 400);
   }
   if (booking.status !== 'requested' && booking.status !== 'quoted') {
-    throw createAppError('This booking is no longer accepting quotes.', 409);
+    throw requestError('This request is no longer accepting quotes.', 409, 'REQUEST_CLOSED');
+  }
+  if (prior) {
+    throw requestError('You have already sent a quote for this request.', 409, 'QUOTE_ALREADY_SUBMITTED');
+  }
+  if (booking.customer_id === providerUserId) {
+    throw createAppError('You cannot send a quote for your own request.', 403);
   }
 
-  // Enforce the same active-category + service-radius boundary used by the
-  // provider Leads list. Before this check, any approved provider who learned
-  // a quote-booking UUID could bypass lead discovery and submit directly.
   const eligibility = await client.query<{ eligible: boolean }>(
     `SELECT EXISTS (
-       SELECT 1
-         FROM providers p
-         JOIN provider_services ps ON ps.provider_id = p.id AND ps.is_active = TRUE
-         LEFT JOIN service_subcategories ssc ON ssc.id = ps.subcategory_id
-        WHERE p.id = $1
-          AND (ps.category_id = $2 OR ssc.category_id = $2)
-          AND (
-            $3::numeric IS NULL OR $4::numeric IS NULL
-            OR p.latitude IS NULL OR p.longitude IS NULL
-            OR (6371 * acos(LEAST(1.0, GREATEST(-1.0,
-              cos(radians($3::numeric)) * cos(radians(p.latitude::numeric))
-                * cos(radians(p.longitude::numeric) - radians($4::numeric))
-              + sin(radians($3::numeric)) * sin(radians(p.latitude::numeric))
-            )))) <= COALESCE(p.service_radius_km, 1000000)
-          )
+       SELECT 1 FROM bookings b JOIN providers p ON p.id = $2
+        WHERE b.id = $1 AND ${providerEligibleForRequestSql()}
      ) AS eligible`,
-    [providerId, booking.category_id, booking.latitude, booking.longitude],
+    [bookingId, providerId],
   );
   if (eligibility.rows[0]?.eligible !== true) {
     throw createAppError('This request is outside your active services or service radius.', 403);
   }
 
-  interface QuoteCountRow { count: string }
-  const existingQuote = await client.query<QuoteCountRow>(
-    `SELECT COUNT(*)::text as count FROM booking_quotes
-     WHERE booking_id = $1 AND provider_id = $2`,
-    [bookingId, providerId],
-  );
-  if (Number(existingQuote.rows[0]?.count) > 0) {
-    throw createAppError('You have already submitted a quote for this booking.', 409);
-  }
-
-  const totalQuotes = await client.query<QuoteCountRow>(
-    `SELECT COUNT(*)::text as count FROM booking_quotes WHERE booking_id = $1`,
+  const liveResult = await client.query<{ live: number }>(
+    `SELECT COUNT(*)::int AS live FROM booking_quotes
+      WHERE booking_id = $1 AND status = 'submitted' AND expires_at > NOW()`,
     [bookingId],
   );
-  if (Number(totalQuotes.rows[0]?.count) >= quotePolicy.maxPerBooking) {
-    throw createAppError(`This booking already has the maximum of ${quotePolicy.maxPerBooking} quotes.`, 409);
+  const liveBefore = Number(liveResult.rows[0]?.live ?? 0);
+  if (liveBefore >= requestPolicy.maxOpenQuotes) {
+    throw requestTakenError(requestPolicy.maxOpenQuotes);
   }
 
-  const expiresAt = new Date(Date.now() + quotePolicy.expiryHours * 60 * 60 * 1000);
-  const result = await client.query<QuoteRow>(
-    `INSERT INTO booking_quotes (booking_id, provider_id, quoted_price, description, estimated_duration_minutes, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING *`,
-    [bookingId, providerId, quotedPrice, description, estimatedDurationMinutes ?? null, expiresAt],
+  let quotedPrice: number;
+  if (input.acceptBudget) {
+    const budgetMax = booking.budget_max == null ? null : Number(booking.budget_max);
+    if (booking.budget_unknown || budgetMax === null || budgetMax < platformConfig.minimumQuoteAmount) {
+      throw requestError(
+        'This customer has not set a budget you can accept. Enter your price instead.',
+        400,
+        'ACCEPT_BUDGET_UNAVAILABLE',
+      );
+    }
+    if (input.quotedPrice !== undefined && input.quotedPrice !== budgetMax) {
+      throw requestError(
+        'When you accept the customer\'s budget, the price must be the top of their budget.',
+        400,
+        'ACCEPT_BUDGET_PRICE_MISMATCH',
+      );
+    }
+    quotedPrice = budgetMax;
+  } else {
+    if (input.quotedPrice === undefined) {
+      throw createAppError('Enter your price for this job.', 400);
+    }
+    quotedPrice = input.quotedPrice;
+  }
+
+  const slotTimes = await quoteSlot.readQuoteSlotTimes(client, input.earliestDate, input.earliestTimeWindow);
+  quoteSlot.assertQuoteSlotAdmissible(slotTimes, input.earliestTimeWindow, requestPolicy.slotLeadMinutes);
+  const expiresAt = quoteSlot.quoteExpiresAt(slotTimes, quotePolicy.expiryHours, requestPolicy.slotLeadMinutes);
+  const round = Number(booking.request_round ?? 1);
+  const couldChangeIf = input.couldChangeIf?.trim() ? input.couldChangeIf.trim() : null;
+
+  // The six original columns keep positions $1-$6; the D38 columns follow.
+  const result = await client.query<QuoteRow & { earliest_date_text: string | null }>(
+    `INSERT INTO booking_quotes (booking_id, provider_id, quoted_price, description, estimated_duration_minutes, expires_at,
+                                 round, could_change_if, earliest_date, earliest_time_window,
+                                 accepted_customer_budget, client_request_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     RETURNING *, to_char(earliest_date, 'YYYY-MM-DD') AS earliest_date_text`,
+    [
+      bookingId, providerId, quotedPrice, input.description, input.estimatedDurationMinutes ?? null, expiresAt,
+      round, couldChangeIf, input.earliestDate, input.earliestTimeWindow,
+      input.acceptBudget === true, input.clientRequestId ?? null,
+    ],
+  );
+  const quote = normalizeQuoteRow(result.rows[0]!);
+
+  await client.query(
+    `INSERT INTO job_request_invites (booking_id, provider_id, round, source, status, responded_at, quote_id)
+     VALUES ($1, $2, $3, 'inbox', 'quoted', NOW(), $4)
+     ON CONFLICT (booking_id, provider_id, round) DO UPDATE
+       SET status = 'quoted', responded_at = NOW(), quote_id = EXCLUDED.quote_id, updated_at = NOW()`,
+    [bookingId, providerId, round, quote.id],
   );
 
   if (booking.status === 'requested') {
@@ -1244,32 +1424,56 @@ async function submitQuoteInTransaction(
     );
   }
 
-  return result.rows[0]!;
+  const capReached = liveBefore + 1 >= requestPolicy.maxOpenQuotes;
+  let takenProviderUserIds: string[] = [];
+  if (capReached) {
+    const taken = await client.query<{ user_id: string }>(
+      `UPDATE job_request_invites jri
+          SET status = 'taken', closed_at = NOW(), updated_at = NOW()
+         FROM providers p
+        WHERE jri.booking_id = $1 AND jri.status IN ('sent', 'viewed') AND p.id = jri.provider_id
+        RETURNING p.user_id`,
+      [bookingId],
+    );
+    takenProviderUserIds = [...new Set(taken.rows.map((row) => row.user_id))];
+  }
+
+  const names = await requestNames(client, bookingId, providerId);
+  return {
+    quote,
+    replayed: false,
+    round,
+    customerId: booking.customer_id,
+    serviceName: names.serviceName,
+    providerName: names.providerName,
+    capReached,
+    takenProviderUserIds,
+  };
 }
 
 export async function submitQuote(
   bookingId: string,
   providerUserId: string,
-  quotedPrice: number,
-  description: string,
-  estimatedDurationMinutes?: number,
-): Promise<QuoteRow> {
-  const quotePolicy = await settingsService.getQuotePolicy();
-  const quote = await db.transaction((client) => submitQuoteInTransaction(
+  input: QuoteSubmission,
+): Promise<QuoteAdmission> {
+  const [quotePolicy, requestPolicy] = await Promise.all([
+    settingsService.getQuotePolicy(),
+    settingsService.getRequestPolicy(),
+  ]);
+  const admission = await db.transaction((client) => submitQuoteInTransaction(
     client,
     bookingId,
     providerUserId,
-    quotedPrice,
-    description,
+    input,
     quotePolicy,
-    estimatedDurationMinutes,
+    requestPolicy,
   ));
-  logger.info('Quote submitted', {
+  logger.info(admission.replayed ? 'Quote submission replayed' : 'Quote submitted', {
     bookingId,
-    providerId: quote.provider_id,
-    quotedPrice: quote.quoted_price,
+    providerId: admission.quote.provider_id,
+    quotedPrice: admission.quote.quoted_price,
   });
-  return quote;
+  return admission;
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -1287,16 +1491,20 @@ interface LineItemInput {
 export async function submitStructuredQuote(
   bookingId: string,
   providerUserId: string,
-  data: {
-    quotedPrice: number;
-    description: string;
-    estimatedDurationMinutes?: number;
+  data: QuoteSubmission & {
     estimatedDays?: number;
     notes?: string;
     portfolioPhotos?: string[];
     lineItems?: LineItemInput[];
   },
-): Promise<Record<string, unknown>> {
+): Promise<QuoteAdmission> {
+  if (data.acceptBudget) {
+    throw requestError(
+      'Accept the customer\'s budget or send an itemized price, not both.',
+      400,
+      'ACCEPT_BUDGET_UNAVAILABLE',
+    );
+  }
   const lineItems = data.lineItems ?? [];
   const canonicalTotal = lineItems.reduce(
     (sum, item) => sum + Math.round(item.quantity * item.unitPrice),
@@ -1311,18 +1519,21 @@ export async function submitStructuredQuote(
   const materialsAmount = lineItems
     .filter(i => i.itemType === 'materials')
     .reduce((s, i) => s + Math.round(i.quantity * i.unitPrice), 0);
-  const quotePolicy = await settingsService.getQuotePolicy();
+  const [quotePolicy, requestPolicy] = await Promise.all([
+    settingsService.getQuotePolicy(),
+    settingsService.getRequestPolicy(),
+  ]);
 
-  const quote = await db.transaction(async (client) => {
-    const createdQuote = await submitQuoteInTransaction(
+  const admission = await db.transaction(async (client) => {
+    const created = await submitQuoteInTransaction(
       client,
       bookingId,
       providerUserId,
-      canonicalTotal,
-      data.description,
+      { ...data, quotedPrice: canonicalTotal, acceptBudget: false },
       quotePolicy,
-      data.estimatedDurationMinutes,
+      requestPolicy,
     );
+    if (created.replayed) return created;
 
     await client.query(
       `UPDATE booking_quotes
@@ -1330,7 +1541,7 @@ export async function submitStructuredQuote(
            notes = $5, portfolio_photos = $6, updated_at = NOW()
        WHERE id = $1`,
       [
-        createdQuote.id,
+        created.quote.id,
         laborAmount,
         materialsAmount,
         data.estimatedDays ?? null,
@@ -1345,25 +1556,29 @@ export async function submitStructuredQuote(
     for (const item of lineItems) {
       const lineTotal = Math.round(item.quantity * item.unitPrice);
       placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
-      values.push(createdQuote.id, item.description, item.quantity, item.unit, item.unitPrice, lineTotal, item.itemType ?? 'labor');
+      values.push(created.quote.id, item.description, item.quantity, item.unit, item.unitPrice, lineTotal, item.itemType ?? 'labor');
     }
     await client.query(
       `INSERT INTO quote_line_items (quote_id, description, quantity, unit, unit_price, line_total, item_type)
        VALUES ${placeholders.join(', ')}`,
       values,
     );
-    return createdQuote;
+    return created;
   });
 
-  logger.info('Structured quote submitted', { bookingId, quoteId: quote.id, quotedPrice: canonicalTotal });
+  if (admission.replayed) return admission;
+  logger.info('Structured quote submitted', { bookingId, quoteId: admission.quote.id, quotedPrice: canonicalTotal });
   return {
-    ...quote,
-    quoted_price: canonicalTotal,
-    laborAmount,
-    materialsAmount,
-    estimatedDays: data.estimatedDays ?? null,
-    notes: data.notes ?? '',
-    lineItems,
+    ...admission,
+    quote: {
+      ...admission.quote,
+      quoted_price: canonicalTotal,
+      laborAmount,
+      materialsAmount,
+      estimatedDays: data.estimatedDays ?? null,
+      notes: data.notes ?? '',
+      lineItems,
+    },
   };
 }
 
@@ -1378,6 +1593,18 @@ interface QuoteDetailRow extends QuoteRow {
   provider_name?: string;
   provider_rating?: string;
   provider_total_jobs?: number;
+  // D38 quote-card fields.
+  earliest_date_text?: string | null;
+  decline_reason?: string | null;
+  declined_at?: Date | null;
+  provider_display_name?: string;
+  provider_user_id?: string;
+  provider_photo_url?: string | null;
+  /** Visible reviews, counted from the reviews table (visibleReviewCountSql). */
+  provider_review_count?: number;
+  budget_max?: number | null;
+  budget_unknown?: boolean;
+  responded_in_minutes?: number | null;
 }
 
 interface LineItemRow {
@@ -1391,18 +1618,73 @@ interface LineItemRow {
   item_type: string;
 }
 
-export async function getBookingQuotes(bookingId: string): Promise<Record<string, unknown>[]> {
+/** Below this many visible reviews a quote card says "New on onService" (merged plan 2.3). */
+const NEW_PROVIDER_REVIEW_THRESHOLD = 3;
+
+/**
+ * The provider's visible review count for quote cards and the confirm
+ * preview (ratingCount, isNew), counted from the reviews table by the same
+ * rule review.service.ts uses for the profile count and for providers.rating
+ * (getProviderAggregateRating, updateProviderAggregateRating): visible
+ * reviews only, and demo reviews excluded unless test fixtures are enabled.
+ * providers.total_reviews is not used: no application code maintains it.
+ * `providerAlias` is a fixed internal SQL alias, never user input.
+ */
+function visibleReviewCountSql(providerAlias: string): string {
+  const demoExclusion = process.env.ENABLE_TEST_FIXTURES === '1' ? '' : ` AND rv.comment NOT LIKE '[demo]%'`;
+  return `(SELECT COUNT(*)::int FROM reviews rv
+            WHERE rv.provider_id = ${providerAlias}.id AND rv.is_visible = TRUE${demoExclusion})`;
+}
+
+function quoteBudgetComparison(
+  quotedPrice: number,
+  budgetMax: number | null | undefined,
+  budgetUnknown: boolean | undefined,
+): { kind: 'within' | 'above' | 'no_budget'; aboveBy: number | null } {
+  if (budgetUnknown || budgetMax == null) return { kind: 'no_budget', aboveBy: null };
+  const max = Number(budgetMax);
+  return quotedPrice > max ? { kind: 'above', aboveBy: quotedPrice - max } : { kind: 'within', aboveBy: 0 };
+}
+
+/**
+ * The quotes on a request. `onlyProviderId` limits the list to one
+ * provider's quote (a provider never sees a competitor's quote or price);
+ * `includeDeclineReason` adds the customer's decline reason (customer and
+ * admin views only). The decline note is never returned here.
+ */
+export async function getBookingQuotes(
+  bookingId: string,
+  opts: { onlyProviderId?: string | null; includeDeclineReason?: boolean } = {},
+): Promise<Record<string, unknown>[]> {
   const quotes = await db.query<QuoteDetailRow>(
     `SELECT bq.*,
+       to_char(bq.earliest_date, 'YYYY-MM-DD') AS earliest_date_text,
        CONCAT(u.first_name, ' ', u.last_name) as provider_name,
+       COALESCE(NULLIF(TRIM(p.business_name), ''), NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Pro')
+         AS provider_display_name,
+       p.user_id AS provider_user_id,
+       u.avatar_url AS provider_photo_url,
        p.rating::text as provider_rating,
-       p.total_jobs as provider_total_jobs
+       ${visibleReviewCountSql('p')} AS provider_review_count,
+       p.total_jobs as provider_total_jobs,
+       b.budget_max, b.budget_unknown,
+       ROUND(EXTRACT(EPOCH FROM (bq.created_at - COALESCE(
+         invite.push_sent_at,
+         CASE WHEN bq.round = 1 THEN b.created_at ELSE b.request_round_opened_at END,
+         b.created_at))) / 60)::int AS responded_in_minutes
      FROM booking_quotes bq
+     JOIN bookings b ON b.id = bq.booking_id
      JOIN providers p ON p.id = bq.provider_id
      JOIN users u ON u.id = p.user_id
+     LEFT JOIN LATERAL (
+       SELECT MIN(i.sent_at) FILTER (WHERE i.source = 'push') AS push_sent_at
+         FROM job_request_invites i
+        WHERE i.booking_id = bq.booking_id AND i.provider_id = bq.provider_id AND i.round = bq.round
+     ) invite ON TRUE
      WHERE bq.booking_id = $1
+       AND ($2::uuid IS NULL OR bq.provider_id = $2::uuid)
      ORDER BY bq.created_at ASC`,
-    [bookingId],
+    [bookingId, opts.onlyProviderId ?? null],
   );
 
   const quoteIds = quotes.rows.map(q => q.id);
@@ -1418,37 +1700,123 @@ export async function getBookingQuotes(bookingId: string): Promise<Record<string
     }, {});
   }
 
-  return quotes.rows.map(q => ({
-    id: q.id,
-    bookingId: q.booking_id,
-    providerId: q.provider_id,
-    quotedPrice: q.quoted_price,
-    description: q.description,
-    estimatedDurationMinutes: q.estimated_duration_minutes,
-    status: q.status ?? (q.is_accepted ? 'accepted' : 'submitted'),
-    laborAmount: q.labor_amount ?? 0,
-    materialsAmount: q.materials_amount ?? 0,
-    estimatedDays: q.estimated_days,
-    notes: q.notes ?? '',
-    portfolioPhotos: q.portfolio_photos ?? [],
-    expiresAt: q.expires_at,
-    createdAt: q.created_at,
-    providerName: q.provider_name ?? null,
-    providerRating: q.provider_rating ? Number(q.provider_rating) : null,
-    providerTotalJobs: q.provider_total_jobs ?? 0,
-    lineItems: (lineItemsMap[q.id] ?? []).map(li => ({
-      id: li.id,
-      description: li.description,
-      quantity: Number(li.quantity),
-      unit: li.unit,
-      unitPrice: li.unit_price,
-      lineTotal: li.line_total,
-      itemType: li.item_type,
-    })),
-  }));
+  return quotes.rows.map(q => {
+    const ratingCount = Number(q.provider_review_count ?? 0);
+    const quotedPrice = Number(q.quoted_price);
+    return {
+      id: q.id,
+      bookingId: q.booking_id,
+      providerId: q.provider_id,
+      quotedPrice: q.quoted_price,
+      description: q.description,
+      estimatedDurationMinutes: q.estimated_duration_minutes,
+      status: q.status ?? (q.is_accepted ? 'accepted' : 'submitted'),
+      laborAmount: q.labor_amount ?? 0,
+      materialsAmount: q.materials_amount ?? 0,
+      estimatedDays: q.estimated_days,
+      notes: q.notes ?? '',
+      portfolioPhotos: q.portfolio_photos ?? [],
+      expiresAt: q.expires_at,
+      createdAt: q.created_at,
+      providerName: q.provider_name ?? null,
+      providerRating: q.provider_rating ? Number(q.provider_rating) : null,
+      providerTotalJobs: q.provider_total_jobs ?? 0,
+      couldChangeIf: q.could_change_if ?? null,
+      earliestDate: q.earliest_date_text ?? null,
+      earliestTimeWindow: q.earliest_time_window ?? null,
+      acceptedCustomerBudget: q.accepted_customer_budget === true,
+      round: Number(q.round ?? 1),
+      ...(opts.includeDeclineReason
+        ? { declineReason: q.declined_at ? (q.decline_reason ?? null) : null }
+        : {}),
+      respondedInMinutes: q.responded_in_minutes == null ? null : Math.max(0, Number(q.responded_in_minutes)),
+      budget: quoteBudgetComparison(quotedPrice, q.budget_max, q.budget_unknown),
+      provider: {
+        id: q.provider_id,
+        userId: q.provider_user_id ?? null,
+        name: q.provider_display_name ?? q.provider_name ?? null,
+        photoUrl: q.provider_photo_url ?? null,
+        ratingAverage: q.provider_rating ? Number(q.provider_rating) : 0,
+        ratingCount,
+        isNew: ratingCount < NEW_PROVIDER_REVIEW_THRESHOLD,
+        jobsCompleted: Number(q.provider_total_jobs ?? 0),
+      },
+      lineItems: (lineItemsMap[q.id] ?? []).map(li => ({
+        id: li.id,
+        description: li.description,
+        quantity: Number(li.quantity),
+        unit: li.unit,
+        unitPrice: li.unit_price,
+        lineTotal: li.line_total,
+        itemType: li.item_type,
+      })),
+    };
+  });
 }
 
-export async function acceptQuote(bookingId: string, quoteId: string, customerId: string): Promise<Record<string, unknown>> {
+/**
+ * GET /bookings/:id/quotes for any participant (merged plan 2.3, bad news
+ * 8). The customer and admins see every quote; a provider sees only their own
+ * quote, whether they are still quoting or were booked; the booked job's
+ * approved team member sees the booked provider's quote. Anyone else: 403.
+ */
+export async function getBookingQuotesForViewer(
+  bookingId: string,
+  userId: string,
+  role: string,
+): Promise<Record<string, unknown>[]> {
+  const result = await db.query<{ customer_id: string; provider_id: string | null }>(
+    `SELECT customer_id, provider_id FROM bookings WHERE id = $1`,
+    [bookingId],
+  );
+  const booking = result.rows[0];
+  if (!booking) throw createAppError('Booking not found.', 404);
+
+  if (role === 'admin' || role === 'super_admin') {
+    return getBookingQuotes(bookingId, { includeDeclineReason: true });
+  }
+  if (role === 'customer' && booking.customer_id === userId) {
+    return getBookingQuotes(bookingId, { includeDeclineReason: true });
+  }
+  if (role === 'provider') {
+    const access = await db.query<{ provider_id: string; has_quote: boolean }>(
+      `SELECT p.id AS provider_id,
+              EXISTS (SELECT 1 FROM booking_quotes q WHERE q.booking_id = $1 AND q.provider_id = p.id) AS has_quote
+         FROM providers p WHERE p.user_id = $2`,
+      [bookingId, userId],
+    );
+    const viewer = access.rows[0];
+    if (viewer && (viewer.has_quote || booking.provider_id === viewer.provider_id)) {
+      return getBookingQuotes(bookingId, { onlyProviderId: viewer.provider_id });
+    }
+  }
+  if (role === 'provider_staff' && booking.provider_id) {
+    const staff = await db.query<{ id: string }>(
+      `SELECT ps.id FROM bookings b
+         JOIN provider_staff ps ON ps.id = b.performer_staff_id AND ps.provider_id = b.provider_id
+        WHERE b.id = $1 AND ps.user_id = $2 AND ps.status = 'approved'`,
+      [bookingId, userId],
+    );
+    if (staff.rows[0]) return getBookingQuotes(bookingId, { onlyProviderId: booking.provider_id });
+  }
+  throw createAppError('You do not have access to this booking.', 403);
+}
+
+/** acceptQuote's result. notSelected feeds the after-commit notices; the route does not return it. */
+export interface QuoteAcceptance {
+  quoteId: string;
+  providerId: string;
+  totalAmount: number;
+  scheduledAt: Date;
+  scheduledWindow: string | null;
+  notSelected: Array<{ quoteId: string; providerId: string }>;
+}
+
+export async function acceptQuote(bookingId: string, quoteId: string, customerId: string): Promise<QuoteAcceptance> {
+  // D38 / E83: the job time follows the provider's slot, never earlier than
+  // request_slot_lead_minutes after confirmation (quote-slot.ts). No amount,
+  // fee, discount, status or pricing-terms step below changes.
+  const { slotLeadMinutes } = await settingsService.getRequestPolicy();
   return db.transaction(async (client) => {
     const bookingResult = await client.query<BookingRow>(
       `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
@@ -1461,9 +1829,16 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
       throw createAppError('Booking is not in a state to accept quotes.', 409);
     }
 
-    interface QuoteAcceptRow { id: string; provider_id: string; quoted_price: number }
+    interface QuoteAcceptRow {
+      id: string;
+      provider_id: string;
+      quoted_price: number;
+      earliest_date: string | null;
+      earliest_time_window: string | null;
+    }
     const quoteResult = await client.query<QuoteAcceptRow>(
-      `SELECT id, provider_id, quoted_price
+      `SELECT id, provider_id, quoted_price,
+              to_char(earliest_date, 'YYYY-MM-DD') AS earliest_date, earliest_time_window
          FROM booking_quotes
         WHERE id = $1
           AND booking_id = $2
@@ -1475,6 +1850,18 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
     );
     const quote = quoteResult.rows[0];
     if (!quote) throw createAppError('Quote not found, expired, or already resolved.', 404);
+
+    // Read the database clock after both locks, and refuse a slot that can
+    // no longer start in time with 409 QUOTE_SLOT_PASSED before any write.
+    const slotTimes = await quoteSlot.readQuoteSlotTimes(client, quote.earliest_date, quote.earliest_time_window);
+    const schedule = quoteSlot.resolveQuoteScheduledAt({
+      window: quote.earliest_time_window,
+      slotStart: slotTimes.slotStart,
+      slotEnd: slotTimes.slotEnd,
+      scheduledAt: booking.scheduled_at,
+      dbNow: slotTimes.dbNow,
+      leadMinutes: slotLeadMinutes,
+    });
 
     const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
       customerId, quote.provider_id, quote.quoted_price,
@@ -1489,9 +1876,10 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
       [quoteId],
     );
 
-    await client.query(
+    const siblings = await client.query<{ id: string; provider_id: string }>(
       `UPDATE booking_quotes SET status = 'declined', updated_at = NOW()
-       WHERE booking_id = $1 AND id != $2 AND status = 'submitted'`,
+       WHERE booking_id = $1 AND id != $2 AND status = 'submitted'
+       RETURNING id, provider_id`,
       [bookingId, quoteId],
     );
 
@@ -1503,9 +1891,14 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
          total_amount = $5,
          suki_discount = $6,
          status = 'payment_pending',
+         scheduled_at = COALESCE($7, scheduled_at),
+         scheduled_window = COALESCE($8, scheduled_window),
          updated_at = NOW()
        WHERE id = $1`,
-      [bookingId, quote.provider_id, discountedPrice, serviceFee, totalAmount, discountAmount],
+      [
+        bookingId, quote.provider_id, discountedPrice, serviceFee, totalAmount, discountAmount,
+        schedule.scheduledAt, schedule.scheduledWindow,
+      ],
     );
 
     await financialTermsService.appendPricingTermsInTransaction(client, {
@@ -1523,34 +1916,588 @@ export async function acceptQuote(bookingId: string, quoteId: string, customerId
     logger.info('Quote accepted', {
       bookingId, quoteId, providerId: quote.provider_id,
       originalPrice: quote.quoted_price, sukiDiscount: discountAmount, totalAmount,
+      scheduledAt: schedule.scheduledAt, scheduledWindow: schedule.scheduledWindow,
     });
-    return { quoteId, providerId: quote.provider_id, totalAmount };
+    return {
+      quoteId,
+      providerId: quote.provider_id,
+      totalAmount,
+      scheduledAt: schedule.scheduledAt,
+      scheduledWindow: schedule.scheduledWindow,
+      notSelected: siblings.rows.map((row) => ({ quoteId: row.id, providerId: row.provider_id })),
+    };
   });
 }
 
-export async function declineQuote(bookingId: string, quoteId: string, customerId: string): Promise<Record<string, unknown>> {
-  const booking = await getBookingByIdAdmin(bookingId);
-  if (booking.customer_id !== customerId) {
-    throw createAppError('Not authorized.', 403);
-  }
+interface RequestRoundState {
+  id: string;
+  status: string;
+  request_round?: number;
+  request_declined_rounds?: number;
+  request_ops_review_at?: Date | null;
+}
 
-  const result = await db.query(
-    `UPDATE booking_quotes SET status = 'declined', updated_at = NOW()
-     WHERE id = $1 AND booking_id = $2 AND status = 'submitted'
-     RETURNING id`,
+interface ReopenOutcome {
+  round: number;
+  /** True when the new round should be sent to providers. */
+  reopened: boolean;
+  /** True when this call set the back-office review flag. */
+  opsReviewFlagged: boolean;
+}
+
+/** Highest request round the migration 183 CHECK allows. */
+const MAX_REQUEST_ROUND = 50;
+
+/**
+ * Reopen a quote request that has no live quote left (merged plan 2.2 with
+ * critique M3/M4): back to 'requested', next round, round clock restarted,
+ * the old round's open invites closed. A customer decline also counts a
+ * declined round; reaching request_max_rounds, or the round ceiling, flags
+ * the request for the back office instead of sending it out again.
+ * `roundOpenedAt` (a timestamptz in text form, so no precision is lost on
+ * the way through JavaScript) is passed only for a legacy row, which reopens
+ * silently (critique 2.2: no fan-out, no customer notice). It backdates the
+ * round so the 72-hour expiry still counts from when the request really
+ * stalled, which also keeps the row out of the worker's re-fan-out window,
+ * and it marks the one "still looking" notice as handled so that worker step
+ * never sends it for this row.
+ */
+async function reopenRequestInTransaction(
+  client: QueryClient,
+  booking: RequestRoundState,
+  opts: { countDeclinedRound: boolean; maxRounds: number; roundOpenedAt?: string | null },
+): Promise<ReopenOutcome> {
+  if (booking.status === 'quoted' && !canTransition('quoted', 'requested')) {
+    throw createAppError('This request cannot be reopened.', 409);
+  }
+  const currentRound = Number(booking.request_round ?? 1);
+  const atRoundCeiling = currentRound >= MAX_REQUEST_ROUND;
+  const nextRound = Math.min(currentRound + 1, MAX_REQUEST_ROUND);
+  const declinedRounds = Math.min(
+    Number(booking.request_declined_rounds ?? 0) + (opts.countDeclinedRound ? 1 : 0),
+    MAX_REQUEST_ROUND,
+  );
+  const reviewNeeded = atRoundCeiling || (opts.countDeclinedRound && declinedRounds >= opts.maxRounds);
+  const alreadyFlagged = booking.request_ops_review_at != null;
+
+  await client.query(
+    `UPDATE bookings
+        SET status = 'requested',
+            request_round = $2,
+            request_round_opened_at = COALESCE($3::timestamptz, NOW()),
+            request_declined_rounds = $4,
+            request_ops_review_at = CASE WHEN $5::boolean AND request_ops_review_at IS NULL
+                                         THEN NOW() ELSE request_ops_review_at END,
+            request_ops_review_reason = CASE WHEN $5::boolean AND request_ops_review_at IS NULL
+                                             THEN 'max_rounds' ELSE request_ops_review_reason END,
+            request_still_looking_notified_at = CASE WHEN $3::timestamptz IS NOT NULL
+                                                     THEN COALESCE(request_still_looking_notified_at, NOW())
+                                                     ELSE request_still_looking_notified_at END,
+            updated_at = NOW()
+      WHERE id = $1`,
+    [booking.id, nextRound, opts.roundOpenedAt ?? null, declinedRounds, reviewNeeded],
+  );
+  await client.query(
+    `UPDATE job_request_invites
+        SET status = 'expired', closed_at = NOW(), updated_at = NOW()
+      WHERE booking_id = $1 AND round < $2 AND status IN ('sent', 'viewed')`,
+    [booking.id, nextRound],
+  );
+  return {
+    round: nextRound,
+    reopened: !reviewNeeded,
+    opsReviewFlagged: reviewNeeded && !alreadyFlagged,
+  };
+}
+
+async function requestNames(
+  client: QueryClient,
+  bookingId: string,
+  providerId: string,
+): Promise<{ serviceName: string; providerName: string; providerUserId: string }> {
+  const result = await client.query<{ service_name: string; provider_name: string; provider_user_id: string }>(
+    `SELECT COALESCE(sub.name, sc.name, 'your request') AS service_name,
+            COALESCE(NULLIF(TRIM(p.business_name), ''), NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'A pro')
+              AS provider_name,
+            p.user_id AS provider_user_id
+       FROM bookings b
+       LEFT JOIN service_categories sc ON sc.id = b.category_id
+       LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
+       JOIN providers p ON p.id = $2
+       JOIN users u ON u.id = p.user_id
+      WHERE b.id = $1`,
+    [bookingId, providerId],
+  );
+  const row = result.rows[0];
+  return {
+    serviceName: row?.service_name ?? 'your request',
+    providerName: row?.provider_name ?? 'A pro',
+    providerUserId: row?.provider_user_id ?? '',
+  };
+}
+
+async function countLiveQuotes(client: QueryClient, bookingId: string): Promise<number> {
+  const result = await client.query<{ live: number }>(
+    `SELECT COUNT(*)::int AS live FROM booking_quotes
+      WHERE booking_id = $1 AND status = 'submitted' AND expires_at > NOW()`,
+    [bookingId],
+  );
+  return Number(result.rows[0]?.live ?? 0);
+}
+
+export type QuoteDeclineReason = 'too_expensive' | 'timing' | 'changed_mind' | 'other';
+
+/** declineQuote's result: the first five fields are the API response, the rest feed the after-commit events. */
+export interface QuoteDeclineOutcome {
+  quoteId: string;
+  bookingStatus: string;
+  round: number;
+  reopened: boolean;
+  /** True while the request is flagged for back-office review. */
+  opsReview: boolean;
+  bookingId: string;
+  customerId: string;
+  providerUserId: string;
+  serviceName: string;
+  reason: QuoteDeclineReason;
+  declinedAmount: number;
+  /** True when this decline set the back-office flag (the customer is told). */
+  opsReviewFlagged: boolean;
+}
+
+/**
+ * The customer declines a quote with a reason (D38, merged plan P2 algorithm
+ * 2 and critique section 2.2), in one transaction under the request lock:
+ * the quote becomes 'declined' with the reason, note and declined_at, its
+ * invite becomes 'declined', and live quotes are recounted. With none left
+ * the request reopens for a new round (or goes to back-office review after
+ * request_max_rounds declined rounds). With live quotes left (compare mode)
+ * nothing about the round changes.
+ */
+export async function declineQuote(
+  bookingId: string,
+  quoteId: string,
+  customerId: string,
+  input: { reason: QuoteDeclineReason; note?: string },
+): Promise<QuoteDeclineOutcome> {
+  const policy = await settingsService.getRequestPolicy();
+  const outcome = await db.transaction(async (client) => {
+    const bookingResult = await client.query<BookingRow>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = bookingResult.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
+    if (booking.customer_id !== customerId) throw createAppError('Not authorized.', 403);
+    if (booking.status !== 'requested' && booking.status !== 'quoted') {
+      throw createAppError('This request is no longer open, so its quotes cannot be declined.', 409);
+    }
+
+    const quoteResult = await client.query<{ id: string; provider_id: string; quoted_price: number }>(
+      `SELECT id, provider_id, quoted_price FROM booking_quotes
+        WHERE id = $1 AND booking_id = $2 AND status = 'submitted'
+        FOR UPDATE`,
+      [quoteId, bookingId],
+    );
+    const quote = quoteResult.rows[0];
+    if (!quote) throw createAppError('Quote not found or already resolved.', 404);
+
+    const note = input.note?.trim() ? input.note.trim() : null;
+    await client.query(
+      `UPDATE booking_quotes
+          SET status = 'declined', decline_reason = $2, decline_note = $3, declined_at = NOW(), updated_at = NOW()
+        WHERE id = $1`,
+      [quoteId, input.reason, note],
+    );
+    await client.query(
+      `UPDATE job_request_invites SET status = 'declined', closed_at = NOW(), updated_at = NOW()
+        WHERE quote_id = $1`,
+      [quoteId],
+    );
+
+    let round = Number(booking.request_round ?? 1);
+    let reopened = false;
+    let opsReviewFlagged = false;
+    let bookingStatus = booking.status;
+    if (await countLiveQuotes(client, bookingId) === 0) {
+      const reopen = await reopenRequestInTransaction(client, booking, {
+        countDeclinedRound: true,
+        maxRounds: policy.maxRounds,
+      });
+      round = reopen.round;
+      reopened = reopen.reopened;
+      opsReviewFlagged = reopen.opsReviewFlagged;
+      bookingStatus = 'requested';
+    }
+    const flag = await client.query<{ flagged: boolean }>(
+      `SELECT request_ops_review_at IS NOT NULL AS flagged FROM bookings WHERE id = $1`,
+      [bookingId],
+    );
+    const names = await requestNames(client, bookingId, quote.provider_id);
+
+    return {
+      quoteId,
+      bookingStatus,
+      round,
+      reopened,
+      opsReview: flag.rows[0]?.flagged === true,
+      bookingId,
+      customerId,
+      providerUserId: names.providerUserId,
+      serviceName: names.serviceName,
+      reason: input.reason,
+      declinedAmount: Number(quote.quoted_price),
+      opsReviewFlagged,
+    };
+  });
+  logger.info('Quote declined', {
+    bookingId, quoteId, reason: input.reason, reopened: outcome.reopened, round: outcome.round,
+  });
+  return outcome;
+}
+
+/** withdrawQuote's result: the first four fields are the API response. */
+export interface QuoteWithdrawOutcome {
+  quoteId: string;
+  bookingStatus: string;
+  round: number;
+  reopened: boolean;
+  bookingId: string;
+  customerId: string;
+  providerName: string;
+  serviceName: string;
+  opsReviewFlagged: boolean;
+}
+
+/**
+ * A provider withdraws their own live quote (critique M13): the quote
+ * becomes 'withdrawn', its invite 'passed', and when no live quote is left
+ * the request reopens for a new round (the lapse rules: no declined round is
+ * counted).
+ */
+export async function withdrawQuote(
+  bookingId: string,
+  quoteId: string,
+  providerUserId: string,
+): Promise<QuoteWithdrawOutcome> {
+  const policy = await settingsService.getRequestPolicy();
+  const outcome = await db.transaction(async (client) => {
+    const bookingResult = await client.query<BookingRow>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = bookingResult.rows[0];
+    if (!booking) throw createAppError('Booking not found.', 404);
+
+    const quoteResult = await client.query<{ id: string; provider_id: string; status: string; user_id: string }>(
+      `SELECT bq.id, bq.provider_id, bq.status, p.user_id
+         FROM booking_quotes bq
+         JOIN providers p ON p.id = bq.provider_id
+        WHERE bq.id = $1 AND bq.booking_id = $2
+        FOR UPDATE OF bq`,
+      [quoteId, bookingId],
+    );
+    const quote = quoteResult.rows[0];
+    if (!quote) throw createAppError('Quote not found.', 404);
+    if (quote.user_id !== providerUserId) throw createAppError('You can only withdraw your own quote.', 403);
+    if (quote.status !== 'submitted' || (booking.status !== 'requested' && booking.status !== 'quoted')) {
+      throw createAppError('This quote has already been resolved.', 409);
+    }
+
+    await client.query(
+      `UPDATE booking_quotes SET status = 'withdrawn', updated_at = NOW() WHERE id = $1`,
+      [quoteId],
+    );
+    await client.query(
+      `UPDATE job_request_invites SET status = 'passed', closed_at = NOW(), updated_at = NOW()
+        WHERE quote_id = $1`,
+      [quoteId],
+    );
+
+    let round = Number(booking.request_round ?? 1);
+    let reopened = false;
+    let opsReviewFlagged = false;
+    let bookingStatus = booking.status;
+    if (await countLiveQuotes(client, bookingId) === 0) {
+      const reopen = await reopenRequestInTransaction(client, booking, {
+        countDeclinedRound: false,
+        maxRounds: policy.maxRounds,
+      });
+      round = reopen.round;
+      reopened = reopen.reopened;
+      opsReviewFlagged = reopen.opsReviewFlagged;
+      bookingStatus = 'requested';
+    }
+    const names = await requestNames(client, bookingId, quote.provider_id);
+    return {
+      quoteId,
+      bookingStatus,
+      round,
+      reopened,
+      bookingId,
+      customerId: booking.customer_id,
+      providerName: names.providerName,
+      serviceName: names.serviceName,
+      opsReviewFlagged,
+    };
+  });
+  logger.info('Quote withdrawn', { bookingId, quoteId, reopened: outcome.reopened, round: outcome.round });
+  return outcome;
+}
+
+/** reconcileRequestAfterQuoteLapse's result, or null when nothing changed. */
+export interface RequestLapseOutcome {
+  bookingId: string;
+  customerId: string;
+  round: number;
+  /** True for a row that stalled long ago (no fan-out, no customer notice). */
+  legacy: boolean;
+  /** True when the new round should be sent to providers. */
+  reopened: boolean;
+  opsReviewFlagged: boolean;
+}
+
+/**
+ * After quotes lapse (the expiry worker), reopen a 'quoted' request that has
+ * no live and no accepted quote (critique M3 and section 2.2). A fresh lapse
+ * restarts the round clock now and the caller sends the new round out. A
+ * legacy row, whose last quote lapsed or was declined more than an hour
+ * before this run (a request stuck in 'quoted' from before D38), reopens
+ * silently with its round clock backdated to that moment, so the 72-hour
+ * expiry closes it instead of granting another 72 hours. It stays silent in
+ * the later steps of the same 5-minute job too: the backdated round is
+ * outside the re-fan-out window and its still-looking notice is marked
+ * handled (reopenRequestInTransaction). Requests that are not 'quoted'
+ * (cancelled, accepted, already reopened) are left alone.
+ */
+export async function reconcileRequestAfterQuoteLapse(bookingId: string): Promise<RequestLapseOutcome | null> {
+  const policy = await settingsService.getRequestPolicy();
+  return db.transaction(async (client) => {
+    const bookingResult = await client.query<BookingRow>(
+      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
+      [bookingId],
+    );
+    const booking = bookingResult.rows[0];
+    if (!booking || booking.booking_type !== 'quote_based' || booking.status !== 'quoted') return null;
+
+    // lost_at: when the request lost its last live quote (a lapse at the
+    // quote's expiry, a decline or withdrawal at its last update). With no
+    // quote at all the request's own creation time stands in.
+    const state = await client.query<{ live: number; accepted: number; lost_at: string; legacy: boolean }>(
+      `SELECT COUNT(*) FILTER (WHERE q.status = 'submitted' AND q.expires_at > NOW())::int AS live,
+              COUNT(*) FILTER (WHERE q.status = 'accepted')::int AS accepted,
+              COALESCE(MAX(CASE WHEN q.status IN ('submitted', 'expired') THEN q.expires_at ELSE q.updated_at END),
+                       b.created_at)::text AS lost_at,
+              COALESCE(MAX(CASE WHEN q.status IN ('submitted', 'expired') THEN q.expires_at ELSE q.updated_at END)
+                         < NOW() - INTERVAL '1 hour', TRUE) AS legacy
+         FROM bookings b
+         LEFT JOIN booking_quotes q ON q.booking_id = b.id
+        WHERE b.id = $1
+        GROUP BY b.created_at`,
+      [bookingId],
+    );
+    const row = state.rows[0]!;
+    if (Number(row.live) > 0 || Number(row.accepted) > 0) return null;
+
+    const legacy = row.legacy === true;
+    const reopen = await reopenRequestInTransaction(client, booking, {
+      countDeclinedRound: false,
+      maxRounds: policy.maxRounds,
+      roundOpenedAt: legacy ? row.lost_at : null,
+    });
+    return {
+      bookingId,
+      customerId: booking.customer_id,
+      round: reopen.round,
+      legacy,
+      reopened: reopen.reopened,
+      opsReviewFlagged: reopen.opsReviewFlagged,
+    };
+  });
+}
+
+/**
+ * The confirm screen's preview of accepting a quote (merged plan 2.3, critique
+ * L10). Read-only: the same suki discount and service fee calls acceptQuote
+ * makes, the slot the job time would get if confirmed now, and the wallet
+ * balance read with a SELECT that never creates a wallet (none = 0).
+ */
+export async function getQuoteConfirmPreview(
+  bookingId: string,
+  quoteId: string,
+  customerId: string,
+): Promise<Record<string, unknown>> {
+  const { slotLeadMinutes } = await settingsService.getRequestPolicy();
+  const bookingResult = await db.query<BookingRow>(`SELECT * FROM bookings WHERE id = $1`, [bookingId]);
+  const booking = bookingResult.rows[0];
+  if (!booking) throw createAppError('Booking not found.', 404);
+  if (booking.customer_id !== customerId) throw createAppError('Not authorized.', 403);
+
+  const quoteResult = await db.query<QuoteDetailRow & { live: boolean }>(
+    `SELECT bq.*, to_char(bq.earliest_date, 'YYYY-MM-DD') AS earliest_date_text,
+            (bq.status = 'submitted' AND bq.expires_at > NOW()) AS live,
+            COALESCE(NULLIF(TRIM(p.business_name), ''), NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), ''), 'Pro')
+              AS provider_display_name,
+            p.user_id AS provider_user_id, u.avatar_url AS provider_photo_url,
+            p.rating::text AS provider_rating, ${visibleReviewCountSql('p')} AS provider_review_count,
+            p.total_jobs AS provider_total_jobs
+       FROM booking_quotes bq
+       JOIN providers p ON p.id = bq.provider_id
+       JOIN users u ON u.id = p.user_id
+      WHERE bq.id = $1 AND bq.booking_id = $2`,
     [quoteId, bookingId],
   );
-  if (result.rowCount === 0) {
-    throw createAppError('Quote not found or already resolved.', 404);
+  const quote = quoteResult.rows[0];
+  if (!quote) throw createAppError('Quote not found.', 404);
+  if (!quote.live || (booking.status !== 'requested' && booking.status !== 'quoted')) {
+    throw requestError('This quote is no longer available.', 409, 'QUOTE_NOT_AVAILABLE');
   }
 
-  logger.info('Quote declined', { bookingId, quoteId });
-  return { quoteId };
+  const quotedPrice = Number(quote.quoted_price);
+  const { discountAmount } = await sukiService.calculateSukiDiscountForBooking(
+    customerId, quote.provider_id, quotedPrice,
+  );
+  const servicePrice = quotedPrice - discountAmount;
+  const serviceFee = await calculateServiceFee(servicePrice);
+  const totalAmount = servicePrice + serviceFee;
+
+  const wallet = await db.query<{ available_balance: number }>(
+    `SELECT available_balance FROM wallets WHERE user_id = $1 AND type = 'customer'`,
+    [customerId],
+  );
+  const walletBalance = Number(wallet.rows[0]?.available_balance ?? 0);
+
+  const slotTimes = await quoteSlot.readQuoteSlotTimes(db, quote.earliest_date_text ?? null, quote.earliest_time_window ?? null);
+  let startsAt: Date | null = null;
+  let slotStatus: 'ok' | 'passed' = 'ok';
+  try {
+    startsAt = quoteSlot.resolveQuoteScheduledAt({
+      window: quote.earliest_time_window ?? null,
+      slotStart: slotTimes.slotStart,
+      slotEnd: slotTimes.slotEnd,
+      scheduledAt: booking.scheduled_at,
+      dbNow: slotTimes.dbNow,
+      leadMinutes: slotLeadMinutes,
+    }).scheduledAt;
+  } catch (err) {
+    if ((err as AppError).code !== 'QUOTE_SLOT_PASSED') throw err;
+    slotStatus = 'passed';
+  }
+
+  const ratingCount = Number(quote.provider_review_count ?? 0);
+  return {
+    quoteId: quote.id,
+    quotedPrice,
+    sukiDiscount: discountAmount,
+    servicePrice,
+    serviceFee,
+    totalAmount,
+    walletBalance,
+    walletCovers: walletBalance >= totalAmount,
+    provider: {
+      id: quote.provider_id,
+      userId: quote.provider_user_id ?? null,
+      name: quote.provider_display_name ?? null,
+      photoUrl: quote.provider_photo_url ?? null,
+      ratingAverage: quote.provider_rating ? Number(quote.provider_rating) : 0,
+      ratingCount,
+      isNew: ratingCount < NEW_PROVIDER_REVIEW_THRESHOLD,
+      jobsCompleted: Number(quote.provider_total_jobs ?? 0),
+    },
+    slot: {
+      date: quote.earliest_date_text ?? null,
+      window: quote.earliest_time_window ?? null,
+      startsAt,
+      status: slotStatus,
+    },
+    address: { line: booking.address, barangay: booking.barangay, city: booking.city },
+    description: quote.description,
+    couldChangeIf: quote.could_change_if ?? null,
+  };
+}
+
+/**
+ * GET /bookings/:id/request-status (merged plan 2.3): where the customer's
+ * quote request stands, from the same stage SQL as the booking list.
+ * notifiedProviderCount counts the round's pushed invites.
+ */
+export async function getRequestStatus(bookingId: string, customerId: string): Promise<Record<string, unknown>> {
+  const policy = await settingsService.getRequestPolicy();
+  const result = await db.query<{
+    id: string; customer_id: string; booking_type: string; status: string; request_round: number;
+    request_round_opened_at: Date | null; created_at: Date; request_ops_review_at: Date | null;
+    service_name: string | null; stage: string; open_quote_count: number; notified_count: number; waited_long: boolean;
+  }>(
+    `SELECT b.id, b.customer_id, b.booking_type, b.status, b.request_round, b.request_round_opened_at,
+            b.created_at, b.request_ops_review_at,
+            COALESCE(sub.name, sc.name) AS service_name,
+            ${requestStageSql('b')} AS stage,
+            ${liveQuoteCountSql('b')} AS open_quote_count,
+            (SELECT COUNT(*)::int FROM job_request_invites i
+              WHERE i.booking_id = b.id AND i.round = b.request_round AND i.source = 'push') AS notified_count,
+            (NOW() - COALESCE(b.request_round_opened_at, b.created_at)) >= make_interval(mins => $2::int) AS waited_long
+       FROM bookings b
+       LEFT JOIN service_categories sc ON sc.id = b.category_id
+       LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
+      WHERE b.id = $1`,
+    [bookingId, policy.stillLookingMinutes],
+  );
+  const row = result.rows[0];
+  if (!row) throw createAppError('Booking not found.', 404);
+  if (row.customer_id !== customerId) throw createAppError('Not authorized.', 403);
+  if (row.booking_type !== 'quote_based') {
+    throw createAppError('Request status is only available for quote requests.', 400);
+  }
+  const stillLooking = row.waited_long === true && ['waiting', 'reopened', 'no_pros'].includes(row.stage);
+  return {
+    bookingId: row.id,
+    status: row.status,
+    stage: row.stage,
+    serviceName: row.service_name,
+    round: Number(row.request_round),
+    maxRounds: policy.maxRounds,
+    roundOpenedAt: row.request_round_opened_at ?? row.created_at,
+    notifiedProviderCount: Number(row.notified_count),
+    openQuoteCount: Number(row.open_quote_count),
+    maxOpenQuotes: policy.maxOpenQuotes,
+    stillLookingAfterMinutes: policy.stillLookingMinutes,
+    stillLooking,
+    opsReviewAt: row.request_ops_review_at,
+  };
+}
+
+/** GET /bookings/requests/summary: the customer's quote requests with a live quote to review. */
+export async function getCustomerRequestSummary(customerId: string): Promise<{ awaitingDecisionCount: number }> {
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM bookings b
+      WHERE b.customer_id = $1 AND b.booking_type = 'quote_based'
+        AND b.status IN ('requested', 'quoted') AND ${liveQuoteCountSql('b')} > 0`,
+    [customerId],
+  );
+  return { awaitingDecisionCount: Number(result.rows[0]?.count ?? 0) };
 }
 
 // ────────────────────────────────────────────────────────────────────
 // Job Requests (custom quote bookings)
 // ────────────────────────────────────────────────────────────────────
+
+/** createJobRequest's result. replayed: the customer repeated a clientRequestId, nothing new was stored. */
+export interface JobRequestCreation {
+  booking: BookingRow;
+  replayed: boolean;
+}
+
+async function findJobRequestByClientRequestId(
+  client: QueryClient,
+  customerId: string,
+  clientRequestId: string,
+): Promise<BookingRow | null> {
+  const result = await client.query<BookingRow>(
+    `SELECT * FROM bookings WHERE customer_id = $1 AND client_request_id = $2`,
+    [customerId, clientRequestId],
+  );
+  return result.rows[0] ?? null;
+}
 
 export async function createJobRequest(
   customerId: string,
@@ -1567,15 +2514,31 @@ export async function createJobRequest(
     urgency: string;
     budgetMin?: number;
     budgetMax?: number;
+    // D38: "Not sure, let the pro quote". Stored as bookings.budget_unknown;
+    // refused together with a budget (migration 183 CHECK as well).
+    budgetUnknown?: boolean;
     jobPhotos?: string[];
     jobVideoUrl?: string;
     // D27 Phase 2 — structured per-subcategory intake answers keyed by field_key.
     intakeAnswers?: Record<string, unknown>;
+    // D38 (critique M9): the app's idempotency key. A double tap with the same
+    // key returns the first request instead of creating a second one.
+    clientRequestId?: string;
   },
-): Promise<BookingRow> {
+): Promise<JobRequestCreation> {
+  // A retry is answered before anything else is checked or locked, so it
+  // can never fail on a later step (or, once media attach lands, on media
+  // the first attempt already used).
+  if (data.clientRequestId) {
+    const existing = await findJobRequestByClientRequestId(db, customerId, data.clientRequestId);
+    if (existing) return { booking: existing, replayed: true };
+  }
   await assertBookableLocation(data.latitude, data.longitude);
   await assertJobRequestCustomer(customerId);
   await assertJobRequestService(data.subcategoryId);
+  if (data.budgetUnknown && (data.budgetMin != null || data.budgetMax != null)) {
+    throw createAppError('Choose a budget or "Not sure", not both.', 400);
+  }
   const scheduledAt = new Date();
   if (data.urgency === 'same_day') {
     scheduledAt.setHours(scheduledAt.getHours() + 4);
@@ -1587,29 +2550,54 @@ export async function createJobRequest(
     scheduledAt.setDate(scheduledAt.getDate() + 7);
   }
 
-  const result = await db.query<BookingRow>(
-    `INSERT INTO bookings
-       (customer_id, category_id, subcategory_id, booking_type, description,
-        address, barangay, city, province, latitude, longitude,
-        scheduled_at, urgency, budget_min, budget_max, job_photos, job_video_url,
-        intake_answers)
-     VALUES ($1, $2, $3, 'quote_based', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)
-     RETURNING *`,
-    [
-      customerId, data.categoryId, data.subcategoryId ?? null, data.description,
-      data.address, data.barangay, data.city, data.province,
-      data.latitude ?? null, data.longitude ?? null,
-      scheduledAt, data.urgency,
-      data.budgetMin ?? null, data.budgetMax ?? null,
-      data.jobPhotos ?? [], data.jobVideoUrl ?? null,
-      data.intakeAnswers && Object.keys(data.intakeAnswers).length > 0
-        ? JSON.stringify(data.intakeAnswers)
-        : null,
-    ],
-  );
+  let booking: BookingRow;
+  try {
+    // One transaction, so the request's media can be attached on the same
+    // client (Milestone 2 wave 3) and commit or roll back with the request.
+    // request_round_opened_at starts round 1 at the creation time (the same
+    // NOW() as created_at). The worker's still-looking and re-fan-out sweeps
+    // act only on rounds stamped this way, so they never touch a request
+    // posted before the D38 engine went live (job-leads.service).
+    booking = await db.transaction(async (client) => {
+      const result = await client.query<BookingRow>(
+        `INSERT INTO bookings
+           (customer_id, category_id, subcategory_id, booking_type, description,
+            address, barangay, city, province, latitude, longitude,
+            scheduled_at, urgency, budget_min, budget_max, job_photos, job_video_url,
+            intake_answers, budget_unknown, client_request_id, request_round_opened_at)
+         VALUES ($1, $2, $3, 'quote_based', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb, $18, $19,
+                 NOW())
+         RETURNING *`,
+        [
+          customerId, data.categoryId, data.subcategoryId ?? null, data.description,
+          data.address, data.barangay, data.city, data.province,
+          data.latitude ?? null, data.longitude ?? null,
+          scheduledAt, data.urgency,
+          data.budgetMin ?? null, data.budgetMax ?? null,
+          data.jobPhotos ?? [], data.jobVideoUrl ?? null,
+          data.intakeAnswers && Object.keys(data.intakeAnswers).length > 0
+            ? JSON.stringify(data.intakeAnswers)
+            : null,
+          data.budgetUnknown === true,
+          data.clientRequestId ?? null,
+        ],
+      );
+      return result.rows[0]!;
+    });
+  } catch (err) {
+    // Two taps that both passed the replay check: the unique index lets one
+    // insert win; the other returns the winner's request.
+    const pgError = err as { code?: string; constraint?: string };
+    if (data.clientRequestId && pgError.code === '23505'
+        && pgError.constraint === 'uq_bookings_customer_client_request') {
+      const existing = await findJobRequestByClientRequestId(db, customerId, data.clientRequestId);
+      if (existing) return { booking: existing, replayed: true };
+    }
+    throw err;
+  }
 
-  logger.info('Job request created', { bookingId: result.rows[0]!.id, customerId });
-  return result.rows[0]!;
+  logger.info('Job request created', { bookingId: booking.id, customerId });
+  return { booking, replayed: false };
 }
 
 // D38 human audit: requests are a customer action. The route has no role

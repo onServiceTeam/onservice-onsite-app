@@ -203,8 +203,14 @@ describe('Booking Validators', () => {
   });
 
   describe('submitQuoteSchema', () => {
+    // D38 Milestone 2: every quote now carries the earliest date and time
+    // window (an older app gets APP_UPDATE_REQUIRED from the route before this
+    // schema runs), so each case sends them and fails or passes only on the
+    // field it is about.
+    const slot = { earliestDate: '2026-11-02', earliestTimeWindow: 'morning' };
     it('should accept valid quote (₱100 minimum)', () => {
       const result = submitQuoteSchema.safeParse({
+        ...slot,
         quotedPrice: 150000,
         description: 'I can do this job. Will bring all tools and materials needed.',
       });
@@ -213,6 +219,7 @@ describe('Booking Validators', () => {
 
     it('should reject quote below ₱100 minimum', () => {
       const result = submitQuoteSchema.safeParse({
+        ...slot,
         quotedPrice: 5000,
         description: 'Too cheap to be real.',
       });
@@ -221,6 +228,7 @@ describe('Booking Validators', () => {
 
     it('should reject too-short description', () => {
       const result = submitQuoteSchema.safeParse({
+        ...slot,
         quotedPrice: 150000,
         description: 'ok',
       });
@@ -229,6 +237,7 @@ describe('Booking Validators', () => {
 
     it('should accept optional estimated duration', () => {
       const result = submitQuoteSchema.safeParse({
+        ...slot,
         quotedPrice: 250000,
         description: 'Full kitchen cabinet set. Will take about 2 days.',
         estimatedDurationMinutes: 960,
@@ -238,6 +247,7 @@ describe('Booking Validators', () => {
 
     it('should reject duration less than 15 minutes', () => {
       const result = submitQuoteSchema.safeParse({
+        ...slot,
         quotedPrice: 150000,
         description: 'Quick job, no problem.',
         estimatedDurationMinutes: 5,

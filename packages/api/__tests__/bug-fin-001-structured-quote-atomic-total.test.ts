@@ -1,3 +1,9 @@
+// D38 Milestone 2 (package P2) update: quote admission now also reads the
+// request settings (getRequestPolicy), the live-quote count, the provider's
+// existing quote (replay check) and the database clock for the slot, and the
+// quote carries an earliest date and window. The mock answers those reads;
+// the bug's assertions (line-item total stored, every write in one
+// transaction, no pool query outside it) are unchanged.
 const dbQueryMock = jest.fn();
 const dbTransactionMock = jest.fn();
 
@@ -14,6 +20,7 @@ jest.mock('../src/utils/logger', () => ({
 
 jest.mock('../src/services/settings.service', () => ({
   getQuotePolicy: jest.fn(async () => ({ expiryHours: 48, maxPerBooking: 5 })),
+  getRequestPolicy: jest.fn(async () => ({ maxOpenQuotes: 1, maxRounds: 3, maxInvites: 30, slotLeadMinutes: 60 })),
 }));
 
 import { submitStructuredQuote } from '../src/services/booking.service';
@@ -35,11 +42,18 @@ it('Bug FIN-001 — itemized quote stores the line-item total and every write sh
       if (/AS eligible/.test(sql)) {
         return { rows: [{ eligible: true }], rowCount: 1 };
       }
-      if (/COUNT\(\*\).*provider_id/s.test(sql)) {
-        return { rows: [{ count: '0' }], rowCount: 1 };
+      if (/AS live/.test(sql)) {
+        return { rows: [{ live: 0 }], rowCount: 1 };
       }
-      if (/COUNT\(\*\).*booking_quotes/s.test(sql)) {
-        return { rows: [{ count: '0' }], rowCount: 1 };
+      if (/clock_timestamp\(\)/.test(sql)) {
+        const now = Date.now();
+        return {
+          rows: [{
+            db_now: new Date(now), day_offset: 2,
+            slot_start: new Date(now + 2 * 86_400_000), slot_end: new Date(now + 2 * 86_400_000 + 4 * 3_600_000),
+          }],
+          rowCount: 1,
+        };
       }
       if (/INSERT INTO booking_quotes/.test(sql)) {
         return {
@@ -53,6 +67,7 @@ it('Bug FIN-001 — itemized quote stores the line-item total and every write sh
             expires_at: params[5],
             created_at: new Date('2026-08-24T00:00:00.000Z'),
             is_accepted: false,
+            earliest_date_text: params[8],
           }],
           rowCount: 1,
         };
@@ -66,6 +81,8 @@ it('Bug FIN-001 — itemized quote stores the line-item total and every write sh
   const result = await submitStructuredQuote('booking-1', 'provider-user-1', {
     quotedPrice: 999_999,
     description: 'Replace the damaged sink and reconnect the drain safely.',
+    earliestDate: '2026-08-26',
+    earliestTimeWindow: 'morning',
     lineItems: [
       { description: 'Labor', quantity: 2, unit: 'hour', unitPrice: 10_000, itemType: 'labor' },
       { description: 'Drain parts', quantity: 1.5, unit: 'set', unitPrice: 20_000, itemType: 'materials' },
@@ -78,5 +95,5 @@ it('Bug FIN-001 — itemized quote stores the line-item total and every write sh
   expect(dbQueryMock).not.toHaveBeenCalled();
   expect(quoteInsert?.params[2]).toBe(50_000);
   expect(lineInsert).toBeDefined();
-  expect(result).toMatchObject({ quoted_price: 50_000, laborAmount: 20_000, materialsAmount: 30_000 });
+  expect(result.quote).toMatchObject({ quoted_price: 50_000, laborAmount: 20_000, materialsAmount: 30_000 });
 });

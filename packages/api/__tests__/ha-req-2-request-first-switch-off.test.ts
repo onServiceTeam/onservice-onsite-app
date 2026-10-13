@@ -11,11 +11,16 @@
 // load as "on") is never stranded on a form the server refuses. What the old
 // rule did refuse, it still refuses with the switch off: here, a request
 // outside every active service area.
+// D38 Milestone 2 (package P2): a job request now stores the request-engine
+// columns of migration 183 and its fan-out records invites, so this file runs
+// on withRequestEngineDatabase (the same Milestone 1 fixture plus the real
+// migrations 183 and 184). The behaviour under test is unchanged.
 import { bookingIntegrationIt as it, customerA } from './helpers/booking-participant-postgres';
 import {
-  withJobRequestDatabase, marketplaceHttp, jobRequestBody, waitForLeadFanOut,
+  marketplaceHttp, jobRequestBody, waitForLeadFanOut,
   fixedService, hourlyService, perUnitService, quoteService,
 } from './helpers/job-request-postgres';
+import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
 
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -33,7 +38,7 @@ const outsideEveryArea = { latitude: 14.5995, longitude: 120.9842 };
 
 for (const [kind, service] of [['fixed-price', fixedService], ['hourly', hourlyService]] as const) {
   it(`HA-REQ-2: with the switch off, a request for a ${kind} service is not refused for its pricing type, as before D38`, async () => {
-    await withJobRequestDatabase(async database => {
+    await withRequestEngineDatabase(async database => {
       const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({ subcategoryId: service }));
 
       expect(response.status).toBe(201);
@@ -48,7 +53,7 @@ for (const [kind, service] of [['fixed-price', fixedService], ['hourly', hourlyS
 
 for (const [kind, service] of [['quote', quoteService], ['per_unit', perUnitService]] as const) {
   it(`HA-REQ-2: with the switch off, a request for a ${kind} service is still accepted as before D38`, async () => {
-    await withJobRequestDatabase(async database => {
+    await withRequestEngineDatabase(async database => {
       const response = await marketplaceHttp(customerA, 'customer').jobRequest(jobRequestBody({ subcategoryId: service }));
 
       expect(response.status).toBe(201);
@@ -60,7 +65,7 @@ for (const [kind, service] of [['quote', quoteService], ['per_unit', perUnitServ
 }
 
 it('HA-REQ-2: with the switch off, a request outside every active service area is still refused as before D38 and nothing is saved', async () => {
-  await withJobRequestDatabase(async database => {
+  await withRequestEngineDatabase(async database => {
     const before = (await database.query('SELECT count(*)::int AS n FROM bookings')).rows[0].n;
 
     const response = await marketplaceHttp(customerA, 'customer').jobRequest(

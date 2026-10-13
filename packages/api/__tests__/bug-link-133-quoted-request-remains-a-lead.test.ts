@@ -1,42 +1,35 @@
-const dbQueryMock = jest.fn();
+// Bug LINK-133: a quote request must stay discoverable to other eligible
+// providers after its first quote.
+//
+// D38 Milestone 2 (package P2) rewrite. D38 made the number of providers who
+// may hold a live quote an admin setting, request_max_open_quotes (default 1,
+// first come first served). LINK-133 still holds whenever that setting is
+// above 1 (the brief's compare mode, 5), which is what this test pins: after
+// provider A's quote, provider B still finds the request in their Requests
+// list. The default of 1 is covered by HA-M2-20 and HA-M2-23. Before this
+// rewrite the test mocked every SQL call; it now runs the real list query
+// over real rows on the guarded PostgreSQL fixture.
+import { bookingIntegrationIt as it } from './helpers/booking-participant-postgres';
+import {
+  withRequestFlowDatabase, flowHttp, insertQuoteRequest, upsertPlatformSetting, providerUserA, providerUserB,
+} from './helpers/request-flow-postgres';
 
-jest.mock('../src/models/db', () => ({
-  db: { query: (...args: unknown[]) => dbQueryMock(...args) },
-}));
-jest.mock('../src/services/notification.service', () => ({ sendPushNotification: jest.fn() }));
-jest.mock('../src/services/socket.service', () => ({ emitToUser: jest.fn() }));
 jest.mock('../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-import { getOpenJobRequestsForProvider } from '../src/services/job-leads.service';
-
 it('Bug LINK-133 — a quote request remains discoverable to other eligible providers after its first quote', async () => {
-  dbQueryMock.mockImplementation(async (sql: string) => {
-    if (/FROM providers WHERE user_id/.test(sql)) {
-      return { rows: [{ id: 'provider-2', latitude: '10.3157', longitude: '123.8854', service_radius_km: 20 }], rowCount: 1 };
-    }
-    if (/COUNT\(\*\)/.test(sql)) {
-      return { rows: [{ count: sql.includes("b.status IN ('requested', 'quoted')") ? '1' : '0' }], rowCount: 1 };
-    }
-    if (/SELECT b\.id/.test(sql) && sql.includes("b.status IN ('requested', 'quoted')")) {
-      return {
-        rows: [{
-          id: 'booking-quoted-1', category_id: 'category-1', category_name: 'Plumbing',
-          subcategory_id: null, description: 'Repair a leaking pipe under the sink.', urgency: 'within_3_days',
-          budget_min: 20_000, budget_max: 50_000, job_photos: [], job_video_url: null,
-          intake_answers: null, barangay: 'Lahug', city: 'Cebu City', province: 'Cebu',
-          customer_first: 'Ana', customer_last: 'Reyes', distance_km: '3.2',
-          created_at: new Date('2026-08-24T00:00:00.000Z'),
-        }],
-        rowCount: 1,
-      };
-    }
-    return { rows: [], rowCount: 0 };
+  await withRequestFlowDatabase(async database => {
+    await upsertPlatformSetting(database, 'request_max_open_quotes', '5');
+    const bookingId = await insertQuoteRequest(database);
+    expect((await flowHttp(providerUserA, 'provider').quote(bookingId)).status).toBe(201);
+    expect((await database.query('SELECT status FROM bookings WHERE id = $1', [bookingId])).rows[0].status).toBe('quoted');
+
+    const list = await flowHttp(providerUserB, 'provider').leads();
+
+    expect(list.status).toBe(200);
+    expect(list.body.total).toBe(1);
+    expect(list.body.requests.map((r: { id: string }) => r.id)).toEqual([bookingId]);
+    expect(list.body.requests[0]).toMatchObject({ categoryName: 'Aircon Services', serviceName: 'Aircon repair' });
   });
-
-  const result = await getOpenJobRequestsForProvider('provider-user-2');
-
-  expect(result.total).toBe(1);
-  expect(result.requests[0]).toMatchObject({ id: 'booking-quoted-1', categoryName: 'Plumbing' });
-});
+}, 90000);

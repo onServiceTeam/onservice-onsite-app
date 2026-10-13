@@ -2,6 +2,7 @@ import type { QueryResult, QueryResultRow } from 'pg';
 
 import { createAppError } from '../middleware/error.middleware';
 import { db } from '../models/db';
+import { providerEligibleForRequestSql } from './booking/request-eligibility';
 
 export type PgClient = {
   query: <R extends QueryResultRow = QueryResultRow>(
@@ -686,23 +687,9 @@ export async function getBookingCommissionPreview(
                   SELECT 1 FROM booking_quotes accepted
                    WHERE accepted.booking_id = b.id AND accepted.status = 'accepted'
                 )
-                AND EXISTS (
-                  SELECT 1
-                    FROM provider_services ps
-                    LEFT JOIN service_subcategories ssc ON ssc.id = ps.subcategory_id
-                   WHERE ps.provider_id = p.id
-                     AND ps.is_active = TRUE
-                     AND (ps.category_id = b.category_id OR ssc.category_id = b.category_id)
-                )
-                AND (
-                  b.latitude IS NULL OR b.longitude IS NULL
-                  OR p.latitude IS NULL OR p.longitude IS NULL
-                  OR (6371 * acos(LEAST(1.0, GREATEST(-1.0,
-                    cos(radians(b.latitude::numeric)) * cos(radians(p.latitude::numeric))
-                      * cos(radians(p.longitude::numeric) - radians(b.longitude::numeric))
-                    + sin(radians(b.latitude::numeric)) * sin(radians(p.latitude::numeric))
-                  )))) <= COALESCE(p.service_radius_km, 1000000)
-                )
+                -- D38 (critique L8): the same eligibility rule as quote
+                -- admission, the provider request list and the fan-out.
+                AND ${providerEligibleForRequestSql({ booking: 'b', provider: 'p' })}
               )
             )
        ) AS allowed`,
