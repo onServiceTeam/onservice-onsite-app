@@ -4142,6 +4142,9 @@ show the installed version and a "Check for updates" button.
   1.0.1 by hand once; later builds can be offered automatically.
 - JavaScript-only "over-the-air" updates (no reinstall) are not built; every
   change still needs a new APK. That remains a Ken decision.
+- **Update 2026-10-14:** from 1.0.3 (build 4) the app downloads and installs
+  updates itself and reports when an install did not finish; see section 131.
+  Phones on 1.0.1 and 1.0.2 keep the browser hand-off described above.
 
 ## 129. Tester-server sign-in shortcuts are on, at Ken's request (2026-10-12)
 
@@ -4211,3 +4214,34 @@ Still open (Ken):
   - D6: testers outside Metro Cebu (worker sign-up needs GPS inside the service area).
 - **Privacy notice:** the wording is plain English, not attorney-reviewed.
 - **Not built:** filtering problems by side (customer or worker).
+
+---
+
+## 131. Request-first booking, new customer screens and the in-app updater are live (2026-10-14)
+
+From Ken and the testers' human audit of the customer side (2026-10-13). Notes, brief and plan: `docs/qa/human-audit-2026-10-13/`; decisions D38 (request-first booking, first come first served) and D39 (in-app updater); escalation E83.
+
+Live at d7b696ec (API, web app, admin) and in APK 1.0.3 (build 4):
+- **Updates install from inside the app** (1.0.3 onward). The app downloads the APK, checks its size and fingerprint, opens Android's installer, and says plainly when the install did not finish, with Try again, Allow installs and a browser fallback.
+- **Home and service screens:** a "Book a service" title, one calm tile style with icons that show the job, no rainbow colours, and no set prices. Categories with no services are hidden.
+- **Every service starts with "Book a service":**
+  - quick questions, a description and up to 6 photos;
+  - a budget range or "Not sure, let the pro quote", and a price guide;
+  - when and where.
+
+  The admin switch `request_first_booking` (on) restores the old fixed-price catalog flow when turned off.
+- **Providers see the customer's photos,** the questions with their real wording and the budget before they quote.
+- **Admin** labels the service minimum and maximum as the customer price guide and saves it for every pricing type.
+
+Limits (open):
+- **Phones on 1.0.1 and 1.0.2 must install 1.0.3 by hand once** (delete older onService APKs from Downloads first). The in-app install has not yet been proven on a real phone; the next APK will be the first real test.
+- **`REQUEST_INSTALL_PACKAGES`** is in the tester APK only. Google Play forbids it for self-updating apps, so a Play Store build must drop it.
+- **Up to 5 providers can still quote at once.** First come, first served (D38) ships in Milestone 2, together with:
+  - private photo, video and voice uploads;
+  - request threads;
+  - a confirm step.
+- **Android push notifications are not configured** (no Firebase project). Providers see new requests only while their app is open. Needs Ken.
+- **Payment is wallet only** (E14). Card, GCash and Maya stay off.
+- **Content gaps (admin):** all 29 live services have no description, and 4 categories have no services.
+- **A "same day" request's job time is still invented (now plus 4 hours).** Milestone 2 sets it from the provider's proposed time. E83 covers the money rules that read it.
+- **Not built (needs Ken):** the Inter font, real category photos, a real logo and app icon.
