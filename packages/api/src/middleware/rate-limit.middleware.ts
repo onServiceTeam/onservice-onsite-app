@@ -1,8 +1,10 @@
+import crypto from 'node:crypto';
 import rateLimit, { RateLimitRequestHandler, ipKeyGenerator } from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { platformConfig } from '../config/platform.config';
+import { JOB_MEDIA_CONFIG } from '../config/job-media.config';
 import * as settingsService from '../services/settings.service';
 import { redis } from '../config/redis.config';
 import { logger } from '../utils/logger';
@@ -114,6 +116,33 @@ export function globalRateLimitKey(req: Request): string {
   return ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '');
 }
 
+// D38 private job media (Milestone 2, package P3): the ONLY paths the global
+// limiter skips. An 80 MB request video is 40 chunk uploads of 2 MiB, and a
+// video player sends many Range requests while it plays, so under the global
+// budget (default 100 requests per 15 minutes per user) one video would lock
+// a customer or provider out of the whole app. These two paths get their own
+// Redis-backed limiters below instead:
+//   PUT  /api/v1/job-media/<uuid>/chunks/<0-99999>  -> jobMediaChunkRateLimitMiddleware
+//        (per signed-in user, 240 per 10 minutes)
+//   GET or HEAD /api/v1/job-media/file/<token>      -> jobMediaFileRateLimitMiddleware
+//        (per token, 600 per 5 minutes; the token signature is checked before
+//        any database work)
+// Every other request, including the other job-media routes (start, complete,
+// signed-link minting, listing, delete), stays on the global limiter.
+const JOB_MEDIA_CHUNK_PATH = /^\/api\/v1\/job-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/chunks\/\d{1,5}$/i;
+const JOB_MEDIA_FILE_PATH = /^\/api\/v1\/job-media\/file\/[^/]+$/;
+
+export function isJobMediaStreamingRequest(req: Request): boolean {
+  const pathname = (req.originalUrl || req.url || '').split('?')[0] ?? '';
+  if (req.method === 'PUT') return JOB_MEDIA_CHUNK_PATH.test(pathname);
+  if (req.method === 'GET' || req.method === 'HEAD') return JOB_MEDIA_FILE_PATH.test(pathname);
+  return false;
+}
+
+/**
+ * Global limiter. Skips only isJobMediaStreamingRequest() (D38 chunk uploads
+ * and signed media reads), which have their own limiters; see above.
+ */
 function buildLimiter(windowMs: number): RateLimitRequestHandler {
   return rateLimit({
     windowMs,
@@ -122,6 +151,7 @@ function buildLimiter(windowMs: number): RateLimitRequestHandler {
     standardHeaders: true,
     legacyHeaders: false,
     store: buildRedisStore('rl:global:'),
+    skip: isJobMediaStreamingRequest,
     keyGenerator: globalRateLimitKey,
     message: {
       success: false,
@@ -379,4 +409,55 @@ export function uploadRateLimitMiddleware(
 
 export function __getUploadCachedForTest(): { windowMs: number; max: number } {
   return { windowMs: uploadCurrentWindow, max: uploadCurrentMax };
+}
+
+// ── D38 private job media limiters (Milestone 2, package P3) ──
+//
+// The global limiter skips the chunk and signed-file paths (see
+// isJobMediaStreamingRequest above); these two take their place. Their caps
+// are code constants in config/job-media.config.ts. Like the other limiters,
+// staging test mode (never production) lifts them.
+
+const jobMediaChunkLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: JOB_MEDIA_CONFIG.chunkLimiter.windowMs,
+  limit: () => (platformConfig.rateLimitsRelaxed ? 1_000_000 : JOB_MEDIA_CONFIG.chunkLimiter.max),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: buildRedisStore('rl:jobmedia:chunk:'),
+  // Chunk routes run authMiddleware first, so the signed-in user is known.
+  keyGenerator: (req: Request): string => {
+    const uid = (req as Request & { user?: { userId?: string } }).user?.userId;
+    return uid ? `u:${uid}` : ipKeyGenerator(req.ip ?? '');
+  },
+  message: {
+    success: false,
+    error: { message: 'Too many uploads. Please wait a moment and try again.', statusCode: 429 },
+  },
+});
+
+const jobMediaFileLimiter: RateLimitRequestHandler = rateLimit({
+  windowMs: JOB_MEDIA_CONFIG.fileLimiter.windowMs,
+  limit: () => (platformConfig.rateLimitsRelaxed ? 1_000_000 : JOB_MEDIA_CONFIG.fileLimiter.max),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: buildRedisStore('rl:jobmedia:file:'),
+  // Keyed on a hash of the signed token, not the IP: many Filipino mobile
+  // users share one carrier IP (critique L12). The token itself never
+  // reaches Redis.
+  keyGenerator: (req: Request): string => {
+    const token = typeof req.params?.token === 'string' ? req.params.token : (req.originalUrl || req.url || '');
+    return `t:${crypto.createHash('sha256').update(token).digest('hex').slice(0, 32)}`;
+  },
+  message: {
+    success: false,
+    error: { message: 'Too many requests for this file. Please try again later.', statusCode: 429 },
+  },
+});
+
+export function jobMediaChunkRateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {
+  (jobMediaChunkLimiter as unknown as (r: Request, s: Response, n: NextFunction) => void)(req, res, next);
+}
+
+export function jobMediaFileRateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {
+  (jobMediaFileLimiter as unknown as (r: Request, s: Response, n: NextFunction) => void)(req, res, next);
 }

@@ -12,7 +12,12 @@ import * as settingsService from './settings.service';
 // Otherwise, fall back to local filesystem (dev only).
 const USE_S3 = !!process.env.S3_BUCKET;
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
+// Read on each use rather than once at import, so the private job-media tests
+// can point a fresh temporary volume at the real storage code. In a running
+// server UPLOAD_DIR never changes, so every path resolves exactly as before.
+function uploadDir(): string {
+  return process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'uploads');
+}
 const BASE_URL = process.env.UPLOAD_BASE_URL || `http://localhost:${process.env.PORT || 7381}/uploads`;
 
 // MED-N144 fix — admin-tunable allowlist. `loadAllowedMime()` reads the
@@ -22,6 +27,14 @@ const BASE_URL = process.env.UPLOAD_BASE_URL || `http://localhost:${process.env.
 // validation intentionally support only these three formats.
 const FALLBACK_ALLOWED_MIME = new Set<string>(platformConfig.allowedImageTypes);
 const MAX_SIZE_BYTES = platformConfig.maxImageSizeMB * 1024 * 1024;
+
+/**
+ * The admin-selected image formats (allowed_image_mime_types). D38 request and
+ * chat photos use the same list, so it stays the single source for formats.
+ */
+export async function getAllowedImageMimeTypes(): Promise<ReadonlySet<string>> {
+  return loadAllowedMime();
+}
 
 async function loadAllowedMime(): Promise<Set<string>> {
   try {
@@ -86,7 +99,7 @@ export function getUploadVisibility(context: string): 'public' | 'private' {
 
 async function ensureUploadDir(): Promise<void> {
   try {
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
+    await fs.mkdir(uploadDir(), { recursive: true });
   } catch {
     // already exists
   }
@@ -128,7 +141,8 @@ export async function validateFile(
 // confirms it is genuinely one of the three allowed image formats. We do NOT
 // add an external dependency (file-type is ESM-only and would be a new dep);
 // the three signatures we accept are short and stable.
-function detectImageType(buffer: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+// Exported for the D38 job-media container sniffer (utils/media-sniff.ts).
+export function detectImageType(buffer: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null {
   if (buffer.length < 12) return null;
   // JPEG: FF D8 FF
   if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
@@ -215,9 +229,9 @@ export async function saveUploadedFile(
   } else {
     // Local filesystem fallback (dev only)
     await ensureUploadDir();
-    const fullPath = path.join(UPLOAD_DIR, safeContext, safeUser, `${fileId}${ext}`);
+    const fullPath = path.join(uploadDir(), safeContext, safeUser, `${fileId}${ext}`);
     const resolved = path.resolve(fullPath);
-    if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) {
+    if (!resolved.startsWith(path.resolve(uploadDir()))) {
       throw createAppError('Invalid file path.', 400);
     }
     const dir = path.dirname(fullPath);
@@ -269,8 +283,8 @@ export async function savePrivateArtifact(
       ...sseParams,
     }));
   } else {
-    const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
-    if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+    const fullPath = path.resolve(path.join(uploadDir(), cleanKey));
+    if (!fullPath.startsWith(path.resolve(uploadDir()))) {
       throw createAppError('Invalid private artifact path.', 400);
     }
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -292,8 +306,8 @@ export async function deleteUploadedFile(filename: string): Promise<void> {
       }));
       logger.info('File deleted from S3', { filename, bucket });
     } else {
-      const fullPath = path.resolve(path.join(UPLOAD_DIR, filename));
-      if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+      const fullPath = path.resolve(path.join(uploadDir(), filename));
+      if (!fullPath.startsWith(path.resolve(uploadDir()))) {
         logger.warn('Path traversal attempt in deleteUploadedFile', { filename });
         return;
       }
@@ -306,7 +320,7 @@ export async function deleteUploadedFile(filename: string): Promise<void> {
 }
 
 export function getUploadDir(): string {
-  return UPLOAD_DIR;
+  return uploadDir();
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -390,8 +404,8 @@ export async function deletePrivateArtifact(filename: string): Promise<void> {
     await client!.send(new commands!.DeleteObjectCommand({ Bucket: process.env.S3_BUCKET!, Key: cleanKey }));
     return;
   }
-  const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
-  if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+  const fullPath = path.resolve(path.join(uploadDir(), cleanKey));
+  if (!fullPath.startsWith(path.resolve(uploadDir()))) {
     throw createAppError('Invalid private artifact path.', 400);
   }
   try {
@@ -422,8 +436,8 @@ export async function getPrivateArtifactStream(key: string): Promise<ObjectStrea
     }
   }
 
-  const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
-  if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) throw createAppError('File not found.', 404);
+  const fullPath = path.resolve(path.join(uploadDir(), cleanKey));
+  if (!fullPath.startsWith(path.resolve(uploadDir()))) throw createAppError('File not found.', 404);
   try {
     const stat = await fs.stat(fullPath);
     const { createReadStream } = await import('node:fs');
@@ -461,8 +475,8 @@ export async function getObjectStream(key: string): Promise<ObjectStream> {
   }
 
   // Local filesystem fallback (dev only).
-  const fullPath = path.resolve(path.join(UPLOAD_DIR, cleanKey));
-  if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+  const fullPath = path.resolve(path.join(uploadDir(), cleanKey));
+  if (!fullPath.startsWith(path.resolve(uploadDir()))) {
     throw createAppError('Document not found.', 404);
   }
   try {
@@ -504,4 +518,164 @@ export async function getKycPresignedUrl(
     command as unknown as Parameters<typeof getSignedUrl>[1],
     { expiresIn: Math.max(30, Math.min(expiresInSeconds, 900)) },
   );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// D38 private job media (Milestone 2, package P3).
+//
+// Request and request-thread photos, videos and voice notes are uploaded in
+// chunks to a temporary file on the uploads volume, checked, and then moved
+// to private-artifacts/job-media/<owner>/<id>.<ext>. They are only ever read
+// back through the signed /api/v1/job-media/file/<token> route. Folders are
+// 0700 and files 0600, so the web server's user cannot read them even if a
+// location block were wrong (a second line of defence behind the existing
+// /uploads/private-artifacts/ 404 blocks in nginx).
+// ─────────────────────────────────────────────────────────────────
+
+const JOB_MEDIA_PREFIX = 'private-artifacts/job-media/';
+
+/** Final private folder for job media. */
+export function getJobMediaStoreDir(): string {
+  return path.join(uploadDir(), 'private-artifacts', 'job-media');
+}
+
+/**
+ * Chunks are written here. It is on the uploads volume so finishing an upload
+ * is a same-volume rename; the container's /tmp is a different filesystem
+ * (rename fails with EXDEV) and lives in the container layer.
+ */
+export function getJobMediaTempDir(): string {
+  return path.join(uploadDir(), 'private-artifacts', 'job-media-tmp');
+}
+
+/** Create (or re-tighten) both job-media folders. Called when the server starts listening. */
+export async function ensurePrivateJobMediaDirs(): Promise<void> {
+  for (const dir of [getJobMediaStoreDir(), getJobMediaTempDir()]) {
+    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+    await fs.chmod(dir, 0o700);
+  }
+}
+
+/** Free bytes on the uploads volume, or null when the platform cannot say. */
+export async function getUploadVolumeFreeBytes(): Promise<number | null> {
+  try {
+    await ensureUploadDir();
+    const stats = await fs.statfs(uploadDir());
+    return Number(stats.bavail) * Number(stats.bsize);
+  } catch {
+    return null;
+  }
+}
+
+function assertJobMediaKey(objectKey: string): string {
+  const cleanKey = extractObjectKey(objectKey);
+  if (!cleanKey || cleanKey !== objectKey || !cleanKey.startsWith(JOB_MEDIA_PREFIX)) {
+    throw createAppError('Invalid private artifact path.', 400);
+  }
+  return cleanKey;
+}
+
+function localPrivatePath(cleanKey: string): string {
+  const root = path.resolve(uploadDir());
+  const fullPath = path.resolve(root, cleanKey);
+  const relative = path.relative(root, fullPath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw createAppError('Invalid private artifact path.', 400);
+  }
+  return fullPath;
+}
+
+function s3EncryptionParams(): Record<string, string> {
+  return process.env.S3_KMS_KEY_ID
+    ? { ServerSideEncryption: 'aws:kms', SSEKMSKeyId: process.env.S3_KMS_KEY_ID }
+    : { ServerSideEncryption: 'AES256' };
+}
+
+/**
+ * Move a finished, checked temp file into private storage under `objectKey`
+ * (private-artifacts/job-media/...). Local disk: same-volume rename into a
+ * 0700 folder, then the file is set to 0600. S3: a private, encrypted,
+ * no-store object streamed from the temp file, which is then removed.
+ */
+export async function savePrivateArtifactFromFile(
+  tempPath: string,
+  objectKey: string,
+  contentType: string,
+): Promise<string> {
+  const cleanKey = assertJobMediaKey(objectKey);
+  const stat = await fs.stat(tempPath);
+
+  if (USE_S3) {
+    const { client, commands } = await getS3();
+    const { createReadStream } = await import('node:fs');
+    await client!.send(new commands!.PutObjectCommand({
+      Bucket: process.env.S3_BUCKET!,
+      Key: cleanKey,
+      Body: createReadStream(tempPath),
+      ContentLength: stat.size,
+      ContentType: contentType,
+      CacheControl: 'private, no-store',
+      ACL: 'private',
+      ...s3EncryptionParams(),
+    }));
+    await fs.unlink(tempPath).catch(() => undefined);
+  } else {
+    const fullPath = localPrivatePath(cleanKey);
+    const ownerDir = path.dirname(fullPath);
+    await fs.mkdir(ownerDir, { recursive: true, mode: 0o700 });
+    await fs.chmod(ownerDir, 0o700);
+    await fs.rename(tempPath, fullPath);
+    await fs.chmod(fullPath, 0o600);
+  }
+
+  logger.info('Private job media stored', { key: cleanKey, sizeBytes: stat.size, contentType });
+  return cleanKey;
+}
+
+/**
+ * Open a stored job-media object, optionally for one inclusive byte range.
+ * Throws a 404 AppError when the object is missing.
+ */
+export async function getPrivateArtifactRange(
+  key: string,
+  range: { start: number; end: number } | null,
+  contentType: string,
+): Promise<ObjectStream> {
+  let cleanKey: string;
+  try {
+    cleanKey = assertJobMediaKey(key);
+  } catch {
+    throw createAppError('File not found.', 404);
+  }
+
+  if (USE_S3) {
+    const { client, commands } = await getS3();
+    try {
+      const out = (await client!.send(new commands!.GetObjectCommand({
+        Bucket: process.env.S3_BUCKET!,
+        Key: cleanKey,
+        ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+      }))) as { Body?: NodeJS.ReadableStream; ContentLength?: number };
+      if (!out.Body) throw createAppError('File not found.', 404);
+      return { body: out.Body, contentType, contentLength: out.ContentLength };
+    } catch {
+      throw createAppError('File not found.', 404);
+    }
+  }
+
+  const fullPath = localPrivatePath(cleanKey);
+  try {
+    const stat = await fs.stat(fullPath);
+    const { createReadStream } = await import('node:fs');
+    const body = range
+      ? createReadStream(fullPath, { start: range.start, end: range.end })
+      : createReadStream(fullPath);
+    return {
+      body,
+      contentType,
+      contentLength: range ? range.end - range.start + 1 : stat.size,
+    };
+  } catch {
+    throw createAppError('File not found.', 404);
+  }
 }

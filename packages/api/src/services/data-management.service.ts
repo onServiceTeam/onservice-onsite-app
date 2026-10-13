@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { platformConfig } from '../config/platform.config';
 import { neutralizeCsvFormula } from '../utils/csv';
 import * as uploadService from './upload.service';
+import { listUserMediaForExport, markUserMediaDeleted } from './job-media.service';
 import { isPrivateExportSecretUsable } from '../config/boot-guards';
 
 // --- Interfaces ---
@@ -253,6 +254,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     emailLinkRequestResult,
     emailSignInRequestResult,
     emailCodeRequestResult,
+    jobMediaResult,
   ] =
     await Promise.all([
       db.query(
@@ -324,9 +326,15 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
          FROM wallets w WHERE w.user_id = $1`,
         [userId],
       ),
+      // D38 request threads (migration 185) add media_id, media_duration_ms
+      // and system_event. They are read through to_jsonb(m) so the export
+      // works the same before and after that migration (NULL until then).
       db.query(
         `SELECT m.id, m.conversation_id, c.booking_id, m.sender_id,
-                m.content, m.message_type, m.image_url, m.is_read, m.created_at
+                m.content, m.message_type, m.image_url, m.is_read, m.created_at,
+                (to_jsonb(m) ->> 'media_id')::uuid AS media_id,
+                (to_jsonb(m) ->> 'media_duration_ms')::integer AS media_duration_ms,
+                to_jsonb(m) ->> 'system_event' AS system_event
          FROM messages m
          INNER JOIN conversations c ON m.conversation_id = c.id
          WHERE c.customer_id = $1 OR c.provider_id = $1
@@ -472,6 +480,10 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
          ORDER BY created_at, id`,
         [userId],
       ),
+      // D38 private photos, videos and voice notes the user uploaded: the
+      // list only (kind, size, length, dates, where attached). Whether the
+      // files themselves belong in the export is Ken open question 10.
+      listUserMediaForExport(userId),
     ]);
 
   return {
@@ -502,6 +514,7 @@ export async function gatherUserData(userId: string): Promise<Record<string, unk
     emailLinkRequests: emailLinkRequestResult.rows,
     emailSignInRequests: emailSignInRequestResult.rows,
     emailCodeRequests: emailCodeRequestResult.rows,
+    jobMedia: jobMediaResult,
   };
 }
 
@@ -932,6 +945,11 @@ async function anonymizeUser(userId: string): Promise<void> {
       `UPDATE messages SET content = '[deleted]' WHERE sender_id = $1`,
       [userId],
     );
+
+    // D38: the user's private request and thread media (attached items
+    // included) become 'deleted' here; the job-media cleanup worker then
+    // removes the files and records purged_at.
+    await markUserMediaDeleted(client, userId);
 
     const providerResult = await client.query<{ id: string }>(
       `SELECT id FROM providers WHERE user_id = $1`,

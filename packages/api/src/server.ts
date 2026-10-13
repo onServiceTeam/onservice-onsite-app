@@ -2,17 +2,34 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '../../.env' });
 
 import * as Sentry from '@sentry/node';
+// Pure helpers with no imports of their own, so loading them first is safe.
+import {
+  dropJobMediaFileTransaction,
+  isJobMediaFileUrl,
+  redactJobMediaTokens,
+} from './utils/job-media-redaction';
 
 // Initialize Sentry before any other imports.
 // Accept SENTRY_DSN or SENTRY_API_DSN — the launch-cutover runbook (Item 6)
 // names the latter, so honor both rather than silently leaving tracking off.
 const SENTRY_DSN = process.env.SENTRY_DSN || process.env.SENTRY_API_DSN;
+// D38: a signed private-media link (/api/v1/job-media/file/<token>) works as
+// a viewing link, so it never reaches Sentry: its performance transactions
+// are dropped and error events have the token redacted (critique L11, P3
+// review fix). Both are standard Sentry v9 init options; the local type shim
+// (types/sentry.d.ts) lists only the four options it was written for, so
+// they are spread in from here.
+const sentryMediaLinkPrivacy = {
+  beforeSendTransaction: dropJobMediaFileTransaction,
+  beforeSend: redactJobMediaTokens,
+};
 if (SENTRY_DSN) {
   Sentry.init({
     dsn: SENTRY_DSN,
     environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development',
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
     release: process.env.SENTRY_RELEASE || `onservice-api@${process.env.npm_package_version || '0.1.0'}`,
+    ...sentryMediaLinkPrivacy,
   });
 }
 
@@ -70,6 +87,8 @@ import referralRoutes from './routes/referral.routes';
 import recurringRoutes from './routes/recurring.routes';
 import sukiRoutes from './routes/suki.routes';
 import uploadRoutes from './routes/upload.routes';
+import jobMediaRoutes from './routes/job-media.routes';
+import { ensurePrivateJobMediaDirs } from './services/upload.service';
 import checklistRoutes from './routes/checklist.routes';
 import breachLogRoutes from './routes/breach-log.routes';
 import serviceAreaRoutes from './routes/service-area.routes';
@@ -168,8 +187,12 @@ app.use(cookieParser());
 app.use(compression());
 
 // --- Request Logging ---
+// D38: signed private-media links carry a bearer token in the path, so those
+// reads are not written to the request log (critique L11). Every other
+// request, including the other /api/v1/job-media routes, is still logged.
 app.use(morgan('combined', {
   stream: { write: (message: string): void => { logger.info(message.trim()); } },
+  skip: (req) => isJobMediaFileUrl(req.originalUrl || req.url),
 }));
 
 // --- Rate Limiting ---
@@ -340,6 +363,9 @@ app.use('/api/v1/recurring', recurringRoutes);
 app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/suki', sukiRoutes);
 app.use('/api/v1/uploads', uploadRoutes);
+// D38 private request and request-thread media: chunked uploads and
+// short-lived signed links (no public URL ever exists for these files).
+app.use('/api/v1/job-media', jobMediaRoutes);
 // Phase 14 Dispatch 07 — Bug 460 + 463 server-driven checklists.
 app.use('/api/v1', checklistRoutes);
 app.use('/api/v1/service-areas', serviceAreaRoutes);
@@ -401,6 +427,10 @@ httpServer.listen(PORT, () => {
   // serves the rest of the uploads volume publicly. Re-asserted every start.
   ensurePrivateFeedbackDir()
     .catch((err: unknown) => logger.error('Could not make the feedback screenshot folder private', { error: err }));
+
+  // D38: private job media folders (0700), re-asserted every start.
+  ensurePrivateJobMediaDirs()
+    .catch((err: unknown) => logger.error('Could not make the job media folders private', { error: err }));
 
   // CRIT-M01 fix — pull live rate-limit settings when the server starts
   // and start the periodic refresh loop. Conservative platformConfig

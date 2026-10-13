@@ -15,9 +15,61 @@ function malformed(): never {
 // (Adobe colour transform) change how the picture looks, so they stay.
 const JPEG_DROP = new Set([0xe1, 0xec, 0xed, 0xfe]);
 
-function stripJpeg(input: Buffer): Buffer {
+/**
+ * D38 request photos: the EXIF orientation tag (0x0112) from IFD0 of an
+ * "Exif\0\0" APP1 segment, when it is a rotation or flip (2 to 8). Phone
+ * cameras often store portrait shots unrotated with this tag, so dropping it
+ * would show them sideways. Anything that cannot be read cleanly gives null
+ * (the photo is then stored without orientation, never refused for it).
+ */
+function readExifOrientation(segment: Buffer): number | null {
+  // segment = the APP1 payload after the 2-byte length.
+  if (segment.length < 14 || segment.toString('latin1', 0, 6) !== 'Exif\0\0') return null;
+  const tiff = segment.subarray(6);
+  const order = tiff.toString('latin1', 0, 2);
+  if (order !== 'II' && order !== 'MM') return null;
+  const little = order === 'II';
+  const u16 = (at: number): number => (little ? tiff.readUInt16LE(at) : tiff.readUInt16BE(at));
+  const u32 = (at: number): number => (little ? tiff.readUInt32LE(at) : tiff.readUInt32BE(at));
+  if (u16(2) !== 42) return null;
+  const ifd0 = u32(4);
+  if (ifd0 < 8 || ifd0 + 2 > tiff.length) return null;
+  const count = u16(ifd0);
+  for (let index = 0; index < count; index += 1) {
+    const entry = ifd0 + 2 + index * 12;
+    if (entry + 12 > tiff.length) return null;
+    if (u16(entry) !== 0x0112) continue;
+    if (u16(entry + 2) !== 3 || u32(entry + 4) !== 1) return null;
+    const value = u16(entry + 8);
+    return value >= 2 && value <= 8 ? value : null;
+  }
+  return null;
+}
+
+/** A 36-byte APP1 segment (length field 34) holding only IFD0 with one orientation entry. */
+function orientationOnlyApp1(orientation: number): Buffer {
+  const out = Buffer.alloc(36);
+  out[0] = 0xff;
+  out[1] = 0xe1;
+  out.writeUInt16BE(34, 2);
+  out.write('Exif\0\0', 4, 'latin1');
+  const tiff = 10;
+  out.write('MM', tiff, 'latin1');
+  out.writeUInt16BE(42, tiff + 2);
+  out.writeUInt32BE(8, tiff + 4); // IFD0 right after the header
+  out.writeUInt16BE(1, tiff + 8); // one entry
+  out.writeUInt16BE(0x0112, tiff + 10); // Orientation
+  out.writeUInt16BE(3, tiff + 12); // SHORT
+  out.writeUInt32BE(1, tiff + 14); // count 1
+  out.writeUInt16BE(orientation, tiff + 18); // value, left-justified
+  out.writeUInt32BE(0, tiff + 22); // no next IFD
+  return out;
+}
+
+function stripJpeg(input: Buffer, keepOrientation = false): Buffer {
   if (input.length < 4 || input[0] !== 0xff || input[1] !== 0xd8) malformed();
   const parts: Buffer[] = [input.subarray(0, 2)];
+  let orientationPlaced = !keepOrientation;
   let offset = 2;
   while (offset < input.length) {
     if (input[offset] !== 0xff) malformed();
@@ -42,7 +94,16 @@ function stripJpeg(input: Buffer): Buffer {
       parts.push(input.subarray(offset));
       return Buffer.concat(parts);
     }
-    if (!JPEG_DROP.has(marker)) parts.push(input.subarray(offset, segmentEnd));
+    if (!JPEG_DROP.has(marker)) {
+      parts.push(input.subarray(offset, segmentEnd));
+    } else if (!orientationPlaced && marker === 0xe1) {
+      // The first APP1 dropped: put back only the orientation, if it has one.
+      const orientation = readExifOrientation(input.subarray(offset + 4, segmentEnd));
+      if (orientation !== null) {
+        parts.push(orientationOnlyApp1(orientation));
+        orientationPlaced = true;
+      }
+    }
     offset = segmentEnd;
   }
   malformed();
@@ -100,8 +161,19 @@ function stripWebp(input: Buffer): Buffer {
   return Buffer.concat([header, body]);
 }
 
-export function stripImageMetadata(input: Buffer, mime: string): Buffer {
-  if (mime === 'image/jpeg') return stripJpeg(input);
+export interface StripImageMetadataOptions {
+  /**
+   * D38 request and chat photos: keep the JPEG EXIF orientation (only that
+   * tag, in a fresh 36-byte APP1) so portrait phone photos are not shown
+   * sideways. GPS, XMP, IPTC, comments and every other EXIF field are still
+   * removed. Off by default, so tester-feedback screenshots keep today's
+   * behaviour (the whole APP1 is dropped).
+   */
+  keepOrientation?: boolean;
+}
+
+export function stripImageMetadata(input: Buffer, mime: string, options: StripImageMetadataOptions = {}): Buffer {
+  if (mime === 'image/jpeg') return stripJpeg(input, options.keepOrientation === true);
   if (mime === 'image/png') return stripPng(input);
   if (mime === 'image/webp') return stripWebp(input);
   malformed();
