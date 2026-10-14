@@ -141,6 +141,11 @@ export async function fanOutRequest(
       )).rows[0]?.customer_id;
       if (customerId) await opsReview(customerId, bookingId);
       await emitRequestUpdated(bookingId);
+    } else if (result.notified > 0) {
+      // The customer's request status reads "sent to N pros" from the invites
+      // this fan-out just pushed; tell the open screen to re-read it now
+      // instead of waiting for its fallback re-reads (P5b review finding 4).
+      await emitRequestUpdated(bookingId);
     }
     return result;
   } catch (err) {
