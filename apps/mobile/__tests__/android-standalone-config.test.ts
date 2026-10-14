@@ -39,8 +39,9 @@ it('builds an explicitly selected standalone Android config without inventing EA
   // 1.0.2 (build 3), 2026-10-13: tester feedback v2 (Send feedback entries, real version shown).
   // 1.0.3 (build 4), 2026-10-14: in-app updater, request-first booking, new home and service screens.
   // 1.0.4 (build 5), D38 Milestone 2: request media (photos, video, voice notes), request threads, live updates.
-  expect(config.version).toBe('1.0.4');
-  expect(config.android?.versionCode).toBe(5);
+  // 1.0.5 (build 6), 2026-10-14: truthful confirmation after paying a quote (R-CUS-09), customer-paid banner for pros (R-NOT-01).
+  expect(config.version).toBe('1.0.5');
+  expect(config.android?.versionCode).toBe(6);
 });
 
 // D38 Milestone 2 (APK 1.0.4): voice notes need the microphone; videos come
