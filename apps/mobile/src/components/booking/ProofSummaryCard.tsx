@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AlertTriangle, Camera, CheckCircle2, ClipboardList, Shield } from '@/components/icons';
 import Card from '@/components/ui/Card';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -9,6 +9,9 @@ interface ProofSummaryCardProps {
   summary: BookingProofSummary;
   audience: 'customer' | 'provider';
 }
+
+// How many checklist items show before the "Show N more" control.
+const COLLAPSED_ITEM_COUNT = 4;
 
 function humanize(value: string): string {
   return value.replaceAll('_', ' ');
@@ -29,6 +32,18 @@ export default function ProofSummaryCard({
     : 'Not opened';
   const title = audience === 'provider' ? 'Proof to complete' : 'Work record';
   const stageColor = summary.readiness.readyForProviderCompletion ? colors.success : colors.primary;
+  // R-CUS-08: the customer approves the job from this card, so every
+  // checklist item must be reachable and the provider's notes visible.
+  const [checklistExpanded, setChecklistExpanded] = useState(false);
+  const checklistItems = summary.checklist?.items ?? [];
+  const hiddenItemCount = Math.max(checklistItems.length - COLLAPSED_ITEM_COUNT, 0);
+  const visibleItems = checklistExpanded
+    ? checklistItems
+    : checklistItems.slice(0, COLLAPSED_ITEM_COUNT);
+  const toggleLabel = checklistExpanded
+    ? 'Show fewer checklist items'
+    : `Show ${hiddenItemCount} more checklist ${hiddenItemCount === 1 ? 'item' : 'items'}`;
+  const completionNotes = summary.booking.completionNotes?.trim() ?? '';
 
   return (
     <Card style={styles.card}>
@@ -88,9 +103,9 @@ export default function ProofSummaryCard({
         <Text style={styles.readyText}>No current provider-completion blockers are recorded.</Text>
       )}
 
-      {summary.checklist && summary.checklist.items.length > 0 && (
+      {checklistItems.length > 0 && (
         <View style={styles.items}>
-          {summary.checklist.items.slice(0, 4).map((item) => (
+          {visibleItems.map((item) => (
             <View key={item.id} style={styles.itemRow}>
               <CheckCircle2
                 size={15}
@@ -102,9 +117,25 @@ export default function ProofSummaryCard({
               {item.photoRequired && <Text style={styles.photoRequired}>Photo</Text>}
             </View>
           ))}
-          {summary.checklist.items.length > 4 && (
-            <Text style={styles.moreItems}>+{summary.checklist.items.length - 4} more checklist item(s)</Text>
+          {hiddenItemCount > 0 && (
+            <Pressable
+              onPress={() => setChecklistExpanded((expanded) => !expanded)}
+              accessibilityRole="button"
+              accessibilityLabel={toggleLabel}
+              accessibilityState={{ expanded: checklistExpanded }}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              style={styles.moreItemsButton}
+            >
+              <Text style={styles.moreItems}>{toggleLabel}</Text>
+            </Pressable>
           )}
+        </View>
+      )}
+
+      {completionNotes.length > 0 && (
+        <View style={styles.notes}>
+          <Text style={styles.notesHeading}>Provider notes</Text>
+          <Text style={styles.notesText}>{completionNotes}</Text>
         </View>
       )}
 
@@ -154,7 +185,11 @@ const styles = StyleSheet.create({
   itemText: { ...typography.bodySmall, color: colors.text, flex: 1 },
   itemDone: { color: colors.textSecondary },
   photoRequired: { ...typography.caption, color: colors.info, backgroundColor: colors.infoLight, paddingHorizontal: spacing.xs, borderRadius: borderRadius.sm },
-  moreItems: { ...typography.caption, color: colors.textTertiary },
+  moreItemsButton: { alignSelf: 'flex-start', paddingVertical: spacing.xs },
+  moreItems: { ...typography.bodySmall, color: colors.primary, fontWeight: '600' },
+  notes: { marginTop: spacing.base, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider, gap: spacing.xs },
+  notesHeading: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  notesText: { ...typography.bodySmall, color: colors.textSecondary },
   caution: { marginTop: spacing.base, backgroundColor: colors.warningLight, borderRadius: borderRadius.md, padding: spacing.sm },
   cautionText: { ...typography.caption, color: colors.warningDark },
   disputeText: { ...typography.bodySmall, color: colors.error, marginTop: spacing.base, fontWeight: '600' },
