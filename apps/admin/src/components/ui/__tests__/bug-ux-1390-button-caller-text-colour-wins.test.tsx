@@ -22,7 +22,7 @@ it('Bug UX-1390 — a ghost button given text-red-700 keeps the red and drops th
   expect(button).not.toHaveClass('text-slate-900');
 });
 
-it('Bug UX-1390 — a ghost button given only a text size keeps the variant text-slate-900', () => {
+it('Button guard (UX-1390): a ghost button given only a text size keeps the variant text-slate-900', () => {
   render(
     <Button variant="ghost" className="text-sm">
       More
@@ -34,7 +34,7 @@ it('Bug UX-1390 — a ghost button given only a text size keeps the variant text
   expect(button).toHaveClass('text-slate-900');
 });
 
-it('Bug UX-1390 — an outline button given an arbitrary text colour drops the variant text-slate-900', () => {
+it('Button guard (UX-1390): an outline button given an arbitrary text colour drops the variant text-slate-900', () => {
   render(
     <Button variant="outline" className="text-[var(--color-primary)]">
       Open
@@ -46,7 +46,7 @@ it('Bug UX-1390 — an outline button given an arbitrary text colour drops the v
   expect(button).not.toHaveClass('text-slate-900');
 });
 
-it('Bug UX-1390 — a default button with no className keeps the variant text-white', () => {
+it('Button guard (UX-1390): a default button with no className keeps the variant text-white', () => {
   render(<Button>Save</Button>);
 
   expect(screen.getByRole('button', { name: 'Save' })).toHaveClass('text-white');

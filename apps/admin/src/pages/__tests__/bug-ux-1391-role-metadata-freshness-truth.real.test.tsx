@@ -54,7 +54,7 @@ it('Bug UX-1391 — a failed role profiles read does not claim a successful role
   expect(line.textContent).toBe('Role metadata: No successful update yet.');
 });
 
-it('Bug UX-1391 — after both role reads succeed the role metadata line shows the update', async () => {
+it('Role metadata guard (UX-1391): after both role reads succeed the line shows the update', async () => {
   apiGet.mockImplementation((url: string) => {
     if (url === '/api/v1/staff/roles') return Promise.resolve({ data: { data: [] } });
     if (url === '/api/v1/staff/permissions') return Promise.resolve({ data: { data: ['bookings.read'] } });
