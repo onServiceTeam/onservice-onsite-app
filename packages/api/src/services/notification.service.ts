@@ -10,6 +10,8 @@ import { emitToUser } from './socket.service';
 // mock socket.service without emitToUser keep working unchanged.
 import * as socketService from './socket.service';
 import { REALTIME_EVENTS, type NotificationNewPayload } from './realtime-events';
+import { platformConfig } from '../config/platform.config';
+import { QUOTE_WINDOW_HOURS, isQuoteTimeWindow } from './booking/quote-slot';
 
 interface NotificationRow {
   id: string;
@@ -88,6 +90,10 @@ export type NotificationType =
   | 'job_request_reopened' | 'quote_declined' | 'quote_not_selected' | 'quote_withdrawn'
   | 'job_request_cancelled'
   | 'request_reopened' | 'request_still_looking' | 'request_ops_review'
+  // R-NOT-01: the provider who already has a booking is told the customer
+  // paid for it (notifyProviderCustomerPaid). notifications.type has no CHECK
+  // constraint (migration 009, VARCHAR(50)), so no migration is needed.
+  | 'customer_paid'
   // D27 Phase 7b — provider CRM follow-up reminder fires on its due date.
   | 'provider_reminder'
   // MED-N70 — change-order auto-expiry worker
@@ -579,7 +585,9 @@ function pushPreferenceForType(
     || ['no_provider_available', 'customer_cancelled', 'provider_cancelled', 'job_completed', 'auto_confirmed', 'dispute_update', 'new_job_available', 'new_job_request', 'job_accepted', 'new_quote', 'quote_accepted', 'quote_expired', 'recurring_update',
       // D38 request-first loop (merged plan 2.5, critique 2.5).
       'job_request_reopened', 'quote_declined', 'quote_not_selected', 'quote_withdrawn',
-      'job_request_cancelled', 'request_reopened', 'request_still_looking', 'request_ops_review'].includes(type)
+      'job_request_cancelled', 'request_reopened', 'request_still_looking', 'request_ops_review',
+      // R-NOT-01: the provider's "customer paid" notice is a booking update.
+      'customer_paid'].includes(type)
   ) return 'bookingUpdates';
   return 'system';
 }
@@ -680,6 +688,102 @@ export async function notifyCustomerProviderAssigned(
     title,
     body,
     data: { bookingId, providerName },
+  });
+}
+
+/** "8 AM", "12 PM", "5 PM" from a window bound such as '08:00'. */
+function windowHourLabel(hhmm: string): string {
+  const hour = Number(hhmm.slice(0, 2));
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h} ${suffix}`;
+}
+
+/**
+ * The job time in the platform time zone, in plain words:
+ *   with a quote window  "Fri, Oct 16, morning (8 AM to 12 PM)"
+ *   asap                 "Wed, Oct 14, as soon as possible"
+ *   no window            "Fri, Oct 16 at 2:30 PM"
+ * Built from formatToParts so the text carries ordinary spaces only (newer
+ * ICU puts a narrow no-break space before AM/PM in toLocaleTimeString).
+ */
+function describeJobTime(scheduledAt: Date | string | null, window: string | null): string | null {
+  if (!scheduledAt) return null;
+  const at = new Date(scheduledAt);
+  if (Number.isNaN(at.getTime())) return null;
+  const parts = (options: Intl.DateTimeFormatOptions): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const part of new Intl.DateTimeFormat('en-US', { ...options, timeZone: platformConfig.timezone }).formatToParts(at)) {
+      out[part.type] = part.value;
+    }
+    return out;
+  };
+  const date = parts({ weekday: 'short', month: 'short', day: 'numeric' });
+  const day = `${date.weekday}, ${date.month} ${date.day}`;
+  if (isQuoteTimeWindow(window)) {
+    const hours = QUOTE_WINDOW_HOURS[window];
+    if (hours.start === null) return `${day}, as soon as possible`;
+    return `${day}, ${window} (${windowHourLabel(hours.start)} to ${windowHourLabel(hours.end)})`;
+  }
+  const time = parts({ hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${day} at ${time.hour}:${time.minute} ${time.dayPeriod}`;
+}
+
+/**
+ * R-NOT-01: tell the provider who already has a booking that the customer
+ * paid for it. This is the D38 main path: the customer accepts a quote (the
+ * provider is assigned and told "Accepted. You get the job once they pay."),
+ * then pays.
+ *
+ * Callers pass the provider_id the booking had when the payment was taken and
+ * call this only after the payment transaction has committed. The notice goes
+ * out only while that same provider is still on the booking, so a provider
+ * matched after the payment (the fixed-price offer flow) is never told here.
+ *
+ * The copy carries only what the provider already sees on the job: the
+ * customer's first name, the service and the job time. Throws on a database
+ * failure; the payment routes catch and log it, so a failed notice never
+ * turns a completed payment into an error.
+ */
+export async function notifyProviderCustomerPaid(bookingId: string, providerId: string): Promise<void> {
+  const result = await db.query<{
+    provider_user_id: string;
+    customer_first_name: string | null;
+    service_name: string | null;
+    scheduled_at: Date | null;
+    scheduled_window: string | null;
+  }>(
+    `SELECT p.user_id AS provider_user_id,
+            cu.first_name AS customer_first_name,
+            COALESCE(sub.name, sc.name) AS service_name,
+            b.scheduled_at,
+            b.scheduled_window
+       FROM bookings b
+       JOIN providers p ON p.id = b.provider_id
+       LEFT JOIN users cu ON cu.id = b.customer_id
+       LEFT JOIN service_categories sc ON sc.id = b.category_id
+       LEFT JOIN service_subcategories sub ON sub.id = b.subcategory_id
+      WHERE b.id = $1 AND b.provider_id = $2`,
+    [bookingId, providerId],
+  );
+  const row = result.rows[0];
+  if (!row) {
+    logger.warn('Customer-paid notice not sent: the booking no longer has the provider it was paid with', {
+      bookingId, providerId,
+    });
+    return;
+  }
+  const customer = row.customer_first_name?.trim() || 'The customer';
+  const service = row.service_name?.trim() || 'the job';
+  const when = describeJobTime(row.scheduled_at, row.scheduled_window);
+  await createPushNotification({
+    userId: row.provider_user_id,
+    type: 'customer_paid',
+    title: 'Customer paid',
+    body: when
+      ? `${customer} paid for ${service}. The job is confirmed for ${when}.`
+      : `${customer} paid for ${service}. The job is confirmed.`,
+    data: { bookingId },
   });
 }
 

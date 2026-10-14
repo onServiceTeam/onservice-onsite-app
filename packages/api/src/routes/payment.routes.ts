@@ -7,7 +7,9 @@ import * as walletService from '../services/wallet.service';
 import * as escrowService from '../services/escrow.service';
 import * as bookingService from '../services/booking.service';
 import * as bookingOfferService from '../services/booking-offer.service';
+import * as notificationService from '../services/notification.service';
 import { createAppError } from '../middleware/error.middleware';
+import { logger } from '../utils/logger';
 import { canTransition, BookingStatus } from '../types/booking.types';
 import { db } from '../models/db';
 import { assertExternalPaymentAuthorizationEnabled } from '../services/external-payment-hold.service';
@@ -31,7 +33,7 @@ router.post(
         // therefore left an orphan intent and a stuck booking, while two taps
         // could race. The booking row lock now serializes retries and all local
         // wallet/escrow state commits or rolls back together.
-        const intent = await db.transaction(async (client) => {
+        const { intent, paidProviderId } = await db.transaction(async (client) => {
           const bookingResult = await client.query<{
             customer_id: string;
             status: string;
@@ -139,12 +141,31 @@ router.post(
             bookingId,
             amount,
           );
-          return { ...walletIntent, status: 'succeeded' };
+          // R-NOT-01: the provider the booking had under the lock, when it
+          // was paid (null for a booking still waiting to be matched).
+          return { intent: { ...walletIntent, status: 'succeeded' }, paidProviderId: booking.provider_id };
         });
 
         // Instant-pay: now that the booking is paid, make sure it is being
         // offered to a provider (no-op if one is already assigned/pending).
         await bookingOfferService.dispatchPaidBookingIfNeeded(bookingId);
+
+        // R-NOT-01: the payment has committed. Tell the provider who already
+        // had the job (D38: an accepted quote) that the customer paid. A
+        // booking matched only after payment is told through the offer flow,
+        // so nothing is sent without a provider at payment time. A failed
+        // notice is logged and never turns the completed payment into an error.
+        if (paidProviderId) {
+          try {
+            await notificationService.notifyProviderCustomerPaid(bookingId, paidProviderId);
+          } catch (notifyErr) {
+            logger.error('Wallet payment: customer-paid notice to the provider failed', {
+              bookingId,
+              providerId: paidProviderId,
+              error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+            });
+          }
+        }
 
         res.status(201).json({
           success: true,

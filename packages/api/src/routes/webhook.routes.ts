@@ -403,6 +403,24 @@ router.post(
                 error: notifyErr instanceof Error ? notifyErr.message : 'Unknown',
               });
             }
+            // R-NOT-01: tell the provider the booking already had when it was
+            // paid (read inside the transaction above) that the customer paid.
+            // Same rule as the wallet route: only after commit, only with a
+            // provider at payment time, and a failure is logged without
+            // failing the webhook. Dormant while external payments are on
+            // hold (E14), kept so both payment paths behave the same.
+            const paidProviderId = (bookingForNotify as BookingRow).provider_id;
+            if (paidProviderId) {
+              try {
+                await notificationService.notifyProviderCustomerPaid(bookingId, paidProviderId);
+              } catch (notifyErr) {
+                logger.error('Webhook payment.paid customer-paid notice to the provider failed', {
+                  bookingId,
+                  providerId: paidProviderId,
+                  error: notifyErr instanceof Error ? notifyErr.message : 'Unknown',
+                });
+              }
+            }
             // Instant-pay: the booking just became paid — ensure a provider is
             // being matched (no-op if one is already assigned/pending). Only
             // runs on a real paid transition, not idempotent re-deliveries
