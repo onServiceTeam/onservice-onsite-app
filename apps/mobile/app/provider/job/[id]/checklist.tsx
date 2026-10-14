@@ -464,8 +464,11 @@ export default function JobChecklistScreen({ staffMode = false }: { staffMode?: 
                 <X size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
+            {/* R-PRV-11: no "the customer will be notified" promise here,
+                the report endpoint does not exist yet (E05), so nobody is
+                notified. */}
             <Text style={styles.modalHint}>
-              Describe what went wrong. The customer will be notified.
+              Describe what went wrong.
             </Text>
             {/* BUG-PHASE195-01 fix — also added maxLength to match
                 the eventual backend cap when E05 lands; mirrors the
