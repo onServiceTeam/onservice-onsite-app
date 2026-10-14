@@ -12,6 +12,8 @@ import type { SavedAddress } from '@/services/address.service';
 // A7 — adopt the shared UI kit (skeleton/empty/error/list) + toast feedback.
 import { Button, SkeletonCard, EmptyState, ErrorState, OptimizedList } from '@/components/ui';
 import { showToast } from '@/lib/toast';
+import { getErrorMessage } from '@/utils/errors';
+import { ApiError } from '@/services/api';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 // Phase 14 R5-complete — ConfirmModal for delete-address destructive flow.
 import ConfirmModal from '@/components/ConfirmModal';
@@ -20,6 +22,18 @@ import { Home as HomeIcon, Briefcase, Pin, ChevronLeft, Check, MapPin } from '@/
 import { useLocation } from '@/hooks/useLocation';
 import { checkCoverage } from '@/services/service-area.service';
 import { useResponsive } from '@/hooks/useResponsive';
+
+/**
+ * R-CUS-09: what to tell the customer when saving an address fails. The
+ * app's ApiError keeps the server's reason in err.body, so a refusal the
+ * server explained shows that reason through the shared helper. A failure
+ * the server did not explain (a gateway error page during a deploy, no
+ * connection, a timeout) shows the screen's own plain message: the helper
+ * would show "HTTP 502" or the browser's network text there.
+ */
+function addressSaveErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError && err.body?.error ? getErrorMessage(err, fallback) : fallback;
+}
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -85,8 +99,7 @@ export default function AddressesScreen(): React.ReactElement {
       showToast('Address added', 'success');
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? 'Failed to save address.';
-      showToast(msg, 'error');
+      showToast(addressSaveErrorMessage(err, 'Failed to save address.'), 'error');
     },
   });
 
@@ -99,8 +112,7 @@ export default function AddressesScreen(): React.ReactElement {
       showToast('Address updated', 'success');
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ?? 'Failed to update address.';
-      showToast(msg, 'error');
+      showToast(addressSaveErrorMessage(err, 'Failed to update address.'), 'error');
     },
   });
 

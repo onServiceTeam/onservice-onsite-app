@@ -67,6 +67,9 @@ export interface Booking {
   budgetMin?: number | null;
   budgetMax?: number | null;
   jobVideoUrl?: string | null;
+  // Migration 183: the time window of the accepted quote ('morning',
+  // 'afternoon', 'evening' or 'asap'); null for other bookings.
+  scheduledWindow?: string | null;
 }
 
 // Phase 14 Dispatch 05 — Bug 175 + Bug 176.

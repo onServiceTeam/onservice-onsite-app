@@ -6,12 +6,29 @@ import { useQuery } from '@tanstack/react-query';
 import { getBookingById } from '@/services/booking.service';
 import { Button, SkeletonCard, Card, TrustStrip, ErrorState } from '@/components/ui';
 import { formatPHP } from '@/utils/currency';
-import { formatDate, formatBookingRef } from '@/utils/date';
+import { formatDate, formatDateTime, formatBookingRef } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Lock, Check } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { isQuoteTimeWindow, timeWindowLabel } from '@/services/request.service';
 
 import { buildRoute, Routes } from '@/config/navigation';
+
+/**
+ * R-CUS-09: when the visit is, for a booking whose pro is already chosen.
+ * A quote booking stores the start of its agreed window as scheduledAt plus
+ * the window itself, so it reads "October 15, 2026, morning (8 AM to 12 PM)".
+ * Other bookings read as a date and time. Null when no time is stored.
+ */
+function visitTimeText(scheduledAt: string | null | undefined, scheduledWindow: string | null | undefined): string | null {
+  if (!scheduledAt) return null;
+  if (isQuoteTimeWindow(scheduledWindow)) {
+    const label = timeWindowLabel(scheduledWindow);
+    return `${formatDate(scheduledAt)}, ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  }
+  return formatDateTime(scheduledAt);
+}
+
 export default function BookingConfirmScreen(): React.ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -30,6 +47,20 @@ export default function BookingConfirmScreen(): React.ReactElement {
   const statusLabel = booking?.status
     ? booking.status.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
     : '';
+  // R-CUS-09: under D38 the pro is chosen when the customer accepts a quote
+  // (acceptQuote sets provider_id), so most bookings reach this screen with
+  // their pro already assigned. Only a booking without one is still matched.
+  const hasAssignedProvider = !!booking?.providerId;
+  const assignedProviderName = booking?.providerName?.trim() || null;
+  // The pro's name at the start of a sentence and inside one.
+  const providerLabel = assignedProviderName ?? 'Your provider';
+  const providerInSentence = assignedProviderName ?? 'your provider';
+  const visitTime = visitTimeText(booking?.scheduledAt, booking?.scheduledWindow);
+  const providerOrMatchingText = !hasAssignedProvider
+    ? 'We\'re finding the best provider for you.'
+    : assignedProviderName
+      ? `${assignedProviderName} is your provider for this job.`
+      : 'Your provider is already assigned to this job.';
   const titleText = !isConfirmationStage
     ? 'Booking Status Updated'
     : isPaid
@@ -39,9 +70,37 @@ export default function BookingConfirmScreen(): React.ReactElement {
     ? `This booking is now ${statusLabel}. Open the booking record for its current actions and support history.`
     : isPaid
       ? isPaymentHeld
-        ? 'Your booking shows paid with escrow held. We\'re finding the best provider for you.'
-        : 'Your booking shows paid. We\'re finding the best provider for you.'
+        ? `Your booking shows paid with escrow held. ${providerOrMatchingText}`
+        : `Your booking shows paid. ${providerOrMatchingText}`
       : 'Complete your payment to confirm this booking.';
+  // R-NOT-01 tells the pro in the app (inbox and live update) when the
+  // customer pays. Android push is not set up yet, so the copy says "in the
+  // app" and never promises a phone notification.
+  // Release order: these lines are true only once the R-NOT-01 API change
+  // (notifyProviderCustomerPaid in the wallet and webhook payment routes) is
+  // live. Deploy that API change first, or in the same release, and check it
+  // is live before publishing a web build or APK that carries this copy.
+  const nextSteps: string[] = !hasAssignedProvider
+    ? [
+      'We\'ll match you with a verified provider in your area',
+      'You\'ll receive a notification once a provider accepts',
+      'Track your provider\'s status in real-time on booking day',
+    ]
+    : isPaid
+      ? [
+        visitTime
+          ? `${providerLabel} is coming on ${visitTime}`
+          : `Check the booking for the visit time with ${providerInSentence}`,
+        `${providerLabel} is notified in the app that you have paid`,
+        'Track your provider\'s status in real-time on booking day',
+      ]
+      : [
+        visitTime
+          ? `Pay to confirm ${providerInSentence} for ${visitTime}`
+          : `Pay to confirm ${providerInSentence} for this job`,
+        `Once you pay, ${providerInSentence} is notified in the app`,
+        'Track your provider\'s status in real-time on booking day',
+      ];
 
   if (!bookingId || isError) {
     return (
@@ -148,24 +207,12 @@ export default function BookingConfirmScreen(): React.ReactElement {
         {isConfirmationStage ? (
           <Card style={styles.stepsCard}>
             <Text style={styles.stepsTitle}>What happens next?</Text>
-            <View style={styles.step}>
-              <View style={styles.stepDot} />
-              <Text style={styles.stepText}>
-                We'll match you with a verified provider in your area
-              </Text>
-            </View>
-            <View style={styles.step}>
-              <View style={styles.stepDot} />
-              <Text style={styles.stepText}>
-                You'll receive a notification once a provider accepts
-              </Text>
-            </View>
-            <View style={styles.step}>
-              <View style={styles.stepDot} />
-              <Text style={styles.stepText}>
-                Track your provider's status in real-time on booking day
-              </Text>
-            </View>
+            {nextSteps.map((step) => (
+              <View key={step} style={styles.step}>
+                <View style={styles.stepDot} />
+                <Text style={styles.stepText}>{step}</Text>
+              </View>
+            ))}
           </Card>
         ) : null}
       </View>

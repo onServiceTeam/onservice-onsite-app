@@ -9,6 +9,7 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import api from '@/services/api';
 import { getBookingById, getMyDisputes } from '@/services/booking.service';
 import { listBookingPhotos } from '@/services/booking-photo.service';
 import { getBookingProofSummary } from '@/services/booking-proof.service';
+import { getBookingReview } from '@/services/review.service';
 import ProofSummaryCard from '@/components/booking/ProofSummaryCard';
 // A7 — shared UI kit for loading + error states + toast feedback.
 import { Button, Skeleton, ErrorState } from '@/components/ui';
@@ -44,6 +46,9 @@ const CANCELLABLE_STATUSES = new Set([
   'requested', 'quoted', 'matched', 'payment_pending', 'paid', 'provider_en_route',
 ]);
 const NEEDS_CONFIRMATION = 'completed_by_provider';
+// R-CUS-09: on a phone the actions bar never takes more than this share of
+// the window height; extra actions scroll inside it.
+const PHONE_ACTION_BAR_MAX_SHARE = 0.4;
 
 export default function BookingDetailScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,6 +56,7 @@ export default function BookingDetailScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
+  const { height: windowHeight } = useWindowDimensions();
   const isWide = !isPhone;
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -93,12 +99,26 @@ export default function BookingDetailScreen(): React.ReactElement {
   });
   const linkedDispute = disputeQuery.data?.disputes[0];
 
+  // R-CUS-09: the server allows one review per booking and answers a second
+  // one with 409 "A review already exists for this booking." Ask whether this
+  // booking already has a review before offering "Leave a Review".
+  const canReviewStatus = !!booking
+    && COMPLETED_STATUSES.has(booking.status)
+    && booking.status !== NEEDS_CONFIRMATION;
+  const reviewQuery = useQuery({
+    queryKey: ['bookingReview', id],
+    queryFn: () => getBookingReview(id ?? ''),
+    enabled: !!id && canReviewStatus,
+    staleTime: 30 * 1000,
+  });
+
   const onRefresh = useCallback(() => {
     void refetch();
     void photosCountQuery.refetch();
     void disputeQuery.refetch();
     void proofSummaryQuery.refetch();
-  }, [refetch, photosCountQuery, disputeQuery, proofSummaryQuery]);
+    if (canReviewStatus) void reviewQuery.refetch();
+  }, [refetch, photosCountQuery, disputeQuery, proofSummaryQuery, canReviewStatus, reviewQuery]);
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -207,6 +227,14 @@ export default function BookingDetailScreen(): React.ReactElement {
     (booking.providerAfterPhotos?.length ?? 0) > 0 ||
     (booking.jobPhotos?.length ?? 0) > 0 ||
     (photosCountQuery.data?.length ?? 0) > 0;
+  // R-CUS-09: a found review replaces the button with a note. While the
+  // lookup runs nothing is shown; if it fails the button stays (the server
+  // still refuses a second review, and the screen keeps working).
+  const existingReview = reviewQuery.data ?? null;
+  const showReviewedNote = canReviewStatus && existingReview !== null;
+  const showLeaveReview = canReviewStatus
+    && existingReview === null
+    && (reviewQuery.isSuccess || reviewQuery.isError);
 
   const bookingActions = (
     <>
@@ -248,6 +276,23 @@ export default function BookingDetailScreen(): React.ReactElement {
           title="Confirm & Review"
           onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_COMPLETE, params: { bookingId: id } })}
         />
+      )}
+      {/* R-CUS-09: the review is the main next step on a finished booking,
+          so it sits with the primary actions at the top of the list. */}
+      {showLeaveReview && (
+        <View style={styles.completedActions}>
+          <Button
+            title="Leave a Review"
+            onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_REVIEW, params: { bookingId: id } })}
+            variant="outline"
+          />
+        </View>
+      )}
+      {showReviewedNote && existingReview && (
+        <View style={styles.reviewedNote}>
+          <Text style={styles.reviewedTitle}>You reviewed this job</Text>
+          <Text style={styles.reviewedText}>{`You rated it ${existingReview.rating} out of 5.`}</Text>
+        </View>
       )}
       {canViewChangeOrders && (
         <>
@@ -343,15 +388,6 @@ export default function BookingDetailScreen(): React.ReactElement {
         })}
         variant="outline"
       />
-      {COMPLETED_STATUSES.has(booking.status) && booking.status !== 'completed_by_provider' && (
-        <View style={styles.completedActions}>
-          <Button
-            title="Leave a Review"
-            onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_REVIEW, params: { bookingId: id } })}
-            variant="outline"
-          />
-        </View>
-      )}
     </>
   );
 
@@ -537,7 +573,20 @@ export default function BookingDetailScreen(): React.ReactElement {
 
       {!isWide && (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.base }]}>
-          {bookingActions}
+          {/* R-CUS-09: up to six buttons plus a note could cover most of a
+              small phone. The bar is capped at a share of the window height
+              and scrolls; the primary actions come first so they show
+              without scrolling. */}
+          <ScrollView
+            style={{ maxHeight: Math.round(windowHeight * PHONE_ACTION_BAR_MAX_SHARE) }}
+            contentContainerStyle={styles.bottomBarContent}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            accessibilityLabel="Booking actions"
+          >
+            {bookingActions}
+          </ScrollView>
         </View>
       )}
       {/* Phase 14 Remediation #5 — Bug 998 cancel confirmation */}
@@ -668,11 +717,19 @@ const styles = StyleSheet.create({
     paddingTop: spacing.base,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
-    gap: spacing.sm,
   },
+  bottomBarContent: { gap: spacing.sm },
   chatButton: { marginTop: 0 },
   changeOrderNote: { ...typography.caption, color: colors.textTertiary, lineHeight: 16, marginTop: -spacing.xs },
   completedActions: { gap: spacing.sm },
+  reviewedNote: {
+    backgroundColor: colors.successLight,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+  },
+  reviewedTitle: { ...typography.bodySmall, color: colors.text, fontWeight: '700' },
+  reviewedText: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 
   cancelButton: { marginTop: spacing.xs },
   cancelForm: {

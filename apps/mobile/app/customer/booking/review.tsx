@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createReview, type CreateReviewPayload } from '@/services/review.service';
 import { getBookingById } from '@/services/booking.service';
 import { getErrorMessage } from '@/utils/errors';
@@ -79,6 +79,7 @@ export default function ReviewScreen(): React.ReactElement {
   const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { isPhone, isDesktop } = useResponsive();
   const validBookingId = typeof bookingId === 'string' ? bookingId.trim() : '';
 
@@ -164,7 +165,12 @@ export default function ReviewScreen(): React.ReactElement {
       if (comment.trim().length >= 20) payload.comment = comment.trim();
       if (privateNote.trim().length > 0) payload.privateNote = privateNote.trim();
 
-      await createReview(payload);
+      const created = await createReview(payload);
+      // R-CUS-09: the booking screen asks ['bookingReview', id] whether a
+      // review exists and caches the answer. Give it the new review so it
+      // stops offering "Leave a Review" (a second one gets a 409).
+      queryClient.setQueryData(['bookingReview', validBookingId], created);
+      void queryClient.invalidateQueries({ queryKey: ['bookingReview', validBookingId] });
       router.replace({ pathname: Routes.CUSTOMER.BOOKING_TIP, params: { bookingId: validBookingId } });
     } catch (err: unknown) {
       // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
