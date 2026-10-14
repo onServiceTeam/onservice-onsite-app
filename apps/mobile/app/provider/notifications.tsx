@@ -62,6 +62,8 @@ const NOTIFICATION_ICONS: Record<string, IconComponent> = {
   booking_confirmed: PartyPopper,
   job_completed: CheckCircle2,
   payment_released: Coins,
+  // R-NOT-01: the customer paid for a job this pro already has.
+  customer_paid: Coins,
   // tip.service emits type='payment' for tip received notifications —
   // use the gift icon so they read clearly even though they share the
   // same row 'type' as escrow releases.
