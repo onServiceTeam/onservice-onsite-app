@@ -6,6 +6,32 @@ The current tree contains 411 committed baselines across 32 admin specs under
 1440, and 1920 pixels. Booking 360 and Dispatch additionally cover 820 and
 1024 pixel tablet browsers; several older expanded specs have extra scenarios.
 Gate D promotion still waits on the F#3 mobile half per MODES.json.
+
+**Refresh 2026-10-14 (bad news first).** Six specs had silently stopped
+running. Their page checks failed because the pages changed after the August
+baselines (pricing publication workflow, catalog workspace, consent dialog,
+dispute and pricing retry states, analytics commission wording, the feedback
+v2 route), and nothing noticed: Gate D is in REPORT mode, so CI never runs
+Playwright. Those six specs (pricing-rules, catalog, feedback, analytics,
+consent-versions, disputes) were repaired. Only their mock data, locators and
+current copy changed; no assertion was weakened. Each one was checked against
+the real API contract. The Milestone 3 admin changes then added a Marketplace
+sidebar entry, an alert banner, a dashboard card and a new Marketplace page.
+All screenshot tests were re-captured on 2026-10-14 (Windows, Asia/Manila
+time zone). Every changed or new image (269 changed, 36 new) was reviewed
+against the expected changes. That review found 17 bad images. They exposed
+four real admin bugs, now fixed: the desktop Dispatch map had zero height,
+action buttons lost their colours, the Notification Templates table was cut
+off at 1280, and the Staff page made a false "last successful update" claim.
+They also exposed two stale fixtures. Every screenshot of the five pages
+involved was then captured fresh and reviewed again (47 changed images). A
+no-update comparison run passed. The tree holds 588 baselines across 34 specs
+(597 screenshot tests). Note that Playwright only rewrites a baseline when the
+change is over 1% of the image, so a small fix can leave a stale picture that
+still passes. To refresh a page after a fix, delete that spec's PNGs and
+capture it again. **Until Gate D runs
+Playwright in CI, re-run `npx playwright test tests/visual --update-snapshots=none`
+locally after any admin UI change, or the specs drift again.**
 **Owner after handoff:** Ken / contractor / CI on hosted runner with Chromium.
 **Estimated time:** 1-2 operator-hours.
 **Estimated cost:** Free (your laptop is enough — Playwright runs in headless Chromium).

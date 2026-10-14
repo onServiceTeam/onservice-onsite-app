@@ -4245,3 +4245,44 @@ Limits (open):
 - **Content gaps (admin):** all 29 live services have no description, and 4 categories have no services.
 - **A "same day" request's job time is still invented (now plus 4 hours).** Milestone 2 sets it from the provider's proposed time. E83 covers the money rules that read it.
 - **Not built (needs Ken):** the Inter font, real category photos, a real logo and app icon.
+
+## 132. First-come quotes, request media, threads and back-office alerts (2026-10-14)
+
+Milestones 2 and 3 of the human-audit plan (D38), shipped together with APK 1.0.4 (build 5). Section 131 lists what shipped first.
+
+What is new:
+- **The first pro to quote gets the request (first come, first served).** The customer accepts or declines, and must give a reason to decline. A decline sends the request back out to the other pros in a new round. They see the reason but never the declined price. The admin setting `request_max_open_quotes` (1) switches to compare mode (up to 5 quotes) when raised.
+- **The pro proposes a start date and time window.** The job time becomes the later of the window start and the confirmation time plus 60 minutes (E83).
+- **Confirm, then pay.** The confirm screen shows the price, any fee, the total, the time, the address and the cancellation note. When the wallet cannot cover the total, it says so and blocks the booking.
+- **Private photos, video and voice notes on requests and in chat.** Files are stored privately and shown only through short-lived signed links. A redacted chat photo stops loading for both people.
+- **A message thread between the customer and each pro on a request.** It becomes read-only when the request closes.
+- **Back office:**
+  - a Marketplace page (Waiting now, Lost opportunities, Response times, Providers, Coverage);
+  - an alert banner on every admin page, amber at 5 minutes and red at 10 with no quote;
+  - Acknowledge, audit-logged;
+  - "Who was notified" on Booking 360;
+  - Call provider through the audit-logged phone reveal;
+  - a Command Center card for waiting requests.
+
+  Alerts never contact a provider or change a request.
+
+Limits (open):
+- **Admin request limit at launch.** The default global limit is 100 requests per admin per 15 minutes. The Command Center's own polling is already about 123, and the alert banner and the new card add about 30. The live tester server uses 2000, so testers are not affected. Production needs a higher limit or a separate admin limit. Ken's call.
+- **Slack alerts are off** until `SLACK_ALERT_WEBHOOK_URL` is set on the server. Alerts run around the clock (open question 11 in the Milestone 2 plan).
+- **Web voice recording and in-browser video previews stay off on live.** The running nginx uses a stale configuration from 2026-08-24 on a box shared with other apps. A supervised reload needs Ken's approval. The Android app records voice notes normally.
+- **Android push notifications are not configured** (no Firebase project). Pros see new requests only while their app is open. The 5 and 10 minute alerts are the safety net. Needs Ken.
+- **Apps older than 1.0.4 cannot send a quote or decline one.** They get "Please update the app" (plan question 5, default accepted). From 1.0.3 the update installs from inside the app.
+- **An admin cancel of an open request sends providers no notice** until Ken picks the wording (E84).
+- **Money timing on window bookings** (customer no-show clock, dispute auto-refund) is unchanged and waits on E83.
+- **Payment is wallet only** (E14).
+- **The admin screenshot baselines were re-captured and reviewed image by image (2026-10-14).** That review found real admin bugs, all older than this work and live until this release. They are fixed:
+  - The Dispatch Console map was blank on desktop screens. It had collapsed to zero height since 2026-08-31.
+  - Red and blue action buttons showed as dark text, because the button component let its default colour win.
+  - The Notification Templates table was wider than its card at 1280 px and cut off Delete.
+  - The Staff page claimed "Last successful update just now" when a read had never succeeded.
+  - Six screenshot specs had silently stopped running after their pages changed. Gate D is report-only, and CI never runs Playwright. Re-run the visual specs locally after any admin UI change.
+- **Notification Templates still scrolls sideways below about 1185 px wide**, so Delete is behind the scroll on narrow screens.
+- **Dispatch Console, found in the same review and not fixed yet:**
+  - At 1024 px the Active Bookings table scrolls sideways, so its Actions column is out of view.
+  - The "Dispatch attention" card shows 0 and "No loaded booking currently needs dispatch attention" while the bookings are still loading. That is a false zero of the same kind fixed on the Staff page.
+- **Nothing has been tried on a real phone yet**, including the in-app update from 1.0.3 to 1.0.4.
