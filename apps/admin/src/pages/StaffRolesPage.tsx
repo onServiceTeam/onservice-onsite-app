@@ -329,9 +329,11 @@ function RolesTab(): React.ReactElement {
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Roles</h2>
         <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* Role metadata needs both reads. Claim a successful update only once
+              both have succeeded, and then only as recent as the older of the two. */}
           <DataFreshness
             label="Role metadata"
-            timestamp={Math.max(rolesUpdatedAt, permissionsUpdatedAt)}
+            timestamp={rolesUpdatedAt > 0 && permissionsUpdatedAt > 0 ? Math.min(rolesUpdatedAt, permissionsUpdatedAt) : 0}
             isFetching={isRolesFetching || isPermsFetching}
             onRefresh={() => { void Promise.all([refetchRoles(), refetchPermissions()]); }}
           />
@@ -592,7 +594,6 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
     data: roles,
     isError: isRolesError,
     refetch: refetchStaffRoles,
-    dataUpdatedAt: staffRolesUpdatedAt,
     isFetching: isStaffRolesFetching,
   } = useQuery({
     queryKey: ['adminRoles'],
@@ -739,9 +740,12 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
           <p className="text-sm text-[var(--color-text-secondary)]">Review account truth, directory metadata, workload, and audit history together.</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* R-ADM-11: this line speaks for the directory read only. The role
+              profiles load separately and have their own error banner, so a
+              roles success must not read as a directory success. */}
           <DataFreshness
             label="Staff directory"
-            timestamp={Math.max(staffUpdatedAt, staffRolesUpdatedAt)}
+            timestamp={staffUpdatedAt}
             isFetching={isStaffFetching || isStaffRolesFetching}
             onRefresh={() => { void Promise.all([refetchStaff(), refetchStaffRoles()]); }}
           />
