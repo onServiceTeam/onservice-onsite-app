@@ -8,6 +8,10 @@ vi.unmock('react-router-dom');
 vi.unmock('@/stores/auth.store');
 const apiMocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn() }));
 vi.mock('@/lib/api', () => ({ default: apiMocks, getErrorMessage: (error: Error) => error.message }));
+// D38 Milestone 3: this test's API mock rejects every unexpected request. The
+// marketplace alert banner's own GET (and its session rules) is covered by
+// HA-M3-56..64 and HA-M3-71, so it is replaced here.
+vi.mock('@/components/MarketplaceAlertBanner', () => ({ default: () => null }));
 // Only the post-login landing content is reduced. App routes, login form,
 // real auth store, Header logout and Customer 360 all execute unchanged.
 vi.mock('@/pages/DashboardPage', () => ({

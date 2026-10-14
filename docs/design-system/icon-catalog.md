@@ -122,6 +122,18 @@ is a structural control, not an emoji replacement.
 | 🧭 | Navigate | Compass | `Navigate` |
 | 🚗 | En route | Car | `Route` |
 
+## Marketplace back office (3 icons, D38 Milestone 3)
+
+These were added for the Marketplace page and the request alert banner. They
+replace no emoji; the import name is the raw lucide name re-exported from
+`apps/admin/src/components/icons/index.ts`.
+
+| Used for | lucide-react icon | Import name |
+|---|---|---|
+| Marketplace sidebar item, waiting-time badges and the dashboard card "Requests waiting more than N minutes" | Timer | `Timer` |
+| Alert sound is on (banner and Marketplace page toggle) | Volume2 | `Volume2` |
+| Alert sound is off (the default) | VolumeX | `VolumeX` |
+
 ---
 
 ## Implementation: the centralized icons module

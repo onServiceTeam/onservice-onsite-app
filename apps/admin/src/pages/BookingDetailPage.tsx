@@ -7,6 +7,10 @@
  * panel (components/booking/JobMediaPanel.tsx); Quotes shows each quote's
  * offered date and window, "could change if", round, and the customer's
  * decline reason when the API sends one.
+ * D38 (Milestone 3): on a quote request the Quotes tab opens with "Who was
+ * notified" (components/marketplace/InvitedProvidersList.tsx): each round's
+ * providers, when they were notified, opened it and quoted, with masked phones
+ * and the audit-logged "Call provider" reveal.
  * Provides super-admin actions: manual escrow release, refund, reassign,
  * cancel, force-complete. Mirrors the structure of CustomerDetailPage.tsx
  * (Phase 06).
@@ -51,6 +55,7 @@ import KpiCard from '@/components/ui/KpiCard';
 import { Textarea } from '@/components/ui/Textarea';
 import { useConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { JobMediaPanel } from '@/components/booking/JobMediaPanel';
+import { InvitedProvidersList } from '@/components/marketplace/InvitedProvidersList';
 import { useAuthStore } from '@/stores/auth.store';
 import { toast } from 'sonner';
 
@@ -432,7 +437,7 @@ export default function BookingDetailPage(): React.ReactElement {
           <EvidenceTab bookingId={bookingId} />
         </TabsContent>
         <TabsContent value="quotes">
-          <QuotesTab bookingId={bookingId} />
+          <QuotesTab bookingId={bookingId} pricingMode={detail.pricingMode} />
         </TabsContent>
         <TabsContent value="money">
           <MoneyTab bookingId={bookingId} detail={detail} />
@@ -2157,7 +2162,17 @@ function quoteDeclineReasonText(reason: string): string {
   return QUOTE_DECLINE_REASON_LABELS[reason] ?? proofStageLabel(reason);
 }
 
-export function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
+export function QuotesTab({
+  bookingId,
+  pricingMode,
+}: {
+  bookingId: string;
+  /** The booking type (BookingDetail.pricingMode). 'quote_based' shows "Who was notified". */
+  pricingMode?: string | null;
+}): React.ReactElement {
+  // super_admin receives full phone numbers (D25), so only other admins are
+  // told numbers stay masked until a logged Call provider.
+  const isSuperAdmin = useAuthStore((s) => s.user?.role) === 'super_admin';
   const q = useQuery({
     queryKey: ['admin-booking-quotes', bookingId],
     queryFn: async () => {
@@ -2169,20 +2184,38 @@ export function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElem
     },
   });
 
-  if (q.isLoading) return <LoadingState />;
+  // D38 Milestone 3: shown whatever happens to the quotes request below.
+  const notified = pricingMode === 'quote_based' ? (
+    <Card className="p-5">
+      <h3 className="text-sm font-semibold text-[var(--color-text)]">Who was notified</h3>
+      <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
+        Providers told about this request in each round, and what they did.{' '}
+        {isSuperAdmin
+          ? 'As a super admin you see full phone numbers. Other admins see them masked, and each Call provider is logged.'
+          : 'Phone numbers stay masked until you choose Call provider, which is logged.'}
+      </p>
+      <InvitedProvidersList bookingId={bookingId} />
+    </Card>
+  ) : null;
+  const withNotified = (content: React.ReactElement): React.ReactElement => (
+    notified ? <div className="space-y-5">{notified}{content}</div> : content
+  );
+
+  if (q.isLoading) return withNotified(<LoadingState />);
   if (q.isError || !q.data)
-    return (
+    return withNotified(
       <ErrorState
         title="Failed to load quotes"
         description={getErrorMessage(q.error)}
         action={<Button size="sm" onClick={() => void q.refetch()}><RefreshCw size={14} /> Retry quotes</Button>}
-      />
+      />,
     );
 
   const { quotes, changeOrders } = q.data;
 
   return (
     <div className="space-y-5">
+      {notified}
       <Card className="p-5">
         <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3">
           Quotes ({quotes.length})

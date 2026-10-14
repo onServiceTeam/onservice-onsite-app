@@ -70,6 +70,22 @@ const FUNNEL_OBJECT = {
   repeatBooking: 0,
 };
 
+// D38 Milestone 3: the dashboard's "Requests waiting more than N min" card
+// reads GET /admin/marketplace-health/summary (an object, not a list). The
+// alert banner reads /admin/marketplace-health/alerts; with no open alert it
+// renders nothing, so layout baselines show no banner. marketplace.spec.ts
+// mocks every marketplace endpoint itself.
+export const MARKETPLACE_SUMMARY_OBJECT = {
+  waitingCount: 0,
+  waitingOverAmber: 0,
+  waitingOverRed: 0,
+  awaitingCustomer: 0,
+  openAlerts: 0,
+  unacknowledgedAlerts: 0,
+  amberMinutes: 5,
+  redMinutes: 10,
+};
+
 // SystemSettings shape — page expects `data: { categories: [...],
 // settings: { [cat]: PlatformSetting[] } }`. Categories below match
 // CATEGORY_META in SystemSettingsPage.tsx so the sidebar shows real
@@ -668,6 +684,14 @@ export const test = base.extend<VisualFixtureOptions>({
         body = { success: true, data: KPI_OBJECT };
       } else if (url.includes('/dashboard/acquisition-funnel')) {
         body = { success: true, data: FUNNEL_OBJECT };
+      } else if (path === '/api/v1/admin/marketplace-health/summary') {
+        body = { success: true, data: MARKETPLACE_SUMMARY_OBJECT };
+      } else if (path === '/api/v1/admin/marketplace-health/alerts') {
+        body = {
+          success: true,
+          data: [],
+          meta: { openCount: 0, unacknowledgedCount: 0, openRedCount: 0, amberMinutes: 5, redMinutes: 10 },
+        };
       } else if (url.includes('/admin/financials/overview')) {
         body = { success: true, data: FINANCIALS_OVERVIEW };
       } else if (url.includes('/admin/financials/revenue/by-category')) {

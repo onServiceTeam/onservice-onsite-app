@@ -49,6 +49,8 @@ export {
   Info,
   Clock,
   Calendar,
+  // D38 Milestone 3: Marketplace back office (waiting quote requests).
+  Timer,
 
   // Profile & users
   User,
@@ -105,6 +107,9 @@ export {
   MessageSquare,
   Bell,
   BellOff,
+  // D38 Milestone 3: optional sound for new marketplace alerts.
+  Volume2,
+  VolumeX,
 
   // Misc
   Rocket,

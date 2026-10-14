@@ -93,6 +93,9 @@ const ACTION_LABELS: Record<string, string> = {
   // D38 (migration 184): an admin opened private request or thread media (photos,
   // video, voice). Target is the booking; details list the media ids.
   job_media_viewed: 'Private job media viewed',
+  // D38 Milestone 3 (migration 186): an admin took a marketplace request alert
+  // from the banner. Target is the booking; details hold alertId, kind, round.
+  marketplace_alert_acknowledged: 'Marketplace alert acknowledged',
   message_flag_reviewed: 'Reported message reviewed',
   message_redacted: 'Message redacted',
   or_cancelled: 'Official receipt cancelled',

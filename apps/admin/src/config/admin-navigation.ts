@@ -25,6 +25,7 @@ import {
   FileText,
   MessageSquare,
   Hammer,
+  Timer,
 } from '@/components/icons';
 import type { AdminUser } from '@/stores/auth.store';
 
@@ -78,6 +79,14 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         Icon: Activity,
         label: 'Dispatch',
         description: 'Live coverage and provider assignment',
+      },
+      {
+        // D38 Milestone 3: quote requests nobody has answered yet.
+        to: '/marketplace',
+        Icon: Timer,
+        label: 'Marketplace',
+        description: 'Waiting requests, lost requests, response times, coverage',
+        roles: ['super_admin', 'admin'],
       },
       {
         to: '/recurring',

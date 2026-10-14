@@ -37,6 +37,8 @@ const StaffRolesPage = lazy(() => import('@/pages/StaffRolesPage'));
 const PricingRulesPage = lazy(() => import('@/pages/PricingRulesPage'));
 const MarketingPage = lazy(() => import('@/pages/MarketingPage'));
 const DispatchConsolePage = lazy(() => import('@/pages/DispatchConsolePage'));
+// D38 Milestone 3: waiting quote requests, lost requests, response times, coverage.
+const MarketplacePage = lazy(() => import('@/pages/MarketplacePage'));
 const CommunicationsPage = lazy(() => import('@/pages/CommunicationsPage'));
 // Tester feedback v2 tabs; the v1 queue (FeedbackPage) is its 'Earlier feedback' tab.
 const TesterFeedbackPage = lazy(() => import('@/pages/TesterFeedbackPage'));
@@ -134,6 +136,7 @@ export default function App(): React.ReactElement {
               <Route path="/settings/cancellation-policy" element={<CancellationPolicyPage />} />
               <Route path="/marketing" element={<MarketingPage />} />
               <Route path="/dispatch" element={<DispatchConsolePage />} />
+              <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/communications" element={<CommunicationsPage />} />
               <Route path="/feedback" element={<TesterFeedbackPage />} />
               <Route path="/compliance" element={<CompliancePage />} />

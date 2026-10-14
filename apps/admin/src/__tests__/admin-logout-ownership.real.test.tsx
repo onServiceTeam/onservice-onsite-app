@@ -5,6 +5,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.unmock('react-router-dom');
 vi.unmock('@/lib/api');
 vi.unmock('@/stores/auth.store');
+// D38 Milestone 3: these tests count every session request exactly. The
+// marketplace alert banner's own GET (and its session rules) is covered by
+// HA-M3-56..64 and HA-M3-71, so it is replaced here.
+vi.mock('@/components/MarketplaceAlertBanner', () => ({ default: () => null }));
 import App from '../App';
 import { useAuthStore, type AdminUser } from '../stores/auth.store';
 

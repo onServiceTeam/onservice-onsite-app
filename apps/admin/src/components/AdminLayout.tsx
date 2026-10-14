@@ -4,6 +4,9 @@ import { useAuthStore } from '@/stores/auth.store';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import AdminBreadcrumbs from './AdminBreadcrumbs';
+// D38 Milestone 3: open marketplace request alerts on every admin page
+// (admin and super_admin only; renders nothing for other roles).
+import MarketplaceAlertBanner from './MarketplaceAlertBanner';
 
 function PageLoader(): React.ReactElement {
   return (
@@ -40,6 +43,7 @@ export default function AdminLayout(): React.ReactElement {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onOpenNavigation={() => setMobileNavigationOpen(true)} />
+        <MarketplaceAlertBanner />
         <main className="flex-1 p-4 sm:p-6 xl:p-8">
           <div className="mx-auto w-full max-w-[1600px]">
             <AdminBreadcrumbs />

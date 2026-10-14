@@ -42,7 +42,10 @@ import {
   BarChart3,
   Ticket,
   MessageSquare,
+  Timer,
 } from '@/components/icons';
+import { fetchMarketplaceSummary, marketplaceKeys, type MarketplaceSummary } from '@/components/marketplace/marketplace-api';
+import { useCoalescedCallback } from '@/components/marketplace/use-coalesced-callback';
 
 type DateRange = 'today' | '7d' | '30d' | '90d' | 'ytd';
 
@@ -101,6 +104,27 @@ interface QualityWatchProvider {
   providerId: string;
   businessName: string;
   reason: string;
+}
+
+/**
+ * D38 Milestone 3: the "requests waiting" action card. `summary` is null when
+ * the source failed or answered with something other than the summary
+ * object; the card then says so instead of showing a zero.
+ */
+function waitingRequestsQueue(summary: MarketplaceSummary | null, loading: boolean): {
+  title: string;
+  value: number | string;
+  to: string;
+  icon: React.ReactNode;
+} {
+  return {
+    title: summary
+      ? `Requests waiting more than ${summary.amberMinutes} minutes`
+      : 'Requests waiting for a quote',
+    value: summary ? summary.waitingOverAmber : loading ? 'Loading' : 'Unavailable',
+    to: '/marketplace?tab=waiting',
+    icon: <Timer size={20} className={summary && summary.waitingOverRed > 0 ? 'text-red-700' : 'text-amber-700'} />,
+  };
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -173,9 +197,15 @@ export default function DashboardPage(): React.ReactElement {
     }, { replace: true });
   };
 
-  useAdminSocketEvent<{ id: string }>('alert:new', () => {
+  // D38 Milestone 3: the "requests waiting" card follows new marketplace
+  // alerts. The sweep sends one alert:new per new alert (up to 50 at once), so
+  // a burst is folded into at most two reloads (use-coalesced-callback); the
+  // alert banner reloads only its own alerts query, never these two.
+  const reloadOnNewAlerts = useCoalescedCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['dashboard-alerts'] });
+    void queryClient.invalidateQueries({ queryKey: marketplaceKeys.summary });
   });
+  useAdminSocketEvent<{ id: string }>('alert:new', reloadOnNewAlerts);
 
   const kpis = useQuery({
     queryKey: ['dashboard-kpis', range],
@@ -276,6 +306,14 @@ export default function DashboardPage(): React.ReactElement {
     refetchInterval: 60_000,
   });
 
+  // D38 Milestone 3: quote requests waiting for a provider's quote, from its own
+  // endpoint (getDashboardKpis is unchanged). null = not the summary shape.
+  const marketplaceSummary = useQuery({
+    queryKey: marketplaceKeys.summary,
+    queryFn: fetchMarketplaceSummary,
+    refetchInterval: 60_000,
+  });
+
   const refreshAll = (): void => {
     void kpis.refetch();
     void revenueTrend.refetch();
@@ -285,6 +323,7 @@ export default function DashboardPage(): React.ReactElement {
     void dsrAlerts.refetch();
     void cities.refetch();
     void qualityWatch.refetch();
+    void marketplaceSummary.refetch();
   };
 
   if (kpis.isLoading) {
@@ -305,7 +344,7 @@ export default function DashboardPage(): React.ReactElement {
   }
 
   const k = kpis.data;
-  const secondaryQueries = [revenueTrend, bookingVolume, funnel, alerts, dsrAlerts, cities, qualityWatch];
+  const secondaryQueries = [revenueTrend, bookingVolume, funnel, alerts, dsrAlerts, cities, qualityWatch, marketplaceSummary];
   const sourceFailureCount = secondaryQueries.filter((query) => query.isError).length;
   const isRefreshing = [kpis, ...secondaryQueries].some((query) => query.isFetching);
   const actionQueues = [
@@ -358,6 +397,9 @@ export default function DashboardPage(): React.ReactElement {
       to: '/feedback?tab=earlier',
       icon: <MessageSquare size={20} className="text-blue-700" />,
     },
+    // D38 Milestone 3: quote requests with no quote for longer than the amber
+    // alert setting. "Unavailable" when the source failed or answered something else.
+    waitingRequestsQueue(marketplaceSummary.data ?? null, marketplaceSummary.isLoading),
   ];
   const refreshedAt = new Date(kpis.dataUpdatedAt).toLocaleTimeString('en-PH', {
     timeZone: 'Asia/Manila',

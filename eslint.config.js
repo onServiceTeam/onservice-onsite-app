@@ -84,6 +84,12 @@ export default [
         HTMLCanvasElement: 'readonly',
         CanvasRenderingContext2D: 'readonly',
         KeyboardEvent: 'readonly',
+        // D38 Milestone 3: admin alert tone (lib/alert-tone.ts) and its tests.
+        AudioContext: 'readonly',
+        Window: 'readonly',
+        EventTarget: 'readonly',
+        Element: 'readonly',
+        Node: 'readonly',
       },
     },
     plugins: {
