@@ -59,7 +59,7 @@ import {
 import { useAuthStore } from '@/stores/auth.store';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { adminConfig } from '@/config/admin.config';
-import PromotionBannersTab from '@/components/marketing/PromotionBannersTab';
+import PromotionBannersTab, { deliveryStatus } from '@/components/marketing/PromotionBannersTab';
 
 // ─── Types (mirror packages/api/src/services/marketing-admin.service.ts) ──
 
@@ -169,12 +169,14 @@ function parseMarketingTab(value: string | null): MarketingTab {
     : 'overview';
 }
 
+// R-ADM-18: uses the same status check as the Home Banners table, so an
+// ended banner reads Ended here too, whether or not it is switched on.
 function promotionDeliveryLabel(promotion: PromotionBanner): string {
-  if (promotion.targetAudience !== 'all') return 'Audience not connected';
-  if (!promotion.isActive) return 'Draft / paused';
-  const now = Date.now();
-  if (new Date(promotion.startDate).getTime() > now) return 'Scheduled for customer home';
-  if (promotion.endDate && new Date(promotion.endDate).getTime() < now) return 'Ended';
+  const status = deliveryStatus(promotion);
+  if (status === 'not_connected') return 'Audience not connected';
+  if (status === 'ended') return 'Ended';
+  if (status === 'draft') return 'Draft / paused';
+  if (status === 'scheduled') return 'Scheduled for customer home';
   return 'Live on customer home';
 }
 

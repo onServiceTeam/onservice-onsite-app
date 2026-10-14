@@ -42,7 +42,7 @@ interface PromotionListResponse {
   meta: { page: number; pageSize: number; total: number };
 }
 
-type DeliveryStatus = 'live' | 'scheduled' | 'draft' | 'ended' | 'not_connected';
+export type DeliveryStatus = 'live' | 'scheduled' | 'draft' | 'ended' | 'not_connected';
 
 interface BannerFormState {
   title: string;
@@ -83,12 +83,19 @@ function formatSchedule(iso: string | null): string {
   });
 }
 
-function deliveryStatus(promotion: PromotionBanner): DeliveryStatus {
+// Shared with the Marketing page's audit evidence card so the table row and
+// the card can never disagree about the same banner.
+export function deliveryStatus(
+  promotion: Pick<PromotionBanner, 'targetAudience' | 'isActive' | 'startDate' | 'endDate'>,
+): DeliveryStatus {
   if (promotion.targetAudience !== 'all') return 'not_connected';
-  if (!promotion.isActive) return 'draft';
   const now = Date.now();
-  if (new Date(promotion.startDate).getTime() > now) return 'scheduled';
+  // R-ADM-18: a passed end date wins over the on/off switch. A switched-off
+  // banner whose end date has passed can never go live again, so it reads
+  // Ended (and Publish stays off) instead of Draft / paused.
   if (promotion.endDate && new Date(promotion.endDate).getTime() < now) return 'ended';
+  if (!promotion.isActive) return 'draft';
+  if (new Date(promotion.startDate).getTime() > now) return 'scheduled';
   return 'live';
 }
 
