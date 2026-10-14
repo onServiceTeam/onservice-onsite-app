@@ -39,6 +39,18 @@ test.describe('DispatchConsolePage', () => {
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
         await waitForVisualSettled(page);
+        // Dispatch map regression (2b08b0d4): at >= 1024 the map section
+        // flexed inside a min-height column, so Leaflet's height:100%
+        // resolved to 0 px and the map drew nothing (no tiles, no zoom
+        // control, no markers). The map must be drawn at a usable height
+        // at every width before the screenshot is taken. The zoom control
+        // uses first() because the dev server's React StrictMode double
+        // mount stacks a second, identical control on the same spot.
+        const map = page.locator('.leaflet-container');
+        await expect(map).toBeVisible();
+        const mapBox = await map.boundingBox();
+        expect(mapBox?.height ?? 0).toBeGreaterThanOrEqual(240);
+        await expect(map.locator('.leaflet-control-zoom').first()).toBeVisible();
         await hideExternalMapTiles(page);
         await expect(page).toHaveScreenshot(`dispatch-console-default-${width}.png`, {
           fullPage: true,

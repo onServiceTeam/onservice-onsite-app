@@ -739,9 +739,16 @@ export default function DispatchConsolePage(): React.ReactElement {
       )}
 
       {/* ── Map ─────────────────────────────────────────────────────── */}
-      <section className="h-[320px] min-h-[280px] flex-none overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:flex-1">
+      {/* Below lg the map is a fixed 320 px block. At lg and up the section
+          flexes to fill the rest of the min-height page and never drops
+          below 320 px. A flexed height inside a min-height column is not a
+          definite height, so a child with height:100% collapses to 0 px
+          (the blank-map regression from 2b08b0d4). The map is therefore
+          pinned to the section's edges with absolute positioning, which
+          always follows the section's real box. */}
+      <section className="relative h-[320px] flex-none overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:h-auto lg:min-h-[320px] lg:flex-1">
         {mapKey === null ? (
-          <div className="h-full w-full flex items-center justify-center text-sm text-slate-500">
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
             Loading map…
           </div>
         ) : (
@@ -750,7 +757,7 @@ export default function DispatchConsolePage(): React.ReactElement {
           center={mapCenter}
           zoom={DEFAULT_ZOOM}
           scrollWheelZoom
-          style={{ height: '100%', width: '100%' }}
+          style={{ position: 'absolute', inset: 0 }}
         >
           <TileLayer
             key={mapTile.url}
