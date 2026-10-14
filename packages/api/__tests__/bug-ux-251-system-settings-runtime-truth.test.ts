@@ -27,7 +27,9 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   // adds 14 live controls (7 request keys from 183, 6 job-media keys from 184,
   // request_threads_enabled from 185) and retires max_quotes_per_booking from
   // live to not_connected: 37 - 1 + 14 = 50 live, 12 + 1 = 13 not_connected.
-  expect(statuses.filter((status) => status === 'live')).toHaveLength(50);
+  // D38 Milestone 3 (migration 186) adds 3 live controls: the amber and red
+  // request-alert thresholds and the coverage threshold. 50 + 3 = 53 live.
+  expect(statuses.filter((status) => status === 'live')).toHaveLength(53);
   expect(statuses.filter((status) => status === 'release_coupled')).toHaveLength(3);
   expect(statuses.filter((status) => status === 'held')).toHaveLength(31);
   expect(statuses.filter((status) => status === 'not_connected')).toHaveLength(13);

@@ -15,9 +15,10 @@ import {
   checkSettingsDriftAtBoot,
 } from '../src/services/settings.service';
 
-// Independent snapshot of the active registry after migration 185 (182 added
+// Independent snapshot of the active registry after migration 186 (182 added
 // request_first_booking for D38; D38 Milestone 2 added seven request keys in
-// 183, six job-media keys in 184 and request_threads_enabled in 185; the list
+// 183, six job-media keys in 184 and request_threads_enabled in 185; D38
+// Milestone 3 added the three ops_* alert and coverage keys in 186; the list
 // was last refreshed at 166). Do not derive this from SETTING_DEFAULTS: the
 // test must fail when either side gains or loses a key without the
 // corresponding database/code change.
@@ -116,6 +117,9 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'map_tile_attribution',
   'map_tile_api_key',
   'auto_dispatch_enabled',
+  'ops_request_alert_amber_minutes',
+  'ops_request_alert_red_minutes',
+  'ops_coverage_min_responsive_providers',
   'cache_ttl_categories',
   'cache_ttl_provider_profile',
   'cache_ttl_search_results',

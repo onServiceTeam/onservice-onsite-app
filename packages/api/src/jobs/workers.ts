@@ -24,6 +24,7 @@ import * as feedbackStudyService from '../services/feedback-study.service';
 import * as jobLeadsService from '../services/job-leads.service';
 import * as jobRequestEvents from '../services/job-request-events.service';
 import * as jobMediaService from '../services/job-media.service';
+import * as marketplaceAlertService from '../services/marketplace-alert.service';
 
 const schedulerQueue = new Queue('scheduler', { connection: bullMqConnection });
 
@@ -604,6 +605,11 @@ const schedulerWorker = new Worker(
         // temp files (job-media.service cleanupJobMedia, bounded per run).
         results.jobMediaCleanup = await jobMediaService.cleanupJobMedia();
         break;
+      case 'marketplace-alerts-sweep':
+        // D38 Milestone 3: back-office request alerts (amber, red, needs ops,
+        // unfilled). Read-only towards the marketplace; logs counts only.
+        results.marketplaceAlerts = await marketplaceAlertService.sweepMarketplaceAlerts();
+        break;
       case 'recurring-process':
         results.recurring = await recurringService.processRecurringBookings();
         break;
@@ -745,6 +751,14 @@ export async function initScheduledJobs(): Promise<void> {
     removeOnFail: 100,
   });
 
+  // D38 Milestone 3: the back-office request alert sweep every minute, so a
+  // request with no quote shows up at the 5- and 10-minute marks.
+  await schedulerQueue.add('marketplace-alerts-sweep', {}, {
+    repeat: { pattern: '* * * * *' },
+    removeOnComplete: 30,
+    removeOnFail: 100,
+  });
+
   await schedulerQueue.add('recurring-process', {}, {
     repeat: { pattern: '0 22 * * *' },
     removeOnComplete: 30,
@@ -854,6 +868,7 @@ export async function initScheduledJobs(): Promise<void> {
   logger.info('Provider application draft expiry scheduled every 5 minutes, at most 100 expired rows per attempt; uploaded objects and submitted evidence are not removed');
   logger.info('Email-link cleanup scheduled every 5 minutes: at most 100 proof expiries and 100 old request removals per attempt; verified identities and audits are retained');
   logger.info('Job media cleanup scheduled every 15 minutes: stale and unattached uploads are marked deleted and their files removed, at most 200 rows per step per run');
+  logger.info('Marketplace request alert sweep scheduled every minute: back-office alerts only, no provider is contacted and no request is changed');
   logger.info('The same email cleanup job also expires at most 100 sign-in proofs and removes at most 100 old sign-in requests; no new queue or process');
 }
 

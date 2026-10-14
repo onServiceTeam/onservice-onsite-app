@@ -108,6 +108,7 @@ import feedbackStudyRoutes from './routes/feedback-study.routes';
 import feedbackStudyAdminRoutes from './routes/feedback-study-admin.routes';
 import { ensurePrivateFeedbackDir } from './services/feedback-study.service';
 import projectAdminRoutes from './routes/project-admin.routes';
+import marketplaceHealthAdminRoutes from './routes/marketplace-health-admin.routes';
 import projectRoutes from './routes/project.routes';
 import cancellationPolicyAdminRoutes from './routes/cancellation-policy-admin.routes';
 import * as settingsService from './services/settings.service';
@@ -287,6 +288,10 @@ app.use('/api/v1/admin/feedback', feedbackAdminRoutes);
 // Keep the Admin response separate from the customer/provider project list so
 // native clients retain their existing non-paginated ownership projection.
 app.use('/api/v1/admin/projects', projectAdminRoutes);
+// D38 Milestone 3: back-office marketplace insights and request alerts
+// (admin and super_admin only). Mounted BEFORE the generic admin routes so
+// `/admin/marketplace-health/...` never falls through to `/admin/*`.
+app.use('/api/v1/admin/marketplace-health', marketplaceHealthAdminRoutes);
 // Phase 07: booking 360 + dispute detail sub-routes mounted BEFORE generic
 // admin routes so `/admin/bookings/:id/...` and `/admin/disputes/:id/...` match
 // before any `/admin/bookings` or `/admin/disputes` (list) fallthrough.

@@ -11,6 +11,7 @@ import { redis } from '../config/redis.config';
 import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
 import { ADDON_PRICE_HARD_MAX_CENTAVOS } from '../config/catalog.config';
+import { platformConfig } from '../config/platform.config';
 import apiPackageJson from '../../package.json';
 
 const CACHE_PREFIX = 'settings:';
@@ -216,6 +217,12 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   map_tile_attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   map_tile_api_key: '',
   auto_dispatch_enabled: 'true',
+  // D38 Milestone 3 back-office request alerts and coverage grid (migration
+  // 186), read through getMarketplaceAlertPolicy(). Read-only insight: no
+  // provider is contacted and no request changes because of these values.
+  ops_request_alert_amber_minutes: '5',
+  ops_request_alert_red_minutes: '10',
+  ops_coverage_min_responsive_providers: '3',
 
   // Cache TTLs
   cache_ttl_categories: '86400',
@@ -373,6 +380,10 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   map_tile_url: 'The Dispatch Console uses this HTTPS tile template on its next load after save. Other already-open admin sessions keep their current tiles until they reload.',
   map_tile_attribution: 'The Dispatch Console shows this provider attribution with the configured tiles on its next load after save. Keep the credit required by the tile provider licence.',
   map_tile_api_key: 'The Dispatch Console substitutes this publishable browser token into {apiKey} on its next load after save. Restrict the token to the admin domain at the tile provider; do not store a server secret here.',
+  // D38 Milestone 3 (migration 186). Read through getMarketplaceAlertPolicy().
+  ops_request_alert_amber_minutes: 'Within about a minute, the back-office check raises an amber alert for a quote request that has had no live quote for this many minutes since it opened or reopened. Alerts are for the back office only: they never contact a provider and never change the request. Alerts already raised are unchanged.',
+  ops_request_alert_red_minutes: 'Within about a minute, the back-office check raises a red alert (and a Slack message when Slack is configured on the server) for a quote request that has had no live quote for this many minutes. A value that is not above the amber value is treated as amber + 1. Alerts never contact a provider and never change the request. Alerts already raised are unchanged.',
+  ops_coverage_min_responsive_providers: 'Within 60 seconds, the Marketplace coverage grid shows an area and category in red when fewer approved providers than this sent a quote there in the last 7 days. Display only: it does not rank, notify or change any provider.',
 };
 
 /**
@@ -669,6 +680,50 @@ export async function getJobMediaLimits(): Promise<JobMediaLimits> {
     videoMaxBytes: boundedD38Integer('job_media_video_max_bytes', videoMaxBytes),
     voiceMaxSeconds: boundedD38Integer('job_media_voice_max_seconds', voiceMaxSeconds),
     voiceMaxBytes: boundedD38Integer('job_media_voice_max_bytes', voiceMaxBytes),
+  };
+}
+
+export interface MarketplaceAlertPolicy {
+  /** Minutes with no live quote before an amber alert. */
+  amberMinutes: number;
+  /** Minutes with no live quote before a red alert; always above amberMinutes. */
+  redMinutes: number;
+  /** Fully declined rounds before back-office review (request_max_rounds), for display. */
+  maxRounds: number;
+  /** Responsive providers an area and category needs before the coverage grid stops showing red. */
+  coverageMinResponsive: number;
+  /**
+   * Waits that started longer ago than this raise no new waiting alert: the
+   * unmatched-request expiry window (platformConfig.unmatchedBookingExpiryHours).
+   * Stops the first run after a deploy alerting on every old open request.
+   */
+  lookbackHours: number;
+}
+
+/**
+ * D38 Milestone 3 (migration 186): the back-office alert thresholds and the
+ * coverage-grid threshold. The bounds match the min_value / max_value of the
+ * 186 rows (the admin save path enforces the same range), and a value outside
+ * them, or not a number, resolves to the seeded default, as getQuotePolicy()
+ * does. A red value that is not above amber becomes amber + 1, so red always
+ * comes after amber. Each value goes through getSetting(), so a database
+ * outage falls back to SETTING_DEFAULTS.
+ */
+export async function getMarketplaceAlertPolicy(): Promise<MarketplaceAlertPolicy> {
+  const [amber, red, maxRounds, coverageMinResponsive] = await Promise.all([
+    getSettingInteger('ops_request_alert_amber_minutes'),
+    getSettingInteger('ops_request_alert_red_minutes'),
+    getSettingInteger('request_max_rounds'),
+    getSettingInteger('ops_coverage_min_responsive_providers'),
+  ]);
+  const amberMinutes = boundedInteger(amber, 1, 120, 5);
+  const redMinutes = Math.max(boundedInteger(red, 2, 240, 10), amberMinutes + 1);
+  return {
+    amberMinutes,
+    redMinutes,
+    maxRounds: boundedD38Integer('request_max_rounds', maxRounds),
+    coverageMinResponsive: boundedInteger(coverageMinResponsive, 1, 50, 3),
+    lookbackHours: platformConfig.unmatchedBookingExpiryHours ?? 72,
   };
 }
 
