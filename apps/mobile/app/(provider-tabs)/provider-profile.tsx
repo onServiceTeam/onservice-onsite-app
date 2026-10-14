@@ -290,7 +290,30 @@ export default function ProviderProfileScreen(): React.ReactElement {
         </View>
       )}
 
-      {profile && profile.schedule.length > 0 && (
+      {/* R-PRV-08: with no working hours the card used to vanish, so the
+          provider never learned what that costs them. "No hours" means no
+          rows, or rows with every day switched off (the schedule screen
+          saves all 7 days); matching.service needs is_available rows, so
+          both cases get this card. Automatic job offers need hours (a
+          custom-hours date override also counts, hence "on days without");
+          customer quote requests (request-eligibility.ts) do not, so the
+          copy says exactly that. */}
+      {profile && !profile.schedule.some((s) => s.isAvailable) && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Schedule</Text>
+            <TouchableOpacity onPress={() => router.push(Routes.PROVIDER.SCHEDULE)}>
+              <Text style={styles.editText}>Add hours</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.noHoursTitle}>No weekly working hours set.</Text>
+          <Text style={styles.noHoursText}>
+            You will not get automatic job offers on days without working hours. Customer requests can still reach you in the Requests tab.
+          </Text>
+        </View>
+      )}
+
+      {profile && profile.schedule.some((s) => s.isAvailable) && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Schedule</Text>
@@ -307,9 +330,6 @@ export default function ProviderProfileScreen(): React.ReactElement {
                   <Text style={styles.scheduleTime}>{slot.startTime} – {slot.endTime}</Text>
                 </View>
               ))}
-            {profile.schedule.filter((s) => s.isAvailable).length === 0 && (
-              <Text style={styles.noSchedule}>No schedule set. Tap Edit to configure.</Text>
-            )}
           </View>
         </View>
       )}
@@ -524,6 +544,8 @@ const styles = StyleSheet.create({
   scheduleDay: { ...typography.bodySmall, fontWeight: '600', color: colors.text },
   scheduleTime: { ...typography.caption, color: colors.textSecondary },
   noSchedule: { ...typography.body, color: colors.textTertiary, fontStyle: 'italic' },
+  noHoursTitle: { ...typography.body, color: colors.text, fontWeight: '600', marginBottom: spacing.xs },
+  noHoursText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20 },
 
   serviceRow: {
     flexDirection: 'row',
