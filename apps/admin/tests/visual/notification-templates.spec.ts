@@ -6,9 +6,64 @@
 //   pnpm exec playwright test tests/visual/notification-templates.spec.ts --update-snapshots
 // from apps/admin/ to capture baselines into apps/admin/tests/visual/baselines/.
 
+import type { Page } from '@playwright/test';
 import { test, expect, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/notification-templates';
+
+// A slug an operator may create (3-100 characters, underscores only). It has
+// no hyphen or space, so the browser can only wrap it where the page allows.
+const LONG_SLUG_TEMPLATE = {
+  id: '6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b',
+  slug: 'booking_provider_en_route_reminder',
+  titleTemplate: 'Your provider is on the way',
+  bodyTemplate: '{{providerName}} is travelling to your address.',
+  type: 'booking_update',
+  channel: 'push',
+  isActive: true,
+  variables: ['providerName'],
+  runtimeStatus: 'reference_only',
+  runtimeVariables: null,
+  runtimeChannels: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-08-01T00:00:00.000Z',
+};
+
+// The Delivery and Runtime columns (4a113a00) made the table wider than its
+// card at 1280: the card's horizontal scroller hid the end of the ACTIONS
+// header and most of the Delete button. The table must fit its card at every
+// supported width, with the row's Delete button fully visible.
+async function expectTableFitsCard(page: Page, slug: string, viewportWidth: number): Promise<void> {
+  const table = page.getByRole('table');
+  await expect(table).toBeVisible();
+  const scroller = table.locator('xpath=..');
+  const card = scroller.locator('xpath=..');
+
+  const overflow = await scroller.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(
+    overflow.scrollWidth,
+    `table scroller is ${overflow.scrollWidth}px wide inside a ${overflow.clientWidth}px card`,
+  ).toBeLessThanOrEqual(overflow.clientWidth + 1);
+
+  const deleteButton = page.getByRole('button', { name: `Delete template ${slug}` });
+  await expect(deleteButton).toBeVisible();
+  const deleteBox = await deleteButton.boundingBox();
+  const cardBox = await card.boundingBox();
+  expect(deleteBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(deleteBox!.x).toBeGreaterThanOrEqual(cardBox!.x);
+  expect(
+    deleteBox!.x + deleteBox!.width,
+    'Delete button right edge must sit inside the table card',
+  ).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+  expect(
+    deleteBox!.x + deleteBox!.width,
+    'Delete button right edge must sit inside the viewport',
+  ).toBeLessThanOrEqual(viewportWidth);
+}
 
 test.describe('NotificationTemplatesPage', () => {
   for (const width of [1280, 1440, 1920]) {
@@ -22,6 +77,32 @@ test.describe('NotificationTemplatesPage', () => {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
         });
+      });
+
+      test('default render: template table fits its card with Delete fully visible', async ({ page }) => {
+        await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        await expectTableFitsCard(page, 'booking-provider-en-route', width);
+      });
+
+      test('long underscore slug wraps so the table still fits its card', async ({ page }) => {
+        await page.route(
+          (url) => url.pathname === '/api/v1/admin/notification-templates',
+          (route) => route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              success: true,
+              data: [LONG_SLUG_TEMPLATE],
+              pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+            }),
+          }),
+        );
+        await page.goto(ROUTE);
+        await waitForVisualSettled(page);
+        // The whole slug stays readable; only its line breaks change.
+        await expect(page.getByRole('table').getByText(LONG_SLUG_TEMPLATE.slug, { exact: true })).toBeVisible();
+        await expectTableFitsCard(page, LONG_SLUG_TEMPLATE.slug, width);
       });
 
       test('loading state', async ({ page }) => {

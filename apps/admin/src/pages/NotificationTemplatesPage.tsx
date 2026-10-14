@@ -117,6 +117,18 @@ function formatRuntimeChannels(channels: readonly string[]): string {
   return channels.map((channel) => channel === 'in_app' ? 'In-app' : 'Push').join(' + ');
 }
 
+// Slugs such as new_job_available have no natural line-break point, so a
+// long one forced the whole table wider than its card. <wbr> lets the
+// browser wrap after an underscore without changing the slug's text.
+function renderBreakableSlug(slug: string): React.ReactNode {
+  return slug.split('_').map((part, index, parts) => (
+    <React.Fragment key={index}>
+      {part}
+      {index < parts.length - 1 && <>_<wbr /></>}
+    </React.Fragment>
+  ));
+}
+
 function parsePage(value: string | null): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
@@ -382,14 +394,16 @@ export default function NotificationTemplatesPage(): React.ReactElement {
       key: 'slug',
       header: 'Slug',
       render: (r) => (
-        <span className="font-mono text-xs text-[var(--color-text)]">{r.slug}</span>
+        <span className="font-mono text-xs text-[var(--color-text)]">{renderBreakableSlug(r.slug)}</span>
       ),
     },
     {
       key: 'title',
       header: 'Title Template',
+      // Wraps instead of truncating: the full title stays readable and the
+      // column can narrow so all eight columns fit their card at 1280 px.
       render: (r) => (
-        <span className="text-[var(--color-text)] text-sm truncate max-w-[200px] block">{r.titleTemplate}</span>
+        <span className="block max-w-[200px] break-words text-sm text-[var(--color-text)]">{r.titleTemplate}</span>
       ),
     },
     {
