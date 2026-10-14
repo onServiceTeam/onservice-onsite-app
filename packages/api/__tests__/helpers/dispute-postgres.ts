@@ -89,8 +89,13 @@ export async function withDisputeDatabase(run: (database: Pool) => Promise<void>
 // Waits until `count` sessions of this fixture, other than the blocker, are
 // waiting on a lock. A second waiter often waits behind the first rather than
 // on the blocker itself, so count every blocked session.
+// The limit is wall-clock time, not a fixed number of polls: on a loaded
+// machine an HTTP request can take several seconds to reach the lock
+// (2026-10-12, 1 in 5 runs of the change-order expiry race gave up early).
+// Waiting longer never weakens an assertion; it only fails later.
 export async function waitForWaiters(database: Pool, blockerPid: number, count: number): Promise<void> {
-  for (let attempt = 0; attempt < 300; attempt += 1) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
     const waiting = await database.query<{ n: string }>(
       `SELECT COUNT(*)::text AS n FROM pg_stat_activity
         WHERE application_name = current_setting('application_name')

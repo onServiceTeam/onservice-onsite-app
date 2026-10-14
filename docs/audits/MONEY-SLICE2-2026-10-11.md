@@ -614,3 +614,79 @@ At Ken's request (about 18:40), PR81 was deployed to the live tester server (46.
   - new web files added beside the old ones, with each entry page swapped last.
   - Each step was verified from outside: served files equal the builds, new endpoints answer, protected routes still need sign-in.
 - **What changed for live users:** see LAUNCH-LIMITATIONS 126.
+
+## S2-4: change-order money, real-database evidence (R-MON-04; no application change)
+
+**Status.** The previous Claude account built these tests on 2026-10-12 and parked them uncommitted. They were finished on 2026-10-14 on top of `11337a7b`, which already contains S2-0 to S2-3. No production code changed. Not deployed.
+
+**Review finding, fixed the same day.** The first version of this record had six tests and said they proved the whole payment step is all-or-nothing. An independent review showed that was not true for the customer's wallet debit. If the debit and its ledger row were moved into a separate transaction that runs after the main one commits, all six tests still passed. In real use that change would mark the change order paid, raise the booking total and hold the extra money in escrow, and then a failed debit would leave the customer uncharged: a platform loss. The production code is correct (the debit is inside the transaction). The gap was in the evidence, on the step that matters most. A seventh test (test 4 below) now makes the debit fail inside the database, and it catches that change. The mutation table below includes it as `debitaftercommit`.
+
+**Why the titles are not "Bug" titles.** Paying an approved change order from the wallet is already one database transaction (`finalizeChangeOrderPayment`, `packages/api/src/services/booking.service.ts:3051-3226`). In the code, the wallet debit, the paid status, the new booking totals, the `change_order_authorized` terms version and the escrow hold commit together or not at all. Until now only a mocked test (`b-crit15-change-order-payment-proof.test.ts`) covered this. The seven new tests check it against real PostgreSQL. Nothing is fixed, so the titles read "R-MON-04 - ...". The mutations below show which changes the tests catch.
+
+**What changed (tests only):**
+
+- **`packages/api/__tests__/helpers/change-order-postgres.ts` (new).** A guarded fixture on top of the S2-0 money fixture.
+  - The `change_orders` table is written by hand from migrations 018, 036, 059 and 139. Migration 018 cannot run as a file here, because it also creates and alters the quote tables. `change_order_line_items` is migration 141 itself.
+  - Booking B (price ₱8,000, fee ₱2,000 at 25%, total ₱10,000, wallet-paid and fully held) is put back in progress.
+  - Provider B raises the change order, and customer B approves and pays it, through the real booking router with real sign-in tokens.
+  - Customer B's wallet holds ₱10,000 after paying for booking B: enough for two change orders.
+  - It is not stacked on the staff-evidence fixture, whose bare `change_orders` table would collide.
+- **`packages/api/__tests__/change-order-payment-postgres.test.ts` (new).** The seven tests below.
+- **`packages/api/__tests__/helpers/dispute-postgres.ts`.** `waitForWaiters` now waits up to 20 seconds of clock time instead of 300 polls. On a loaded machine an HTTP request can take several seconds to reach the lock. On 2026-10-12, 1 in 5 runs of the expiry race gave up too early. Waiting longer never weakens an assertion; a real failure only shows later.
+
+**The seven tests.** All use booking B. A ₱2,000 change order makes the price ₱10,000 and the fee ₱2,500, so the customer pays ₱2,500 more and the total becomes ₱12,500.
+
+1. **Paying moves the money, the price and the terms together.** After one payment over HTTP:
+   - the change order is `paid`;
+   - the customer wallet goes from ₱10,000 to ₱7,500, with one `payment` row that names the change order;
+   - the escrow wallet gets a second `escrow_hold` row of ₱2,500, so booking B holds ₱12,500;
+   - the booking's price, fee and total are ₱10,000, ₱2,500 and ₱12,500, still labelled `held`;
+   - the newest terms version is `change_order_authorized` for this change order, with the same three amounts;
+   - the bystander booking is untouched.
+2. **A failure while holding the money leaves everything as it was.** The escrow hold is made to fail once. The route answers 500. A full snapshot is identical to before. It covers, among others, wallets, ledger, bookings, payment records, terms, notifications, support cases, admin actions, retry rows and change orders.
+3. **A failure while recording the terms leaves everything as it was.** The same, with the terms step failing.
+4. **A failure while taking the money from the wallet leaves everything as it was.** Added after the review. The wallet debit is two plain SQL statements on the open transaction: the balance update and its ledger row. A jest spy cannot reach them, so a trigger in the test schema makes one of them fail inside the database. The trigger counts each refusal in a sequence, which keeps its count when the transaction rolls back. Each statement is made to fail in turn. Both times the route answers 500, the trigger fired exactly once, and the full snapshot is identical to before. Both statements are tried because a statement moved out of the transaction only shows when it, or one after it, fails.
+5. **Two payments at the same moment take the money once.** A blocker holds booking B's row while two payments start and queue. When it lets go, one payment gets 200 and the other 404. The wallet is debited once, booking B holds ₱12,500, and there is one change-order terms version.
+6. **A change order that expires while it is being paid ends one way only.** The approval is 25 hours old, past the 24-hour default. A blocker holds the change order's row while the payment and the expiry worker queue in a fixed order, then lets go. Both orders are run:
+   - payment first: 200, nothing expired, `paid`, and the money moved once;
+   - expiry first: the payment gets 404, one change order expired, `expired`, and nothing changed except the status and the two expiry notices.
+7. **Confirming after a paid change order pays out the amended total.** Booking B is marked complete directly (the provider's completion step has its own evidence checks, which are not under test here), and customer B confirms over HTTP. Booking B holds nothing and is labelled `released`. The provider, platform revenue and guarantee fund wallets hold ₱12,500 between them, and the provider got ₱8,500, 85% of the amended ₱10,000 price. The bystander booking is untouched.
+
+**Mutations.** Run on 2026-10-14 against the current `booking.service.ts` (sha1 `7ccda03a1fbb7fe428a078f4dfd4b1eb18eec424`, identical to `HEAD`), one at a time. The change-order part of that file is byte-identical to the copy the 2026-10-12 run used. After each mutation the file was restored from a backup and checked with `cmp` and its sha1. The 2026-10-12 runner script was not kept, so the first eight mutations were rewritten from their recorded names and the plan. Against the first six tests, each of the eight failed the same number of tests as recorded on 2026-10-12. After the review, all mutations were run again against the seven tests; the table shows that run (test numbers as listed above). The last five rows were added after the review.
+
+| Mutation | What it breaks | Failed (of 7) |
+|---|---|---|
+| holdaftercommit | The escrow hold runs in its own transaction after the main one commits | test 2 |
+| termsaftercommit | The terms version is written in its own transaction after the main one commits | test 3 |
+| nocolock | No row lock when the payment step reads the change order | tests 5 (both payments 200) and 6 (an expired change order paid) |
+| nostatusfilter | The payment step no longer requires the change order to be `approved` | tests 5 and 6 |
+| holdless | Escrow holds one centavo less than the customer paid | tests 1, 5, 6 and 7 (the confirm is refused with 409) |
+| nodebit | The customer wallet balance is never reduced | tests 1, 4 (the balance update never runs, so the payment answers 200), 5 and 6 |
+| nototals | The booking's price, fee and total are not updated | tests 1, 5 and 7 |
+| expirenostatus | The expiry worker expires change orders whatever their status | test 6 (a paid change order turned to `expired`) |
+| debitaftercommit | The whole wallet debit (balance update and ledger row) runs in its own transaction after the main one commits | test 4 only. The other six all passed, which is the review finding: before test 4 existed, this change survived. |
+| balanceaftercommit | Only the balance update runs after the main commit | test 4 |
+| ledgeraftercommit | Only the ledger row runs after the main commit | test 4 (when the ledger row fails, the wallet had already lost ₱2,500 with no ledger row) |
+| paidaftercommit | The change order is marked `paid` after the main commit | tests 5 (both payments 200) and 6 (the expiry worker expired a change order that was then marked paid) |
+| totalsaftercommit | The booking's new price, fee and total are written after the main commit | tests 1 (the terms version keeps the old amounts, because it reads them from the booking) and 7 |
+
+All 13 were caught. One more, `nobookinglock` (no `FOR UPDATE` on the second read of the booking), passed 7/7. It changes nothing, so no test can catch it: the first query of the payment step (`SELECT co.* FROM change_orders co JOIN bookings b ... FOR UPDATE`, with no `OF` list) already locks the booking row as well as the change order. A throwaway check on the local test database confirmed this: while that query's transaction was open, `SELECT ... FROM bookings ... FOR UPDATE NOWAIT` on the same booking was refused with 55P03 (lock not available).
+
+**Verification (2026-10-14, local PostgreSQL 17.9):**
+
+- **The seven tests:** 7/7, zero skipped; four more runs, 7/7 each. (Before the review: the six tests, 6/6, then five more runs at 6/6.)
+- **Every suite that uses `waitForWaiters`** (9 suites, including this one): 69/69, zero skipped, re-run after test 4 was added (68/68 before it).
+- **The other 15 suites that import `dispute-postgres.ts`**, directly or through the money fixture: 31/31, zero skipped. This was run before the review. The review change touched only the change-order test file, which no other suite imports, so it was not re-run.
+- **API `tsc`:** clean. It does not cover `__tests__`; ts-jest type-checks the test files (in strict mode) when it runs them.
+- **eslint** on the three changed code files: 0 errors, 0 warnings. The test file was linted again after test 4 was added.
+- **Gate C:** every article passes. The unique-regression-ids check passed when run directly with Python 3.12, because `python3` on this machine is the Windows Store stub and the wrapper could not start it. The new tests have no "Bug" titles, so they do not change the count. Gate C was not re-run after test 4 was added; it also has no "Bug" title.
+- **Not run:** the full API suite (other agents were using the machine), Gate A, and exact-commit CI.
+- **Independent review:** one finding (the wallet debit, above), fixed with test 4. The fix itself has not had a second review.
+
+**What R-MON-04 still lacks.** These tests prove the wallet payment step is all-or-nothing: a failure in the debit, the terms version or the escrow hold undoes everything, and moving any one of the step's six writes into its own transaction after the main one commits is caught (table above). They do not finish R-MON-04, which stays "partly fixed":
+
+1. **The customer is told something false.** After a change-order payment the route answers "Additional payment completed. The provider has been notified." (`packages/api/src/routes/booking.routes.ts:454`), but no notice is sent, and nothing in `src` sends one. S2-11 sends a real notice. The provider's notice and the customer's text wait on D36 Q5.
+2. **Change-order money has no funding record of its own.** The second `escrow_hold` row carries no change-order reference, and there is no per-booking money record (K01). The extra money cannot be traced or refunded on its own. S2-7 adds interim traceability; K01 itself is D36 Q11.
+3. **Card-paid and partly refunded bookings still accept a change order.** The payment step checks only the booking status (`booking.service.ts:3089-3097`), not how the booking was paid or whether its money is still fully held. S2-6 builds a refusal. Whether a card-paid booking may take a wallet-paid change order is D36 Q3, and the refusal wording is D36 Q4. These tests do not cover those bookings, because the right behaviour is not decided yet.
+4. **Change-order limits** (50% of the current price for each change order, and how many may wait for payment at once) wait on D36 Q9.
+5. **The reusable card-payment proof** in the same function (`booking.service.ts:3106-3143`) is still there. Removing it is S2-5, which needs no decision.
