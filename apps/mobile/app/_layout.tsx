@@ -21,6 +21,10 @@ import { installWebAlert } from '@/utils/web-alert';
 import { PushNotificationGate } from '@/components/PushNotificationGate';
 import AppUpdateGate from '@/components/AppUpdateGate';
 import { AccountQueryCacheGate } from '@/components/AccountQueryCacheGate';
+// D38 Milestone 2: the one live connection, and the in-app banner for new
+// requests, quotes and messages (Android push is still off).
+import { RealtimeGate } from '@/components/RealtimeGate';
+import { InAppNoticeHost } from '@/components/InAppNoticeHost';
 
 // Make Alert.alert render a real dialog on the web build (react-native-web's
 // Alert is a no-op). Installed at module load so it is in place before any
@@ -97,6 +101,7 @@ function RootLayout(): React.ReactElement {
       <QueryClientProvider client={queryClient}>
         <AccountQueryCacheGate />
         <PushNotificationGate />
+        <RealtimeGate />
         {/* Offers newer signed APKs from our server (Android app only). */}
         <AppUpdateGate />
         <StatusBar style="dark" />
@@ -111,6 +116,7 @@ function RootLayout(): React.ReactElement {
                 web. Previously only AlertHost (a web-only shim) was mounted,
                 so showToast() was silent on devices. */}
             <ToastProvider />
+            <InAppNoticeHost />
             <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="onboarding" />

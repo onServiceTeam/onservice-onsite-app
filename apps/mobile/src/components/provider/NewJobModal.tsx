@@ -2,8 +2,17 @@
  * NewJobModal — Real-time new job notification overlay for providers.
  *
  * Appears over any screen when the provider receives a `new:job` socket event.
- * Provider has 60 seconds to Accept (navigate to job) or Decline (cancel match).
- * Auto-dismisses after 60 seconds with no action (job will be re-matched).
+ * Provider has 45 seconds to Accept (navigate to job) or Decline (cancel match).
+ * Auto-dismisses after 45 seconds with no action (job will be re-matched).
+ *
+ * D38 Milestone 2 (client only; E33's offer service is untouched):
+ * - The listener goes through useSocketEvent, so an offer that arrives after
+ *   a late connect or a reconnect still shows. Before, the modal looked up
+ *   the socket once at mount, usually before it existed, and never heard an
+ *   offer.
+ * - The countdown is 45 s, the server's offer window
+ *   (booking-offer.service.ts OFFER_TIMEOUT_SECONDS). It said 60 before, so
+ *   the last 15 s showed an offer the server had already moved on from.
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -17,14 +26,17 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSocket } from '@/services/socket.service';
+import { useSocketEvent } from '@/hooks/useSocketEvent';
+import { REALTIME_EVENTS } from '@/config/realtime-events';
 import { acceptOffer, declineOffer } from '@/services/booking.service';
 import { getErrorMessage } from '@/utils/errors';
 import { formatPHP } from '@/utils/currency';
+import { buildRoute, Routes } from '@/config/navigation';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { Wrench, Coins, MapPin } from '@/components/icons';
 
-const COUNTDOWN_SECONDS = 60;
+/** Matches the server's offer window (booking-offer.service.ts, 45 s). */
+export const COUNTDOWN_SECONDS = 45;
 
 interface NewJobEvent {
   bookingId: string;
@@ -59,25 +71,23 @@ export default function NewJobModal(): React.ReactElement | null {
     progressAnim.setValue(1);
   }, [clearTimer, progressAnim]);
 
-  // Listen for new:job socket events
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    const handler = (data: NewJobEvent): void => {
-      // If a modal is already showing, dismiss the old one
-      setJob(null);
-      setTimeLeft(COUNTDOWN_SECONDS);
-
-      // Show the new job after a brief reset
-      setTimeout(() => {
-        setJob(data);
-      }, 100);
-    };
-
-    socket.on('new:job', handler);
-    return () => { socket.off('new:job', handler); };
+  // Listen for new:job socket events (works before and after any reconnect).
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (showTimerRef.current) clearTimeout(showTimerRef.current);
   }, []);
+  useSocketEvent<NewJobEvent>(REALTIME_EVENTS.NEW_JOB, (data) => {
+    if (!data || typeof data.bookingId !== 'string') return;
+    // If a modal is already showing, dismiss the old one
+    setJob(null);
+    setTimeLeft(COUNTDOWN_SECONDS);
+
+    // Show the new job after a brief reset
+    if (showTimerRef.current) clearTimeout(showTimerRef.current);
+    showTimerRef.current = setTimeout(() => {
+      setJob(data);
+    }, 100);
+  });
 
   // Start countdown when job appears
   useEffect(() => {
@@ -118,7 +128,7 @@ export default function NewJobModal(): React.ReactElement | null {
       setJob(null);
       void queryClient.invalidateQueries({ queryKey: ['providerJobs'] });
       void queryClient.invalidateQueries({ queryKey: ['providerProfile'] });
-      if (bookingId) router.push(`/provider/job/${bookingId}`);
+      if (bookingId) router.push(buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: bookingId }) as never);
     },
     onError: (err) => {
       Alert.alert('Could not accept', getErrorMessage(err, 'This job may have expired or been taken. Please wait for the next one.'));
@@ -143,7 +153,7 @@ export default function NewJobModal(): React.ReactElement | null {
       clearTimer();
       const bookingId = job.bookingId;
       setJob(null);
-      router.push(`/provider/job/${bookingId}`);
+      router.push(buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: bookingId }) as never);
     }
   };
 

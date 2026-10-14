@@ -11,9 +11,20 @@
  * These tests render the real RootLayout with a stand-in router that shows
  * one screen at a time (the real customer tab layout, the real provider tab
  * layout or the real provider job screen), plus the tab layouts on their own.
+ *
+ * D38 Milestone 2 (package P5a) updates:
+ * - The root layout now also mounts RealtimeGate (the live connection) and
+ *   InAppNoticeHost (the in-app banner). They are replaced with stand-ins
+ *   here, like the push and update gates, so no real socket opens in jsdom.
+ * - The customer tab layout now reads the Bookings and Messages badge counts
+ *   through react-query, so the tab layouts rendered on their own get a
+ *   QueryClientProvider.
+ * - New: tab screens end above the Feedback button in tester builds (the
+ *   button covered the first "How it works" step on Home before scrolling).
  */
 import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as ReactNative from 'react-native';
 
 type ScreenComponent = React.ComponentType | null;
@@ -34,9 +45,14 @@ jest.mock('expo-router', () => {
     },
     { Screen: () => null },
   );
+  // The navigator's scene padding (screenOptions.sceneStyle) is exposed as a
+  // data attribute so the tester clearance can be checked.
   const Tabs = Object.assign(
-    ({ children }: { children?: React.ReactNode }) =>
-      ReactLocal.createElement('rn-view', { 'aria-label': 'Tab navigator' }, children),
+    ({ children, screenOptions }: { children?: React.ReactNode; screenOptions?: { sceneStyle?: { paddingBottom?: number } } }) =>
+      ReactLocal.createElement('rn-view', {
+        'aria-label': 'Tab navigator',
+        'data-scene-padding-bottom': String(screenOptions?.sceneStyle?.paddingBottom ?? 0),
+      }, children),
     { Screen: () => null },
   );
   return {
@@ -50,6 +66,8 @@ jest.mock('expo-router', () => {
 });
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('@/components/PushNotificationGate', () => ({ PushNotificationGate: () => null }));
+jest.mock('@/components/RealtimeGate', () => ({ RealtimeGate: () => null }));
+jest.mock('@/components/InAppNoticeHost', () => ({ InAppNoticeHost: () => null }));
 jest.mock('@/components/AppUpdateGate', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/AccountQueryCacheGate', () => ({ AccountQueryCacheGate: () => null }));
 jest.mock('@/components/provider/NewJobModal', () => ({ __esModule: true, default: () => null }));
@@ -113,6 +131,11 @@ const keyboard = ReactNative.Keyboard as KeyboardMock;
 const platform = ReactNative.Platform as { OS: string };
 const originalOS = platform.OS;
 const originalFlag = process.env.EXPO_PUBLIC_TESTER_FEEDBACK;
+
+/** A tab layout on its own (outside RootLayout) needs its own query client. */
+function withQueries(element: React.ReactElement): React.ReactElement {
+  return <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{element}</QueryClientProvider>;
+}
 
 function signIn(role: 'customer' | 'provider'): void {
   mockAuth.isAuthenticated = true;
@@ -196,10 +219,24 @@ describe('Which screens show the floating Feedback button', () => {
     platform.OS = 'web';
     // The raw module object the layout reads from (the namespace import above is a copy).
     jest.spyOn(require('react-native') as typeof ReactNative, 'useWindowDimensions').mockReturnValue({ width: 1280, height: 900, scale: 1, fontScale: 1 });
-    render(<CustomerTabLayout />);
+    render(withQueries(<CustomerTabLayout />));
 
     const style = screen.getByRole('button', FEEDBACK).getAttribute('style') ?? '';
     expect(style).toMatch(/bottom:\s*12px/);
+  });
+});
+
+describe('Room for the Feedback button on the customer tab screens', () => {
+  it('FB2-04 — tester builds end each customer tab screen above the button, so it never covers content (normal builds get no extra space)', () => {
+    signIn('customer');
+    const tester = render(withQueries(<CustomerTabLayout />));
+    // 44px button + 12px gap above the tab bar + 12px breathing room.
+    expect(screen.getByLabelText('Tab navigator').getAttribute('data-scene-padding-bottom')).toBe('68');
+    tester.unmount();
+
+    delete process.env.EXPO_PUBLIC_TESTER_FEEDBACK;
+    render(withQueries(<CustomerTabLayout />));
+    expect(screen.getByLabelText('Tab navigator').getAttribute('data-scene-padding-bottom')).toBe('0');
   });
 });
 
@@ -207,7 +244,7 @@ describe('The Feedback button and the on-screen keyboard', () => {
   it('FB2-04 — on iPhone it hides as the keyboard opens and comes back when it closes', () => {
     signIn('customer');
     platform.OS = 'ios';
-    const view = render(<CustomerTabLayout />);
+    const view = render(withQueries(<CustomerTabLayout />));
     expect(screen.getByRole('button', FEEDBACK)).toBeTruthy();
 
     act(() => { keyboard.__emit('keyboardWillShow'); });

@@ -19,9 +19,9 @@ jest.mock('react-native-maps', () => {
     Marker: ({ title }: { title: string }) => <span>{title}</span>,
   };
 });
+// D38 Milestone 2: the tracker listens through subscribeSocketEvent.
 jest.mock('@/services/socket.service', () => ({
-  connectSocket: () => ({ on: jest.fn() }),
-  getSocket: () => null,
+  subscribeSocketEvent: () => () => undefined,
 }));
 jest.mock('@/services/booking.service', () => ({
   getBookingById: jest.fn().mockResolvedValue({

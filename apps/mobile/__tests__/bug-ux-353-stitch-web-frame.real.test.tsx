@@ -25,6 +25,8 @@ jest.mock('@/components/icons', () => {
     Coins: Icon,
     Briefcase: Icon,
     UserCheck: Icon,
+    // D38 Milestone 2: the desktop rail adds Messages links.
+    MessageSquare: Icon,
   };
 });
 

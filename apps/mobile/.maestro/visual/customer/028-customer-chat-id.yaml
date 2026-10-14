@@ -4,10 +4,13 @@ appId: ph.onservice.app
 # Screen: apps/mobile/app/customer/chat/[id].tsx
 # Session comes from 000-setup-login.yaml (runs first in this directory);
 # deep link jumps straight to the target route via expo-router.
+# D38 Milestone 2: [id] is the BOOKING id (not a conversation id). Without
+# ?provider= the booked pro's thread opens; a request thread would add
+# ?provider=<pro user id>.
 
 - launchApp:
     stopApp: false
-- openLink: onservice://customer/chat/${MAESTRO_CONVERSATION_ID}
+- openLink: onservice://customer/chat/${MAESTRO_BOOKING_ID}
 - extendedWaitUntil:
     notVisible:
       id: "loading"

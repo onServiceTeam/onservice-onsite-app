@@ -77,6 +77,10 @@ module.exports = {
     // HA-UPD (2026-10-13): the in-app APK installer opens Android's installer
     // through expo-intent-launcher; jsdom has no Android activities.
     '^expo-intent-launcher$': '<rootDir>/__mocks__/expo-intent-launcher.js',
+    // D38 Milestone 2 (APK 1.0.4): voice notes and request videos. jsdom has
+    // no microphone, audio output or video decoder; the mocks record calls.
+    '^expo-audio$': '<rootDir>/__mocks__/expo-audio.js',
+    '^expo-video$': '<rootDir>/__mocks__/expo-video.js',
   },
   testPathIgnorePatterns: ['/node_modules/', '/.expo/', '/dist/'],
   // Monorepo: node_modules live at the workspace root.

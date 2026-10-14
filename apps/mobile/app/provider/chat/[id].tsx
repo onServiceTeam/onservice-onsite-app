@@ -1,312 +1,99 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
+//
+// D38 Milestone 2: the pro's side of a thread. [id] is the booking id; each
+// pro has one thread per booking (their request thread once they quote,
+// which carries on as the booking thread if they are booked). The thread
+// itself is the shared ChatThread (src/components/chat). Before booking the
+// pro sees only the area and service (never the address), from the thread.
 import {
   View,
   Text,
-  FlatList,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
-  RefreshControl,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/auth.store';
 import { getBookingById } from '@/services/booking.service';
-import {
-  createConversation,
-  getConversations,
-  getMessages,
-  sendMessage as sendMessageApi,
-  markConversationRead,
-  reportMessage,
-  type Message,
-} from '@/services/messaging.service';
-import {
-  connectSocket,
-  getSocket,
-  joinConversation,
-  leaveConversation,
-  emitTypingStart,
-  emitTypingStop,
-  emitMarkRead,
-} from '@/services/socket.service';
-import { uploadImages } from '@/services/upload.service';
-import { ErrorState, LazyImage, StatusBadge } from '@/components/ui';
-import { formatDateTime, formatTime } from '@/utils/date';
+import { openConversation, type ConversationView } from '@/services/messaging.service';
+import { ChatThread } from '@/components/chat/ChatThread';
+import { ErrorState, StatusBadge } from '@/components/ui';
+import { formatDateTime } from '@/utils/date';
+import { apiErrorInfo } from '@/utils/media-errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
-import { MessageSquare, Camera, Check, CheckCheck, Send, ChevronLeft } from '@/components/icons';
-// A7 — toast feedback instead of modal alerts.
-import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
 import { buildRoute, Routes } from '@/config/navigation';
 
-import * as ImagePicker from 'expo-image-picker';
+const KEEP_ON_APP_COPY =
+  'Keep your conversation here. On-app chat gives support the booking record and helps resolve service issues faster.';
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 export default function ProviderChatScreen(): React.ReactElement {
-  const { id: bookingId } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  const bookingId = firstParam(params.id);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const userId = useAuthStore((s) => s.user?.id);
   const { isPhone } = useResponsive();
 
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [initError, setInitError] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [typingUser, setTypingUser] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
-  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    async function initConversation(): Promise<void> {
-      try {
-        setInitError(false);
-        const conversations = await getConversations();
-        let conv = conversations.find((c) => c.bookingId === bookingId);
-        if (!conv) {
-          conv = await createConversation(bookingId);
-        }
-        setConversationId(conv.id);
-      } catch {
-        setInitError(true);
-      }
-    }
-    void initConversation();
-  }, [bookingId]);
-
-  const messagesQuery = useQuery({
-    queryKey: ['messages', conversationId],
-    queryFn: async () => {
-      if (!conversationId) return [];
-      const result = await getMessages(conversationId, 1, 100);
-      return result.messages;
-    },
-    enabled: !!conversationId,
-    staleTime: 10 * 1000,
+  const conversationQuery = useQuery({
+    queryKey: ['chat-conversation', bookingId, 'provider'],
+    queryFn: () => openConversation({ bookingId: bookingId as string }),
+    enabled: !!bookingId,
+    retry: false,
+    staleTime: 30_000,
   });
+  const conversation: ConversationView | undefined = conversationQuery.data;
+  const booked = conversation?.stage === 'booking';
 
-  // BUG-PHASE79-01 fix — pre-fix the chat header read "Chat with
-  // Customer" / "Customer is typing..." with no name. The provider
-  // had no idea who the message was from while looking at the
-  // screen — they had to swipe back to the job details to find out.
-  // Phase 77 added customerName to the booking response; query the
-  // booking here to surface the real name in the header.
+  // The booking record (exact address, schedule) is the booked pro's only;
+  // a request thread uses the area and service the thread carries.
   const bookingQuery = useQuery({
     queryKey: ['booking', bookingId],
-    queryFn: () => getBookingById(bookingId),
-    enabled: !!bookingId,
+    queryFn: () => getBookingById(bookingId as string),
+    enabled: !!bookingId && booked,
     staleTime: 5 * 60 * 1000,
   });
-  const customerName = bookingQuery.data?.customerName ?? 'Customer';
 
-  useEffect(() => {
-    if (messagesQuery.data) {
-      setMessages(messagesQuery.data.slice().reverse());
-    }
-  }, [messagesQuery.data]);
-
-  useEffect(() => {
-    if (!conversationId) return;
-
-    const socket = connectSocket();
-    joinConversation(conversationId);
-    void markConversationRead(conversationId);
-    emitMarkRead(conversationId);
-
-    socket.on('new:message', (msg: Message) => {
-      if (msg.conversationId === conversationId) {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
-        if (msg.senderId !== userId) {
-          void markConversationRead(conversationId);
-          emitMarkRead(conversationId);
-        }
-      }
-    });
-
-    socket.on('messages:read', (data: { conversationId: string; readBy: string }) => {
-      if (data.conversationId === conversationId && data.readBy !== userId) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.senderId === userId && !m.isRead ? { ...m, isRead: true } : m,
-          ),
-        );
-      }
-    });
-
-    socket.on('typing:start', (data: { userId: string }) => {
-      if (data.userId !== userId) setTypingUser(true);
-    });
-
-    socket.on('typing:stop', (data: { userId: string }) => {
-      if (data.userId !== userId) setTypingUser(false);
-    });
-
-    return () => {
-      leaveConversation(conversationId);
-      const s = getSocket();
-      s?.off('new:message');
-      s?.off('messages:read');
-      s?.off('typing:start');
-      s?.off('typing:stop');
-    };
-  }, [conversationId, userId]);
-
-  const handleSend = useCallback(async () => {
-    if (!inputText.trim() || !conversationId) return;
-    setSending(true);
-    try {
-      const msg = await sendMessageApi(conversationId, inputText.trim());
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-      setInputText('');
-      flatListRef.current?.scrollToEnd({ animated: true });
-    } catch {
-      showToast('Message could not be sent. Please try again.', 'error');
-    } finally {
-      setSending(false);
-    }
-  }, [inputText, conversationId]);
-
-  const handlePhotoSend = useCallback(async () => {
-    if (!conversationId) return;
-
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      showToast('Please allow photo library access to send images.', 'warning');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-      allowsMultipleSelection: false,
-    });
-
-    if (result.canceled || !result.assets?.[0]) return;
-
-    setUploadingPhoto(true);
-    try {
-      const uploaded = await uploadImages([result.assets[0].uri], 'chat');
-      if (uploaded.length > 0) {
-        const msg = await sendMessageApi(conversationId, 'Photo', 'image', uploaded[0]!.url);
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }
-    } catch {
-      showToast('Could not send the photo. Please try again.', 'error');
-    } finally {
-      setUploadingPhoto(false);
-    }
-  }, [conversationId]);
-
-  const handleTyping = (text: string): void => {
-    setInputText(text);
-    if (!conversationId) return;
-    if (text.length > 0) {
-      emitTypingStart(conversationId);
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-      typingTimerRef.current = setTimeout(() => {
-        emitTypingStop(conversationId);
-      }, 2000);
-    } else {
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-      emitTypingStop(conversationId);
-    }
-  };
-
-  const handleReport = useCallback((messageId: string) => {
-    const submit = (reason: string): void => {
-      void reportMessage(messageId, reason)
-        .then(() => showToast('Reported. Our team will review it.', 'success'))
-        .catch(() => showToast('Could not report this message. Please try again.', 'error'));
-    };
-    Alert.alert('Report message', 'Why are you reporting this message?', [
-      { text: 'Spam', onPress: () => submit('spam') },
-      { text: 'Harassment or abuse', onPress: () => submit('harassment') },
-      { text: 'Scam / asking to pay off the app', onPress: () => submit('scam_or_off_platform') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }, []);
-
-  const renderMessage = ({ item }: { item: Message }): React.ReactElement => {
-    const isMine = item.senderId === userId;
-    const canReport = !isMine && item.messageType !== 'system';
+  if (!bookingId) {
     return (
-      <TouchableOpacity
-        activeOpacity={canReport ? 0.7 : 1}
-        onLongPress={canReport ? () => handleReport(item.id) : undefined}
-        delayLongPress={350}
-        style={[styles.messageBubble, isMine ? styles.myBubble : styles.theirBubble]}
-        accessibilityHint={canReport ? 'Long press to report this message' : undefined}
-      >
-        {item.messageType === 'image' && item.imageUrl && (
-          <LazyImage source={item.imageUrl} style={styles.chatImage} contentFit="cover" accessibilityLabel="Chat photo" />
-        )}
-        {item.content && !(item.messageType === 'image' && item.imageUrl) && (
-          <Text style={[styles.messageText, isMine ? styles.myText : styles.theirText]}>
-            {item.content}
-          </Text>
-        )}
-        <View style={styles.messageFooter}>
-          <Text style={[styles.messageTime, isMine ? styles.myTime : styles.theirTime]}>
-            {formatTime(item.createdAt)}
-          </Text>
-          {isMine && (item.isRead
-            ? <CheckCheck size={12} color="rgba(255,255,255,0.7)" accessibilityLabel="Read" />
-            : <Check size={12} color="rgba(255,255,255,0.7)" accessibilityLabel="Sent" />)}
-        </View>
-      </TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ErrorState
+          title="Job chat unavailable"
+          message="This link does not identify a job. Open chat from the job or request and try again."
+          onRetry={() => router.back()}
+        />
+      </View>
     );
-  };
+  }
 
-  const retryInit = useCallback((): void => {
-    setInitError(false);
-    setConversationId(null);
-    (async (): Promise<void> => {
-      try {
-        const conversations = await getConversations();
-        let conv = conversations.find((c) => c.bookingId === bookingId);
-        if (!conv) {
-          conv = await createConversation(bookingId);
-        }
-        setConversationId(conv.id);
-      } catch {
-        setInitError(true);
-      }
-    })();
-  }, [bookingId]);
-
-  if (initError) {
+  if (conversationQuery.isError) {
+    const info = apiErrorInfo(conversationQuery.error);
+    const refused = info.status === 403 || info.code === 'THREADS_DISABLED';
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.loadingText}>Failed to set up chat.</Text>
-        <TouchableOpacity onPress={retryInit} style={styles.retryButton}>
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.retryButton, { marginTop: spacing.sm }]}>
+        <Text style={styles.loadingText}>
+          {refused ? (info.message ?? 'You can message the customer after you send a quote.') : 'Failed to set up chat.'}
+        </Text>
+        {!refused ? (
+          <TouchableOpacity onPress={() => void conversationQuery.refetch()} style={styles.retryButton} accessibilityRole="button" accessibilityLabel="Retry opening job chat">
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity onPress={() => router.back()} style={[styles.retryButton, { marginTop: spacing.sm }]} accessibilityRole="button" accessibilityLabel="Go back from unavailable job chat">
           <Text style={[styles.retryText, { color: colors.textSecondary }]}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  if (!conversationId) {
+  if (!conversation) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={colors.secondary} />
@@ -315,197 +102,110 @@ export default function ProviderChatScreen(): React.ReactElement {
     );
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>{customerName}</Text>
-          {typingUser && <Text style={styles.typingText}>{customerName} is typing...</Text>}
+  const booking = bookingQuery.data;
+  const customerName = conversation.otherParty?.displayName ?? booking?.customerName ?? 'Customer';
+  const area = [conversation.context?.barangay, conversation.context?.city].filter(Boolean).join(', ');
+  const requestAbout = [conversation.context?.serviceName, area].filter(Boolean).join(', ');
+  const subtitle = booked ? null : (requestAbout ? `Request: ${requestAbout}` : 'Request');
+
+  // The side panel exists only on tablet and desktop widths.
+  const contextPanel = isPhone ? null : (
+    <View style={styles.contextPanel} accessibilityLabel="Job conversation context">
+      <Text style={styles.contextEyebrow}>{booked ? 'JOB CONTEXT' : 'REQUEST CONTEXT'}</Text>
+      {!booked ? (
+        <>
+          <Text style={styles.contextTitle}>{conversation.context?.serviceName ?? 'Job request'}</Text>
+          <View style={styles.contextSection}>
+            <Text style={styles.contextLabel}>Customer</Text>
+            <Text style={styles.contextValue}>{customerName}</Text>
+          </View>
+          <View style={styles.contextSection}>
+            <Text style={styles.contextLabel}>Area</Text>
+            <Text style={styles.contextValue}>{area || 'Shared after booking'}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.contextAction}
+            onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_QUOTE, { id: bookingId }) as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Open the request"
+          >
+            <Text style={styles.contextActionText}>Open the request</Text>
+          </TouchableOpacity>
+        </>
+      ) : booking ? (
+        <>
+          <Text style={styles.contextTitle}>
+            {booking.serviceName ?? booking.categoryName ?? 'Service job'}
+          </Text>
+          <StatusBadge status={booking.status} size="md" />
+          <View style={styles.contextSection}>
+            <Text style={styles.contextLabel}>Customer</Text>
+            <Text style={styles.contextValue}>{booking.customerName ?? customerName}</Text>
+          </View>
+          <View style={styles.contextSection}>
+            <Text style={styles.contextLabel}>Scheduled</Text>
+            <Text style={styles.contextValue}>{booking.scheduledAt ? formatDateTime(booking.scheduledAt) : 'Not scheduled yet'}</Text>
+          </View>
+          <View style={styles.contextSection}>
+            <Text style={styles.contextLabel}>Service location</Text>
+            <Text style={styles.contextValue}>
+              {[booking.address, booking.barangay, booking.city].filter(Boolean).join(', ')}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.contextAction}
+            onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: bookingId }) as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Open job details"
+          >
+            <Text style={styles.contextActionText}>Open job details</Text>
+          </TouchableOpacity>
+        </>
+      ) : bookingQuery.isError ? (
+        <View accessibilityRole="alert">
+          <Text style={styles.contextUnavailable}>Job context is unavailable. You can still use this conversation.</Text>
+          <TouchableOpacity
+            style={styles.contextRetry}
+            onPress={() => void bookingQuery.refetch()}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading job context"
+          >
+            <Text style={styles.contextRetryText}>Try again</Text>
+          </TouchableOpacity>
         </View>
-      </View>
-
-      <View
-        style={[styles.chatWorkspace, !isPhone && styles.chatWorkspaceWide]}
-        accessibilityLabel={isPhone ? 'Provider conversation' : 'Provider conversation workspace'}
-      >
-      <View style={styles.conversationPane} accessibilityLabel="Conversation messages and composer">
-      <View style={styles.keepOnAppStrip}>
-        <Text style={styles.keepOnAppText}>
-          Keep your conversation here. On-app chat gives support the booking record, protects both sides, and helps resolve service issues faster.
-        </Text>
-      </View>
-      <FlatList
-        ref={flatListRef}
-        style={styles.messageFeed}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messageList}
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        refreshControl={
-          <RefreshControl
-            refreshing={messagesQuery.isRefetching}
-            onRefresh={() => void messagesQuery.refetch()}
-            tintColor={colors.secondary}
-          />
-        }
-        ListEmptyComponent={
-          messagesQuery.isLoading ? (
-            <View style={styles.messageState} accessibilityLabel="Loading conversation history">
-              <ActivityIndicator size="small" color={colors.secondary} />
-            </View>
-          ) : messagesQuery.isError ? (
-            <ErrorState
-              compact
-              title="Conversation history unavailable"
-              message="We couldn't load earlier messages. You can retry here before relying on this job conversation."
-              onRetry={() => void messagesQuery.refetch()}
-            />
-          ) : (
-            <View style={styles.emptyChat}>
-              <MessageSquare size={48} color={colors.textTertiary} style={styles.emptyChatIcon} />
-              <Text style={styles.emptyChatText}>Start the conversation</Text>
-            </View>
-          )
-        }
-      />
-
-      <View style={[styles.inputBar, { paddingBottom: insets.bottom + spacing.sm }]}>
-        <TouchableOpacity
-          style={styles.photoButton}
-          onPress={handlePhotoSend}
-          disabled={uploadingPhoto || sending}
-          accessibilityRole="button"
-          accessibilityLabel="Send a photo to customer"
-          accessibilityState={{ disabled: uploadingPhoto || sending }}
-        >
-          {uploadingPhoto ? (
-            <ActivityIndicator size="small" color={colors.secondary} />
-          ) : (
-            <Camera size={22} color={colors.secondary} />
-          )}
-        </TouchableOpacity>
-        <TextInput
-          style={styles.input}
-          value={inputText}
-          onChangeText={handleTyping}
-          placeholder="Type a message..."
-          placeholderTextColor={colors.textTertiary}
-          multiline
-          maxLength={2000}
-          accessibilityLabel="Message to customer"
-        />
-        <TouchableOpacity
-          style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || sending}
-          accessibilityRole="button"
-          accessibilityLabel="Send message to customer"
-          accessibilityState={{ disabled: !inputText.trim() || sending }}
-        >
-          <Send size={20} color={colors.white} />
-        </TouchableOpacity>
-      </View>
-      </View>
-
-      {!isPhone && (
-        <View style={styles.contextPanel} accessibilityLabel="Job conversation context">
-          <Text style={styles.contextEyebrow}>JOB CONTEXT</Text>
-          {bookingQuery.data ? (
-            <>
-              <Text style={styles.contextTitle}>
-                {bookingQuery.data.serviceName ?? bookingQuery.data.categoryName ?? 'Service job'}
-              </Text>
-              <StatusBadge status={bookingQuery.data.status} size="md" />
-              <View style={styles.contextSection}>
-                <Text style={styles.contextLabel}>Customer</Text>
-                <Text style={styles.contextValue}>{bookingQuery.data.customerName ?? 'Customer'}</Text>
-              </View>
-              <View style={styles.contextSection}>
-                <Text style={styles.contextLabel}>Scheduled</Text>
-                <Text style={styles.contextValue}>{formatDateTime(bookingQuery.data.scheduledAt)}</Text>
-              </View>
-              <View style={styles.contextSection}>
-                <Text style={styles.contextLabel}>Service location</Text>
-                <Text style={styles.contextValue}>
-                  {[bookingQuery.data.address, bookingQuery.data.barangay, bookingQuery.data.city].filter(Boolean).join(', ')}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.contextAction}
-                onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: bookingId }) as never)}
-                accessibilityRole="button"
-                accessibilityLabel="Open job details"
-              >
-                <Text style={styles.contextActionText}>Open job details</Text>
-              </TouchableOpacity>
-            </>
-          ) : bookingQuery.isError ? (
-            <View accessibilityRole="alert">
-              <Text style={styles.contextUnavailable}>Job context is unavailable. You can still use this conversation.</Text>
-              <TouchableOpacity
-                style={styles.contextRetry}
-                onPress={() => void bookingQuery.refetch()}
-                accessibilityRole="button"
-                accessibilityLabel="Retry loading job context"
-              >
-                <Text style={styles.contextRetryText}>Try again</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <Text style={styles.contextUnavailable}>Loading job context...</Text>
-          )}
-        </View>
+      ) : (
+        <Text style={styles.contextUnavailable}>Loading job context...</Text>
       )}
-      </View>
-    </KeyboardAvoidingView>
+    </View>
+  );
+
+  return (
+    <ChatThread
+      conversation={conversation}
+      viewerId={userId}
+      viewerRole="provider"
+      accent={colors.secondary}
+      title={customerName}
+      subtitle={subtitle}
+      onBack={() => router.back()}
+      backLabel="Go back from customer chat"
+      workspaceLabel={isPhone ? 'Provider conversation' : 'Provider conversation workspace'}
+      wide={!isPhone}
+      keepOnAppCopy={KEEP_ON_APP_COPY}
+      inputLabel="Message to customer"
+      sendLabel="Send message to customer"
+      photoLabel="Send a photo to customer"
+      contextPanel={contextPanel}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   centered: { alignItems: 'center', justifyContent: 'center' },
-  loadingText: { ...typography.body, color: colors.textSecondary, marginTop: spacing.md },
+  loadingText: { ...typography.body, color: colors.textSecondary, marginTop: spacing.md, textAlign: 'center', paddingHorizontal: spacing.lg },
   retryButton: { marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, minHeight: 44, justifyContent: 'center' as const },
   retryText: { ...typography.body, color: colors.secondary, fontWeight: '600' },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-    backgroundColor: colors.background,
-  },
-  backButton: { padding: spacing.sm, marginRight: spacing.sm, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
-  backIconText: { fontSize: 24, color: colors.text },
-  headerInfo: { flex: 1 },
-  headerTitle: { ...typography.h3, color: colors.text },
-  typingText: { ...typography.caption, color: colors.secondary, fontStyle: 'italic' },
-
-  chatWorkspace: { flex: 1 },
-  chatWorkspaceWide: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    padding: spacing.lg,
-    gap: spacing.lg,
-  },
-  conversationPane: {
-    flex: 1,
-    minWidth: 0,
-    backgroundColor: colors.surface,
-  },
-  messageFeed: { flex: 1 },
-  messageState: { paddingVertical: spacing.xxl, alignItems: 'center', justifyContent: 'center' },
   contextPanel: {
     width: 320,
     backgroundColor: colors.surface,
@@ -532,69 +232,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   contextActionText: { ...typography.body, color: colors.white, fontWeight: '700' },
-
-  messageList: { padding: spacing.base, paddingBottom: spacing.lg },
-  keepOnAppStrip: { backgroundColor: colors.infoLight, borderRadius: borderRadius.md, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, marginHorizontal: spacing.base, marginBottom: spacing.sm },
-  keepOnAppText: { ...typography.caption, color: colors.infoDark, lineHeight: 17, textAlign: 'center' },
-
-  messageBubble: {
-    maxWidth: '75%',
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.sm,
-  },
-  myBubble: { backgroundColor: colors.secondary, alignSelf: 'flex-end' },
-  theirBubble: { backgroundColor: colors.backgroundSecondary, alignSelf: 'flex-start' },
-  messageText: { ...typography.body },
-  myText: { color: colors.white },
-  theirText: { color: colors.text },
-  messageFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: spacing.xs, gap: 4 },
-  messageTime: { ...typography.caption },
-  myTime: { color: 'rgba(255,255,255,0.6)' },
-  theirTime: { color: colors.textTertiary },
-  readReceipt: { fontSize: 10, color: 'rgba(255,255,255,0.7)' },
-  chatImage: { width: 200, height: 150, borderRadius: borderRadius.md, marginBottom: spacing.xs },
-
-  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-  emptyChatIcon: { marginBottom: spacing.md },
-  emptyChatText: { ...typography.body, color: colors.textSecondary },
-
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
-    backgroundColor: colors.background,
-  },
-  photoButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.xs,
-  },
-  photoIcon: { fontSize: 22 },
-  input: {
-    ...typography.body,
-    flex: 1,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm + 2,
-    maxHeight: 100,
-    color: colors.text,
-    marginRight: spacing.sm,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButtonDisabled: { opacity: 0.4 },
-  sendIcon: { fontSize: 20, color: colors.white },
 });

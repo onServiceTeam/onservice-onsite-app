@@ -9,8 +9,21 @@ function stringValue(data: NotificationData, key: string): string | null {
 }
 
 function withQuery(path: string, key: string, value: string): string {
-  return `${path}?${key}=${encodeURIComponent(value)}`;
+  return `${path}${path.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}`;
 }
+
+// D38 Milestone 2 (merged plan 2.5, critique 2.5): request-first notices.
+// Customer notices about the state of a request open its status screen.
+const CUSTOMER_REQUEST_STATUS_TYPES = new Set([
+  'request_reopened', 'request_still_looking', 'request_ops_review', 'quote_withdrawn', 'quote_expired',
+]);
+// A provider told about a request (new, or reopened after a decline) opens
+// the request detail with the quote form.
+const PROVIDER_REQUEST_TYPES = new Set(['new_job_request', 'job_request_reopened']);
+// A provider told how their quote ended opens My quotes.
+const PROVIDER_MY_QUOTES_TYPES = new Set([
+  'quote_declined', 'quote_not_selected', 'job_request_cancelled', 'quote_expired',
+]);
 
 /** One route contract shared by foreground inbox taps and device push taps. */
 export function resolveNotificationRoute(
@@ -42,8 +55,17 @@ export function resolveNotificationRoute(
 
   if (role === 'customer') {
     if (disputeId) return buildRoute(Routes.CUSTOMER.DISPUTE_DETAIL, { id: disputeId });
-    if (isChat && bookingId) return buildRoute(Routes.CUSTOMER.CHAT, { id: bookingId });
+    if (isChat && bookingId) {
+      // D38: a booking can have one thread per pro; the message notice names
+      // the pro (providerUserId) so the tap opens that pro's thread.
+      const chatRoute = buildRoute(Routes.CUSTOMER.CHAT, { id: bookingId });
+      const providerUserId = stringValue(data, 'providerUserId');
+      return providerUserId ? withQuery(chatRoute, 'provider', providerUserId) : chatRoute;
+    }
     if (type === 'new_quote' && bookingId) return withQuery(Routes.CUSTOMER.BOOKING_QUOTES, 'bookingId', bookingId);
+    if (CUSTOMER_REQUEST_STATUS_TYPES.has(type) && bookingId) {
+      return withQuery(Routes.CUSTOMER.BOOKING_REQUEST_STATUS, 'bookingId', bookingId);
+    }
     if (type === 'job_completed' && bookingId) return withQuery(Routes.CUSTOMER.BOOKING_COMPLETE, 'bookingId', bookingId);
     if (['provider_en_route', 'provider_arrived'].includes(type) && bookingId) {
       return withQuery(Routes.CUSTOMER.BOOKING_TRACKER, 'bookingId', bookingId);
@@ -63,7 +85,13 @@ export function resolveNotificationRoute(
 
   if (disputeId) return buildRoute(Routes.PROVIDER.DISPUTE_DETAIL, { id: disputeId });
   if (isChat && bookingId) return buildRoute(Routes.PROVIDER.CHAT, { id: bookingId });
-  if (type === 'new_job_request') return Routes.PROVIDER.LEADS;
+  if (PROVIDER_REQUEST_TYPES.has(type)) {
+    return bookingId ? buildRoute(Routes.PROVIDER.JOB_QUOTE, { id: bookingId }) : Routes.PROVIDER_TABS.REQUESTS;
+  }
+  if (PROVIDER_MY_QUOTES_TYPES.has(type)) return Routes.PROVIDER.MY_QUOTES;
+  // A fixed-price offer that is no longer on screen: the offer pop-up has
+  // closed, and the booking is not this provider's (its detail would 404).
+  if (type === 'new_job_available') return Routes.PROVIDER_TABS.DASHBOARD;
   if (type === 'provider_reminder') return Routes.PROVIDER.REMINDERS;
   if (type === 'payout') return Routes.PROVIDER.PAYOUTS;
   if (type === 'rating_received') return Routes.PROVIDER.REVIEWS;

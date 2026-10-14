@@ -37,6 +37,7 @@ import {
   Coins,
   Briefcase,
   UserCheck,
+  MessageSquare,
 } from '@/components/icons';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import {
@@ -71,6 +72,13 @@ const CUSTOMER_NAV: DesktopNavItem[] = [
     route: Routes.TABS.BOOKINGS,
     Icon: ClipboardList,
     matches: ['/bookings', '/customer/booking'],
+  },
+  // D38 Milestone 2: one thread per pro, before and after booking.
+  {
+    label: 'Messages',
+    route: Routes.CUSTOMER.MESSAGES,
+    Icon: MessageSquare,
+    matches: ['/messages', '/customer/chat'],
   },
   {
     label: 'Wallet',
@@ -127,7 +135,15 @@ const PROVIDER_NAV: DesktopNavItem[] = [
     label: 'Job Requests',
     route: Routes.PROVIDER.LEADS,
     Icon: Inbox,
-    matches: ['/provider/leads'],
+    // D38 Milestone 2: also lit on the Requests tab (package P5b), which the
+    // leads route re-exports.
+    matches: ['/provider/leads', '/requests'],
+  },
+  {
+    label: 'Messages',
+    route: Routes.PROVIDER.MESSAGES,
+    Icon: MessageSquare,
+    matches: ['/provider/messages', '/provider/chat'],
   },
   {
     label: 'Schedule',
@@ -189,9 +205,11 @@ export function isDesktopShellRoute(pathname: string): boolean {
 }
 
 export function isRouteOwnedByRole(pathname: string, role: string): boolean {
-  const providerTabRoute = ['/dashboard', '/jobs', '/earnings', '/provider-profile']
+  // D38 Milestone 2: /requests is the provider Requests tab, /messages the
+  // customer Messages tab (provider messages live under /provider/).
+  const providerTabRoute = ['/dashboard', '/jobs', '/earnings', '/provider-profile', '/requests']
     .some((route) => pathname === route || pathname.startsWith(`${route}/`));
-  const customerTabRoute = ['/home', '/bookings', '/wallet', '/profile']
+  const customerTabRoute = ['/home', '/bookings', '/wallet', '/profile', '/messages']
     .some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
   if (pathname === '/provider' || pathname.startsWith('/provider/') || providerTabRoute) {

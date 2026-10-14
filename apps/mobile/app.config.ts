@@ -66,12 +66,17 @@ if (standaloneAndroid && easProjectId && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a
   throw new Error('Invalid EAS_PROJECT_ID: expected a project UUID.');
 }
 
+// D38 Milestone 2 (APK 1.0.4): customers record a voice note for a job
+// request, and customers and pros send voice notes in request threads.
+const MICROPHONE_USAGE =
+  'onService uses the microphone only while you record a voice note for a job request or a message.';
+
 const config: ExpoConfig = {
   name: 'onService',
   slug: 'onservice',
   // Raise version and android.versionCode together for every APK handed to
   // testers: an installed app only accepts a strictly higher versionCode.
-  version: '1.0.3',
+  version: '1.0.4',
   runtimeVersion: { policy: 'appVersion' },
   orientation: 'portrait',
   scheme: 'onservice',
@@ -112,6 +117,7 @@ const config: ExpoConfig = {
         'onService needs camera access to take photos of job sites, receipts, and evidence for disputes.',
       NSPhotoLibraryUsageDescription:
         'onService needs photo library access to upload images for bookings, profiles, and evidence.',
+      NSMicrophoneUsageDescription: MICROPHONE_USAGE,
       NSContactsUsageDescription:
         'onService can access your contacts to easily invite friends through the referral program.',
       // Phase K MED-K24 fix — the app uses non-exempt encryption
@@ -153,7 +159,7 @@ const config: ExpoConfig = {
       backgroundColor: '#003D9B',
     },
     package: 'ph.onservice.app',
-    versionCode: 4,
+    versionCode: 5,
     permissions: [
       'ACCESS_FINE_LOCATION',
       'ACCESS_COARSE_LOCATION',
@@ -162,6 +168,9 @@ const config: ExpoConfig = {
       'READ_MEDIA_IMAGES',
       'RECEIVE_BOOT_COMPLETED',
       'VIBRATE',
+      // D38 Milestone 2: voice notes (expo-audio records only while a voice
+      // note is being recorded; background recording stays off below).
+      'RECORD_AUDIO',
       // HA-UPD (2026-10-13): the standalone tester APK downloads its own
       // updates and opens Android's installer, which needs this permission
       // (the person still confirms every install). Google Play forbids
@@ -169,6 +178,14 @@ const config: ExpoConfig = {
       // ship in a Play Store build: it is added only for the local standalone
       // tester build (ONSERVICE_ANDROID_STANDALONE=1).
       ...(standaloneAndroid ? ['android.permission.REQUEST_INSTALL_PACKAGES'] : []),
+    ],
+    // D38 Milestone 2: videos are chosen through the system photo picker,
+    // which needs no media permission on Android 13 and later, and the app
+    // never reads the phone's audio library. Block both so no library adds
+    // them (design-media.md section 8).
+    blockedPermissions: [
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
     ],
     ...(!isWebExport && {
       config: {
@@ -206,6 +223,25 @@ const config: ExpoConfig = {
       {
         icon: './assets/notification-icon.png',
         color: '#003D9B',
+      },
+    ],
+    // D38 Milestone 2: voice notes and request videos. Background playback
+    // and recording stay off, so neither plugin adds a foreground service or
+    // the iOS background-audio mode.
+    [
+      'expo-audio',
+      {
+        microphonePermission: MICROPHONE_USAGE,
+        recordAudioAndroid: true,
+        enableBackgroundPlayback: false,
+        enableBackgroundRecording: false,
+      },
+    ],
+    [
+      'expo-video',
+      {
+        supportsBackgroundPlayback: false,
+        supportsPictureInPicture: false,
       },
     ],
   ],

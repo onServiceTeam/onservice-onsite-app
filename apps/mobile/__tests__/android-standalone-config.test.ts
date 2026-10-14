@@ -38,7 +38,31 @@ it('builds an explicitly selected standalone Android config without inventing EA
   // 1.0.1 (build 2), 2026-10-12: the first APK with email sign-in and the update check.
   // 1.0.2 (build 3), 2026-10-13: tester feedback v2 (Send feedback entries, real version shown).
   // 1.0.3 (build 4), 2026-10-14: in-app updater, request-first booking, new home and service screens.
-  expect(config.android?.versionCode).toBe(4);
+  // 1.0.4 (build 5), D38 Milestone 2: request media (photos, video, voice notes), request threads, live updates.
+  expect(config.version).toBe('1.0.4');
+  expect(config.android?.versionCode).toBe(5);
+});
+
+// D38 Milestone 2 (APK 1.0.4): voice notes need the microphone; videos come
+// from the system photo picker, so the video and audio library permissions
+// are blocked, and neither media plugin may add background playback.
+it('HA-M2-CONFIG: 1.0.4 asks for the microphone, blocks media-library video and audio, and keeps background audio off', () => {
+  const config = loadConfig();
+  expect(config.android?.permissions).toContain('RECORD_AUDIO');
+  expect(config.android?.blockedPermissions).toEqual([
+    'android.permission.READ_MEDIA_VIDEO',
+    'android.permission.READ_MEDIA_AUDIO',
+  ]);
+  expect(config.ios?.infoPlist?.NSMicrophoneUsageDescription).toMatch(/voice note/);
+  const plugins = (config.plugins ?? []) as Array<string | [string, Record<string, unknown>]>;
+  const optionsOf = (name: string): Record<string, unknown> | undefined => {
+    const entry = plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === name);
+    return Array.isArray(entry) ? entry[1] : undefined;
+  };
+  expect(optionsOf('expo-audio')).toMatchObject({
+    recordAudioAndroid: true, enableBackgroundPlayback: false, enableBackgroundRecording: false,
+  });
+  expect(optionsOf('expo-video')).toEqual({ supportsBackgroundPlayback: false, supportsPictureInPicture: false });
 });
 
 it('retains an explicitly configured EAS identity while still requiring only Android Maps configuration', () => {

@@ -2,22 +2,28 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const mockGetConversations = jest.fn();
-const mockCreateConversation = jest.fn();
+const mockOpenConversation = jest.fn();
+const mockGetMessagesPage = jest.fn();
 
+// D38 Milestone 2 (package P5a): the chat opens its thread with
+// openConversation (it used to list conversations and create one). The
+// behaviour pinned here is unchanged: a link without a booking id never asks
+// the server to open or create a thread.
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
   useLocalSearchParams: () => ({}),
 }));
 jest.mock('@/stores/auth.store', () => ({ useAuthStore: (selector: (state: { user: null }) => unknown) => selector({ user: null }) }));
 jest.mock('@/services/messaging.service', () => ({
-  getConversations: (...args: unknown[]) => mockGetConversations(...args),
-  createConversation: (...args: unknown[]) => mockCreateConversation(...args),
-  getMessages: jest.fn(), sendMessage: jest.fn(), markConversationRead: jest.fn(), reportMessage: jest.fn(),
+  openConversation: (...args: unknown[]) => mockOpenConversation(...args),
+  getMessagesPage: (...args: unknown[]) => mockGetMessagesPage(...args),
+  getConversation: jest.fn(), sendChatMessage: jest.fn(), getInbox: jest.fn(),
+  markConversationRead: jest.fn(), reportMessage: jest.fn(),
 }));
 jest.mock('@/services/booking.service', () => ({ getBookingById: jest.fn() }));
 jest.mock('@/services/socket.service', () => ({
-  connectSocket: jest.fn(), getSocket: jest.fn(), joinConversation: jest.fn(), leaveConversation: jest.fn(),
+  subscribeSocketEvent: jest.fn(() => () => undefined), onSocketStatus: jest.fn(() => () => undefined), isSocketConnected: jest.fn(() => false),
+  joinConversation: jest.fn(), leaveConversation: jest.fn(),
   emitTypingStart: jest.fn(), emitTypingStop: jest.fn(), emitMarkRead: jest.fn(),
 }));
 jest.mock('expo-image-picker', () => ({ requestMediaLibraryPermissionsAsync: jest.fn(), launchImageLibraryAsync: jest.fn() }));
@@ -29,6 +35,6 @@ it('Bug UX-635 — a chat link without a booking ID never attempts to create an 
   render(<QueryClientProvider client={client}><CustomerChatScreen /></QueryClientProvider>);
 
   expect(screen.getByText('Booking chat unavailable')).toBeTruthy();
-  await waitFor(() => expect(mockGetConversations).not.toHaveBeenCalled());
-  expect(mockCreateConversation).not.toHaveBeenCalled();
+  await waitFor(() => expect(mockOpenConversation).not.toHaveBeenCalled());
+  expect(mockGetMessagesPage).not.toHaveBeenCalled();
 });

@@ -19,18 +19,14 @@ jest.mock('@/hooks/useResponsive', () => ({
 jest.mock('@/stores/booking.store', () => ({
   useBookingStore: (selector: (state: { draft: typeof mockDraft }) => unknown) => selector({ draft: mockDraft }),
 }));
-jest.mock('@/hooks/useImagePicker', () => ({
-  useImagePicker: () => ({
-    localUris: ['file:///job-1.jpg', 'file:///job-2.jpg'],
-    uploadAll: jest.fn().mockResolvedValue(['https://cdn.example/job-1.jpg', 'https://cdn.example/job-2.jpg']),
-    removeImage: jest.fn(), showPickerOptions: jest.fn(), isUploading: false,
-  }),
-}));
+// D38 Milestone 2: the form no longer uses useImagePicker or the old quote
+// limit from config.service (maxQuotesPerBooking, now requestMaxOpenQuotes on
+// the server); both mocks were removed. Media goes through
+// useJobMediaUploads, which runs for real here with nothing picked.
 jest.mock('@/services/booking.service', () => ({
   createJobRequest: (...args: unknown[]) => mockCreateJobRequest(...args),
   getSubcategoryIntakeFields: (...args: unknown[]) => mockGetSubcategoryIntakeFields(...args),
 }));
-jest.mock('@/services/config.service', () => ({ getConfig: () => ({ maxQuotesPerBooking: 5 }) }));
 
 import JobRequestScreen from '../app/customer/booking/job-request';
 

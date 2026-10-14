@@ -4,15 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import JobRequestScreen from '../app/customer/booking/job-request';
 import { useBookingStore } from '../src/stores/booking.store';
 
-jest.mock('@/hooks/useImagePicker', () => ({
-  useImagePicker: () => ({
-    localUris: [],
-    uploadAll: jest.fn().mockResolvedValue([]),
-    removeImage: jest.fn(),
-    showPickerOptions: jest.fn(),
-    isUploading: false,
-  }),
-}));
+// D38 Milestone 2: the form no longer uses useImagePicker; that mock was removed.
 
 describe('Bug UX-609 — customer quote request requires catalog context', () => {
   it('does not expose a provider request form with an unknown category', () => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { getBookingById } from '@/services/booking.service';
-import { getSocket, connectSocket } from '@/services/socket.service';
+// D38 Milestone 2 (critique L7): live events go through the shared socket
+// registry; the connection itself is owned by RealtimeGate.
+import { useSocketEvent } from '@/hooks/useSocketEvent';
 // A7 — shared UI kit for loading/error states.
 import { Button, StatusBadge, SkeletonCard, ErrorState } from '@/components/ui';
 // Phase 14 R5-complete — PulsingDot live indicator for en-route status.
@@ -46,17 +48,13 @@ export default function BookingTrackerScreen(): React.ReactElement {
   // pin is drawn; the screen is honest about this (see the hint below and
   // LAUNCH-LIMITATIONS section 32). Do NOT remove this without removing the
   // v1.1 plan; a regression guard protects it (bug-phase106-01 test).
-  useEffect(() => {
-    if (!bookingId) return;
-    const socket = connectSocket();
-    socket.on(`booking:${bookingId}:location`, (data: { latitude: number; longitude: number }) => {
-      setProviderLocation(data);
-    });
-    return () => {
-      const s = getSocket();
-      if (s) s.off(`booking:${bookingId}:location`);
-    };
-  }, [bookingId]);
+  // D38: the listener is registered through useSocketEvent, so it no longer
+  // opens its own connection, survives reconnects, and on unmount removes
+  // only itself (before, `off(event)` removed every listener for the event).
+  useSocketEvent<{ latitude: number; longitude: number }>(
+    bookingId ? `booking:${bookingId}:location` : null,
+    (data) => { setProviderLocation(data); },
+  );
 
   const { data: booking, isLoading, isError, refetch } = useQuery({
     queryKey: ['booking', bookingId],

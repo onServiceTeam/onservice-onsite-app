@@ -2,6 +2,10 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// D38 Milestone 2 (package P5a): the chat opens its thread with
+// openConversation and reads cursor pages (getMessagesPage); the socket mock
+// matches the shared listener registry. The behaviour pinned here is
+// unchanged: the booking context sits beside the conversation on desktop.
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
   useLocalSearchParams: () => ({ id: 'booking-1' }),
@@ -10,8 +14,9 @@ jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1100, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
 jest.mock('@/services/socket.service', () => ({
-  connectSocket: () => ({ on: jest.fn() }),
-  getSocket: () => null,
+  subscribeSocketEvent: () => () => undefined,
+  onSocketStatus: () => () => undefined,
+  isSocketConnected: () => true,
   joinConversation: jest.fn(),
   leaveConversation: jest.fn(),
   emitTypingStart: jest.fn(),
@@ -19,10 +24,14 @@ jest.mock('@/services/socket.service', () => ({
   emitMarkRead: jest.fn(),
 }));
 jest.mock('@/services/messaging.service', () => ({
-  getConversations: jest.fn().mockResolvedValue([{ id: 'conversation-1', bookingId: 'booking-1' }]),
-  createConversation: jest.fn(),
-  getMessages: jest.fn().mockResolvedValue({ messages: [], total: 0 }),
-  sendMessage: jest.fn(),
+  openConversation: jest.fn().mockResolvedValue({
+    id: 'conversation-1', bookingId: 'booking-1', state: 'open', stateReason: null, stage: 'booking',
+    otherParty: { userId: 'provider-user-1', displayName: 'Cebu Prime Services', avatarUrl: null, role: 'provider' },
+  }),
+  getConversation: jest.fn(),
+  getMessagesPage: jest.fn().mockResolvedValue({ messages: [], hasMore: false, nextBefore: null, conversation: null }),
+  sendChatMessage: jest.fn(),
+  getInbox: jest.fn(),
   markConversationRead: jest.fn().mockResolvedValue(undefined),
   reportMessage: jest.fn(),
 }));
@@ -52,6 +61,7 @@ it('Bug UX-030 — customer chat keeps booking status and actions visible beside
   const workspace = await screen.findByLabelText('Customer conversation workspace');
   const context = await screen.findByLabelText('Booking conversation context');
   expect(workspace.contains(context)).toBe(true);
+  expect(await screen.findByText('Aircon Cleaning')).toBeTruthy();
   expect(context.textContent).toContain('Aircon Cleaning');
   expect(screen.getByText('View booking details')).toBeTruthy();
   expect(screen.getByText('Open booking tracker')).toBeTruthy();

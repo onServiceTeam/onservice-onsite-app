@@ -158,6 +158,13 @@ export interface JobRequestPayload {
   // D27 Phase 2 — structured answers to the subcategory's intake fields,
   // keyed by field_key. Collected by the dynamic intake form on job-request.tsx.
   intakeAnswers?: Record<string, string | number | boolean>;
+  // D38 Milestone 2: private job media the server has stored (photos, one
+  // video, one voice note; job-media.service), "Not sure, let the pro
+  // quote" (never sent together with a budget), and this form's idempotency
+  // key so a double tap or a retry never creates two requests.
+  mediaIds?: string[];
+  budgetUnknown?: boolean;
+  clientRequestId?: string;
 }
 
 export async function createJobRequest(data: JobRequestPayload): Promise<Booking> {

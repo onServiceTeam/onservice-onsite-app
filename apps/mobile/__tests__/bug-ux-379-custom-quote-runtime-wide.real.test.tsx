@@ -25,9 +25,9 @@ jest.mock('@/hooks/useResponsive', () => ({
 jest.mock('@/stores/booking.store', () => ({
   useBookingStore: (selector: (state: { draft: typeof mockDraft }) => unknown) => selector({ draft: mockDraft }),
 }));
-jest.mock('@/hooks/useImagePicker', () => ({
-  useImagePicker: () => ({ localUris: [], uploadAll: jest.fn(), removeImage: jest.fn(), showPickerOptions: jest.fn(), isUploading: false }),
-}));
+// D38 Milestone 2: the form no longer uses useImagePicker (public photo
+// uploads). Photos, video and voice go through useJobMediaUploads, which runs
+// for real here with nothing picked.
 jest.mock('@/services/booking.service', () => ({
   createJobRequest: jest.fn(),
   getSubcategoryIntakeFields: jest.fn().mockResolvedValue([]),

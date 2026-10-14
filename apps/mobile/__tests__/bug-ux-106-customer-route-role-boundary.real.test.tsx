@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 let mockAuthState: { isAuthenticated: boolean; user: { role: string } | null } = {
   isAuthenticated: true,
@@ -26,13 +27,19 @@ jest.mock('expo-router', () => {
 import CustomerLayout from '../app/customer/_layout';
 import CustomerTabLayout from '../app/(tabs)/_layout';
 
+// D38 Milestone 2: the tab layout reads the Bookings and Messages badge
+// counts through react-query, so it renders inside a query client.
+function Tabs(): React.ReactElement {
+  return <QueryClientProvider client={new QueryClient()}><CustomerTabLayout /></QueryClientProvider>;
+}
+
 it('Bug UX-106 — customer standalone routes and tabs reject a provider session and render only for a customer', () => {
   const blockedStack = render(<CustomerLayout />);
   expect(blockedStack.getByTestId('role-redirect').getAttribute('data-href')).toBe('/(provider-tabs)/dashboard');
   expect(blockedStack.queryByTestId('customer-stack')).toBeNull();
   cleanup();
 
-  const blockedTabs = render(<CustomerTabLayout />);
+  const blockedTabs = render(<Tabs />);
   expect(blockedTabs.getByTestId('role-redirect').getAttribute('data-href')).toBe('/(provider-tabs)/dashboard');
   expect(blockedTabs.queryByTestId('customer-tabs')).toBeNull();
   cleanup();
@@ -40,5 +47,5 @@ it('Bug UX-106 — customer standalone routes and tabs reject a provider session
   mockAuthState = { isAuthenticated: true, user: { role: 'customer' } };
   expect(render(<CustomerLayout />).getByTestId('customer-stack')).toBeTruthy();
   cleanup();
-  expect(render(<CustomerTabLayout />).getByTestId('customer-tabs')).toBeTruthy();
+  expect(render(<Tabs />).getByTestId('customer-tabs')).toBeTruthy();
 });

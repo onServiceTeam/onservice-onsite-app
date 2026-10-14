@@ -201,6 +201,11 @@ const Animated = {
     interpolate() {
       return this;
     }
+    // D38 Milestone 2: NewJobModal (now reachable in tests through the live
+    // connection) stops its countdown animation; the real API has this.
+    stopAnimation(callback) {
+      if (callback) callback(this._value);
+    }
   },
   timing: () => ({ start: (cb) => cb && cb({ finished: true }) }),
   spring: () => ({ start: (cb) => cb && cb({ finished: true }) }),
@@ -237,9 +242,21 @@ const BackHandler = {
   exitApp: jest.fn(),
 };
 
+// AppState keeps its listeners so a test can move the app to the background
+// and back: AppState.__emit('background'), AppState.__emit('active').
+// addEventListener stays a jest.fn so tests can still read its calls.
+const appStateListeners = new Set();
 const AppState = {
   currentState: 'active',
-  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  addEventListener: jest.fn((event, listener) => {
+    if (event === 'change' && typeof listener === 'function') appStateListeners.add(listener);
+    return { remove: jest.fn(() => { appStateListeners.delete(listener); }) };
+  }),
+  __emit: (state) => {
+    AppState.currentState = state;
+    Array.from(appStateListeners).forEach((listener) => listener(state));
+  },
+  __listenerCount: () => appStateListeners.size,
 };
 
 const UIManager = {

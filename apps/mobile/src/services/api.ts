@@ -99,8 +99,23 @@ interface ApiRequestInit extends Omit<RequestInit, 'body' | 'method'> {
   body?: unknown;
   params?: Record<string, unknown>;
   responseType?: 'json' | 'blob' | 'text' | 'arraybuffer';
+  /**
+   * D38 Milestone 2: raw bytes sent as application/octet-stream instead of a
+   * JSON body (private media chunk uploads). The 401 refresh-and-replay path
+   * re-sends the same bytes.
+   */
+  binaryBody?: Uint8Array | Blob | ArrayBuffer;
+  /** Per-request deadline in milliseconds. Default 15 s (DEFAULT_TIMEOUT_MS). */
+  timeoutMs?: number;
   /** Per-request override for the Bearer token. Used during the refresh flow. */
   _bearerOverride?: string;
+}
+
+/** The default deadline for one request. */
+export const DEFAULT_TIMEOUT_MS = 15000;
+
+function resolveTimeoutMs(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
 }
 
 interface ApiAxiosLikeResponse<T> {
@@ -125,12 +140,15 @@ function buildAbsoluteUrl(url: string): string {
   return platformConfig.apiUrl + url;
 }
 
-async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosLikeResponse<T>> {
+async function rawFetch<T>(url: string, requestInit: ApiRequestInit): Promise<ApiAxiosLikeResponse<T>> {
+  const { binaryBody, timeoutMs, ...init } = requestInit;
   const method = (init.method ?? 'GET').toUpperCase();
   const finalUrl = appendParams(buildAbsoluteUrl(url), init.params);
   const headers = new Headers(init.headers);
 
-  if (!headers.has('Content-Type') && init.body !== undefined && !(init.body instanceof FormData)) {
+  if (binaryBody !== undefined) {
+    if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/octet-stream');
+  } else if (!headers.has('Content-Type') && init.body !== undefined && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -140,7 +158,9 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
   }
 
   let serializedBody: BodyInit | undefined;
-  if (init.body !== undefined) {
+  if (binaryBody !== undefined) {
+    serializedBody = binaryBody as BodyInit;
+  } else if (init.body !== undefined) {
     serializedBody = init.body instanceof FormData ? init.body : JSON.stringify(init.body);
   }
 
@@ -155,7 +175,7 @@ async function rawFetch<T>(url: string, init: ApiRequestInit): Promise<ApiAxiosL
     rejectAbort(abortReason());
   };
   controller.signal.addEventListener('abort', onAbort, { once: true });
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), resolveTimeoutMs(timeoutMs));
   const abortFromCaller = (): void => controller.abort(init.signal?.reason);
 
   try {

@@ -1,6 +1,8 @@
 // HA-REQ-8 (customer human audit 2026-10-13, D38): a customer who has no idea
 // of the price ticks "Not sure, let the pro quote". That clears and locks the
 // budget inputs, and the request is sent with no budget at all.
+// D38 Milestone 2: the request now also says so explicitly
+// (budgetUnknown: true), and the unused useImagePicker mock was removed.
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -21,9 +23,6 @@ jest.mock('@/hooks/useResponsive', () => ({
 }));
 jest.mock('@/stores/booking.store', () => ({
   useBookingStore: (selector: (state: { draft: typeof mockDraft }) => unknown) => selector({ draft: mockDraft }),
-}));
-jest.mock('@/hooks/useImagePicker', () => ({
-  useImagePicker: () => ({ localUris: [], uploadAll: jest.fn().mockResolvedValue([]), removeImage: jest.fn(), showPickerOptions: jest.fn(), isUploading: false }),
 }));
 jest.mock('@/services/booking.service', () => ({
   createJobRequest: (...args: unknown[]) => mockCreateJobRequest(...args),
@@ -65,6 +64,7 @@ it('HA-REQ-8: ticking "Not sure, let the pro quote" clears and disables the budg
   const payload = mockCreateJobRequest.mock.calls[0][0] as Record<string, unknown>;
   expect(payload.budgetMin).toBeUndefined();
   expect(payload.budgetMax).toBeUndefined();
+  expect(payload.budgetUnknown).toBe(true);
   expect(payload).toMatchObject({
     categoryId: 'category-1', subcategoryId: 'subcategory-1',
     description: 'Bedroom aircon is not cooling at all.', urgency: 'within_3_days',

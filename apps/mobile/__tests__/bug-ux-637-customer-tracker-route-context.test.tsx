@@ -10,7 +10,9 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('react-native-maps', () => ({ __esModule: true, default: () => null, Marker: () => null }));
 jest.mock('@/services/booking.service', () => ({ getBookingById: (...args: unknown[]) => mockGetBookingById(...args) }));
-jest.mock('@/services/socket.service', () => ({ getSocket: jest.fn(), connectSocket: jest.fn() }));
+// D38 Milestone 2: the tracker listens through subscribeSocketEvent.
+const mockSubscribe = jest.fn(() => () => undefined);
+jest.mock('@/services/socket.service', () => ({ subscribeSocketEvent: (...args: unknown[]) => mockSubscribe(...(args as [])) }));
 jest.mock('@/hooks/useServiceAreaDefaults', () => ({ useServiceAreaDefaults: () => ({ mapRegion: null }) }));
 
 import BookingTrackerScreen from '../app/customer/booking/tracker';
@@ -22,4 +24,6 @@ it('Bug UX-637 — tracking without a booking ID gives a truthful return path in
   expect(screen.getByText('Booking tracker unavailable')).toBeTruthy();
   expect(screen.getByText(/does not identify a booking/i)).toBeTruthy();
   expect(mockGetBookingById).not.toHaveBeenCalled();
+  // No booking, so no location listener either.
+  expect(mockSubscribe).not.toHaveBeenCalled();
 });

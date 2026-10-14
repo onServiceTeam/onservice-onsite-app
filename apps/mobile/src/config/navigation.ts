@@ -29,6 +29,9 @@ export const Routes = {
     JOBS: '/(provider-tabs)/jobs',
     EARNINGS: '/(provider-tabs)/earnings',
     PROVIDER_PROFILE: '/(provider-tabs)/provider-profile',
+    // D38 Milestone 2: the provider Requests tab (new requests and My quotes).
+    // Screen: app/(provider-tabs)/requests.tsx, built by package P5b.
+    REQUESTS: '/(provider-tabs)/requests',
   },
 
   AUTH: {
@@ -62,9 +65,16 @@ export const Routes = {
     BOOKING_TIP: '/customer/booking/tip',
     BOOKING_DISPUTE: '/customer/booking/dispute',
     BOOKING_CHANGE_ORDER: '/customer/booking/change-order',
+    // D38 Milestone 2 (package P5b builds both screens). Both read
+    // ?bookingId= (and confirm also ?quoteId=) from the query, like quotes.
+    BOOKING_REQUEST_STATUS: '/customer/booking/request-status',
+    BOOKING_CONFIRM_QUOTE: '/customer/booking/confirm-quote',
     DISPUTES: '/customer/disputes',
     DISPUTE_DETAIL: '/customer/dispute/[id]',
+    // [id] is the booking id. A request thread adds ?provider=<providerUserId>.
     CHAT: '/customer/chat/[id]',
+    // D38 Milestone 2: the customer Messages tab (one thread per pro).
+    MESSAGES: '/(tabs)/messages',
     // BUG-PHASE81-01 fix (same dead-route pattern as CRIT-80) — pre-fix
     // this pointed at '/customer/wallet' which has no corresponding
     // file. The (tabs)/wallet.tsx "+ Top Up" button uses this route
@@ -136,6 +146,15 @@ export const Routes = {
     JOB_PHOTOS: '/provider/job/[id]/photos',
     JOB_CHANGE_ORDER: '/provider/job/[id]/change-order',
     QUOTE_BUILDER: '/provider/job/[id]/quote',
+    // D38 Milestone 2: the request detail with the quote form. Same screen as
+    // QUOTE_BUILDER (the older name); new code and notification taps use this.
+    JOB_QUOTE: '/provider/job/[id]/quote',
+    // D38 Milestone 2: the provider's message threads (reached from the
+    // dashboard and the Requests header, not a tab).
+    MESSAGES: '/provider/messages',
+    // D38 Milestone 2: the My quotes segment of the Requests tab
+    // (app/(provider-tabs)/requests.tsx reads ?tab=quotes; package P5b).
+    MY_QUOTES: '/(provider-tabs)/requests?tab=quotes',
     // BUG-PHASE82-01 fix — pre-fix the path was '/provider/job/[id]/active'
     // but the actual file is /provider/job/active.tsx (a literal route,
     // not a sub-route under [id]). The screen reads bookingId from a

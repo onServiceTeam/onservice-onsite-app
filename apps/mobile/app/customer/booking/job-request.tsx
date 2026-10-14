@@ -2,14 +2,19 @@ import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 //
 // D38 human audit (Ken, 2026-10-13): "Book a service". Every service starts
-// here: the customer describes the job in any mix of quick questions, text and
-// photos, adds a budget range or says they are not sure, then picks when and
-// where. Local pros send the price. No single item is required; the request
-// needs a description of 10+ characters, a photo, or an answered question,
-// which is the same rule the API enforces (validators/booking.validators.ts).
-// Each part of the form is its own section card, so later media sections
-// (video and voice notes, Milestone 2) slot in as further cards.
-import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
+// here: the customer describes the job in any mix of quick questions, text,
+// photos, a short video and a voice note, adds a budget range or says they
+// are not sure, then picks when and where. Local pros send the price. No
+// single item is required; the request needs a description of 10+
+// characters, a photo, video or voice note, or an answered question, which
+// is the same rule the API enforces (validators/booking.validators.ts).
+//
+// D38 Milestone 2 (APK 1.0.4): media is private. Each file uploads in chunks
+// as soon as it is added (useJobMediaUploads), "Send request" waits while
+// anything is still uploading, and only files the server stored are sent
+// (mediaIds). "Not sure" sends budgetUnknown: true. Each form carries one
+// clientRequestId, so a double tap or a retry never creates two requests.
+import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,10 +22,14 @@ import { useBookingStore } from '@/stores/booking.store';
 import { createJobRequest, getSubcategoryIntakeFields, type IntakeField } from '@/services/booking.service';
 import api from '@/services/api';
 import { getErrorMessage } from '@/utils/errors';
-import { useImagePicker } from '@/hooks/useImagePicker';
+import { useJobMediaUploads } from '@/hooks/useJobMediaUploads';
+import { useRequestConfig } from '@/hooks/useRequestConfig';
+import { JobMediaPicker } from '@/components/job-media/JobMediaPicker';
+import { apiErrorInfo, describeMediaError } from '@/utils/media-errors';
+import { uuidV4 } from '@/utils/uuid';
 import { colors, spacing, borderRadius, typography } from '@/config/theme';
 import {
-  ChevronLeft, ChevronRight, ListChecks, PencilLine, Camera, Wallet, Clock, MapPin, Check, X, Plus,
+  ChevronLeft, ChevronRight, ListChecks, PencilLine, Camera, Wallet, Clock, MapPin, Check,
 } from '@/components/icons';
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
@@ -38,21 +47,25 @@ const URGENCY_OPTIONS = [
   { value: 'flexible' as const, label: 'Flexible', desc: 'Provider suggests time' },
 ];
 
-// D38 + brief: up to 6 photos (the API accepts up to 10 only so older APKs,
-// whose form allowed 10, keep working), and a description only counts once
-// it has 10 characters that are not spaces (same rule as createJobRequestSchema).
-const MAX_PHOTOS = 6;
+// A description only counts once it has 10 characters that are not spaces
+// (same rule as createJobRequestSchema). Photo, video and voice limits come
+// from the admin settings (useRequestConfig jobMedia; 6 photos by default).
 const MIN_DESCRIPTION_CHARS = 10;
 // The wording only mentions quick questions when the service has some on
 // screen; a service with no admin-written questions never asks for an answer.
 const EMPTY_REQUEST_MESSAGE =
-  'Tell the pro about the job: write at least 10 characters, add a photo, or answer a quick question.';
+  'Tell the pro about the job: write at least 10 characters, add a photo, video or voice note, or answer a quick question.';
 const EMPTY_REQUEST_MESSAGE_NO_QUESTIONS =
-  'Tell the pro about the job: write at least 10 characters or add a photo.';
+  'Tell the pro about the job: write at least 10 characters, or add a photo, video or voice note.';
 const DESCRIBE_HINT =
-  'A few words, a photo or an answer above is enough. More detail helps the pro price it right.';
+  'A few words, a photo, a voice note or an answer above is enough. More detail helps the pro price it right.';
 const DESCRIBE_HINT_NO_QUESTIONS =
-  'A few words or a photo is enough. More detail helps the pro price it right.';
+  'A few words, a photo or a voice note is enough. More detail helps the pro price it right.';
+
+/** "1 file" / "2 files". */
+function files(count: number): string {
+  return `${count} file${count === 1 ? '' : 's'}`;
+}
 
 type Answer = string | number | boolean;
 
@@ -109,7 +122,16 @@ export default function JobRequestScreen(): React.ReactElement {
   const [budgetUnsure, setBudgetUnsure] = useState(false);
   // Inline errors appear once the customer has tried to send.
   const [attempted, setAttempted] = useState(false);
-  const imagePicker = useImagePicker({ context: 'job-request', maxImages: MAX_PHOTOS });
+  // One idempotency key per form: a double tap or a retry after a lost
+  // answer returns the same request instead of creating a second one.
+  const [clientRequestId] = useState(() => uuidV4());
+  const { jobMedia } = useRequestConfig();
+  const uploads = useJobMediaUploads({
+    purpose: 'job_request',
+    limits: { videoMaxSeconds: jobMedia.videoMaxSeconds, voiceMaxSeconds: jobMedia.voiceMaxSeconds },
+  });
+  const failedCount = uploads.items.filter((item) => item.status === 'failed').length;
+  const pendingCount = uploads.items.filter((item) => item.status !== 'stored' && item.status !== 'failed').length;
 
   // D27 Phase 2 — per-subcategory structured intake. Fields are configured by
   // admins per service subcategory; the customer answers them so providers can
@@ -278,23 +300,30 @@ export default function JobRequestScreen(): React.ReactElement {
     Object.entries(intakeAnswers).filter(([, value]) => isRealAnswer(value)),
   ) as Record<string, Answer>;
   const hasDescription = description.replace(/\s/g, '').length >= MIN_DESCRIPTION_CHARS;
+  // A file counts once it is stored or still uploading (sending waits for it);
+  // a failed upload does not.
+  const hasMedia = uploads.items.some((item) => item.status !== 'failed');
   const hasContent = hasDescription
-    || imagePicker.localUris.length > 0
+    || hasMedia
     || Object.keys(answeredQuestions).length > 0;
   const addressReady = !!draft.address && !!draft.barangay && draft.latitude != null && draft.longitude != null;
   // Fail closed while the service's questions are loading or failed to load.
   const questionsReady = !draft.subcategoryId || fieldsQuery.isSuccess;
   const canSend = hasContent && addressReady && !budgetError && intakeComplete && questionsReady;
 
+  // The media ids are taken at the moment Send is pressed: only files the
+  // server stored at that moment, never one still uploading or failed.
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (mediaIds: string[]) => {
       if (!draft.categoryId || !draft.address || !draft.barangay || draft.latitude == null || draft.longitude == null) {
         throw new Error('Missing category or address');
       }
       if (draft.subcategoryId && !fieldsQuery.isSuccess) {
         throw new Error('Required job questions are not available yet');
       }
-      const uploadedUrls = await imagePicker.uploadAll();
+      // These files now belong to the request: leaving the form must not
+      // remove them from the server (unsent uploads are removed on leave).
+      uploads.markSent(mediaIds);
       return createJobRequest({
         categoryId: draft.categoryId,
         subcategoryId: draft.subcategoryId ?? undefined,
@@ -308,24 +337,53 @@ export default function JobRequestScreen(): React.ReactElement {
         urgency,
         budgetMin: !budgetUnsure && minPesos !== null ? Math.round(minPesos * 100) : undefined,
         budgetMax: !budgetUnsure && maxPesos !== null ? Math.round(maxPesos * 100) : undefined,
-        jobPhotos: uploadedUrls.length > 0 ? uploadedUrls : undefined,
         intakeAnswers: Object.keys(answeredQuestions).length > 0 ? answeredQuestions : undefined,
+        mediaIds: mediaIds.length > 0 ? mediaIds : undefined,
+        budgetUnknown: budgetUnsure ? true : undefined,
+        clientRequestId,
       });
     },
     onSuccess: (booking) => {
       showToast('Request sent. Prices from pros will show on this request.', 'success');
+      // D38 Milestone 2: the request status screen (Routes.CUSTOMER.
+      // BOOKING_REQUEST_STATUS) is built by package P5b; until that screen
+      // exists, land on the booking detail, which shows the request.
       router.replace(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: booking.id }));
     },
-    onError: (err: unknown) => {
-      // Phase D CRIT-69 / K-MED-K04 — canonical error helper.
-      showToast(getErrorMessage(err, 'Could not send your request.'), 'error');
+    onError: (err: unknown, mediaIds: string[]) => {
+      // Not sent: the files are the form's own again (a lost answer is safe
+      // too, the server refuses to remove a file a request already holds).
+      uploads.markUnsent(mediaIds);
+      const { code } = apiErrorInfo(err);
+      // Phase D CRIT-69 / K-MED-K04 — canonical error helper; media codes
+      // (JOB_MEDIA_*) get plain words about the files.
+      showToast(
+        code && code.startsWith('JOB_MEDIA_') ? describeMediaError(err) : getErrorMessage(err, 'Could not send your request.'),
+        'error',
+      );
     },
   });
 
+  // "Send request" is blocked while sending, while the service's questions
+  // are loading, and while any file is still uploading.
+  const sendBlocked = mutation.isPending || !questionsReady || uploads.isUploading;
+
   const onSend = (): void => {
     setAttempted(true);
-    if (!canSend || mutation.isPending) return;
-    mutation.mutate();
+    if (!canSend || mutation.isPending || uploads.isUploading || uploads.hasFailed) return;
+    mutation.mutate(uploads.storedIds);
+  };
+
+  // "Send without them": drop the files that did not upload, then send.
+  const onSendWithoutFailed = (): void => {
+    uploads.removeFailed();
+    setAttempted(true);
+    const stillHasContent = hasDescription
+      || uploads.items.some((item) => item.status !== 'failed')
+      || Object.keys(answeredQuestions).length > 0;
+    if (!stillHasContent || !addressReady || budgetError || !intakeComplete || !questionsReady) return;
+    if (mutation.isPending || uploads.isUploading) return;
+    mutation.mutate(uploads.storedIds);
   };
 
   const serviceName = draft.subcategoryName || draft.categoryName || '';
@@ -432,42 +490,24 @@ export default function JobRequestScreen(): React.ReactElement {
 
               <SectionCard
                 icon={<Camera size={20} color={colors.primary} />}
-                title={`Photos (optional, up to ${MAX_PHOTOS})`}
-                hint="Show the problem and the area around it."
+                title="Photos, video and voice note (optional)"
+                hint="Help pros quote accurately: show the problem and the area around it, or say it in a voice note. Only you, pros who can quote on your request and our support team can see them."
               >
-                <View style={styles.photoGrid}>
-                  {imagePicker.localUris.map((uri, i) => (
-                    <View key={uri} style={styles.photoThumb}>
-                      <Image source={{ uri }} style={styles.photoImage} accessibilityLabel={`Job photo ${i + 1}`} />
-                      <TouchableOpacity
-                        style={styles.removeBtn}
-                        onPress={() => imagePicker.removeImage(i)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Remove job photo ${i + 1}`}
-                      >
-                        <X size={14} color={colors.white} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  {imagePicker.localUris.length < MAX_PHOTOS && (
+                <JobMediaPicker uploads={uploads} limits={jobMedia} disabled={mutation.isPending} />
+                {attempted && failedCount > 0 ? (
+                  <View style={styles.failedBox}>
+                    <InlineError message={`${files(failedCount)} did not upload. Retry, remove it, or send your request without it.`} />
                     <TouchableOpacity
-                      style={[styles.photoThumb, styles.addPhotoBtn]}
-                      onPress={imagePicker.showPickerOptions}
+                      style={styles.sendWithoutBtn}
+                      onPress={onSendWithoutFailed}
+                      disabled={mutation.isPending || uploads.isUploading}
                       accessibilityRole="button"
-                      accessibilityLabel="Add a job photo"
+                      accessibilityLabel="Send request without the files that did not upload"
                     >
-                      <Plus size={22} color={colors.primary} />
-                      <Text style={styles.addPhotoText}>Add photo</Text>
+                      <Text style={styles.sendWithoutText}>Send without them</Text>
                     </TouchableOpacity>
-                  )}
-                </View>
-                {imagePicker.isUploading && (
-                  <View style={styles.uploadingRow}>
-                    <ActivityIndicator size="small" color={colors.info} />
-                    <Text style={styles.uploadingText}>Uploading photos...</Text>
                   </View>
-                )}
+                ) : null}
               </SectionCard>
             </View>
 
@@ -585,16 +625,21 @@ export default function JobRequestScreen(): React.ReactElement {
 
       <View style={styles.stickyBar}>
         <View style={[styles.stickyInner, !isPhone && styles.stickyInnerWide]}>
-          {attempted && !canSend && questionsReady ? (
+          {attempted && (!canSend || failedCount > 0) && questionsReady && !uploads.isUploading ? (
             <Text style={styles.stickyError}>Check the sections marked in red, then send again.</Text>
           ) : null}
+          {uploads.isUploading ? (
+            <Text style={styles.stickyInfo} accessibilityLiveRegion="polite">
+              {`Uploading ${files(pendingCount)}. You can send your request when the upload finishes.`}
+            </Text>
+          ) : null}
           <TouchableOpacity
-            style={[styles.submitBtn, (mutation.isPending || !questionsReady) && styles.submitBtnDisabled]}
+            style={[styles.submitBtn, sendBlocked && styles.submitBtnDisabled]}
             onPress={onSend}
-            disabled={mutation.isPending || !questionsReady}
+            disabled={sendBlocked}
             accessibilityRole="button"
             accessibilityLabel="Send request"
-            accessibilityState={{ disabled: mutation.isPending || !questionsReady, busy: mutation.isPending }}
+            accessibilityState={{ disabled: sendBlocked, busy: mutation.isPending }}
           >
             {mutation.isPending ? (
               <ActivityIndicator color={colors.white} />
@@ -635,14 +680,9 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, paddingHorizontal: spacing.base, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, color: colors.text },
   textArea: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, borderWidth: 1, borderColor: colors.border, fontSize: 15, color: colors.text, minHeight: 132, lineHeight: 21 },
   inputError: { borderColor: colors.error },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  photoThumb: { width: 84, height: 84, borderRadius: borderRadius.lg, backgroundColor: colors.backgroundSecondary, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  photoImage: { width: '100%', height: '100%' },
-  removeBtn: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(5,26,62,0.72)', alignItems: 'center', justifyContent: 'center' },
-  addPhotoBtn: { borderStyle: 'dashed', borderColor: colors.primary, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  addPhotoText: { fontSize: 11, fontWeight: '600', color: colors.primary, marginTop: 4 },
-  uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  uploadingText: { fontSize: 13, color: colors.info },
+  failedBox: { marginTop: spacing.sm, gap: spacing.xs },
+  sendWithoutBtn: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  sendWithoutText: { fontSize: 14, fontWeight: '700', color: colors.primary, textDecorationLine: 'underline' },
   budgetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   budgetField: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md },
   budgetFieldOff: { backgroundColor: colors.backgroundSecondary, opacity: 0.6 },
@@ -678,6 +718,7 @@ const styles = StyleSheet.create({
   stickyInner: { width: '100%' },
   stickyInnerWide: { maxWidth: 1180, alignSelf: 'center' },
   stickyError: { fontSize: 13, color: colors.error, marginBottom: spacing.sm, textAlign: 'center' },
+  stickyInfo: { fontSize: 13, color: colors.info, marginBottom: spacing.sm, textAlign: 'center' },
   submitBtn: { backgroundColor: colors.primary, borderRadius: borderRadius.lg, minHeight: 52, alignItems: 'center', justifyContent: 'center', width: '100%' },
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { fontSize: 16, fontWeight: '700', color: colors.white },
