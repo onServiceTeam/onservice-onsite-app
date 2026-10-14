@@ -5,7 +5,11 @@
 import type { Page, Route } from '@playwright/test';
 import { test, expect } from './_fixtures';
 
-const ROUTE = '/feedback';
+// Since tester feedback v2 (32d342de, 2026-10-13) /feedback opens the v2
+// Overview tab, and this version 1 queue is the "Earlier feedback" tab. Its
+// own tab URL keeps these tests on the queue they assert on; without it the
+// Overview mounts and reads the v2 overview endpoint this spec does not mock.
+const ROUTE = '/feedback?tab=earlier';
 const FEEDBACK_ID = '11111111-1111-1111-1111-111111111111';
 
 const record = {

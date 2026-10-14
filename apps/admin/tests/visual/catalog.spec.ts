@@ -10,26 +10,38 @@ import { test, expect } from './_fixtures';
 import type { Page } from '@playwright/test';
 
 const ROUTE = '/catalog';
+// Since 1403b6ba (2026-08-31) CatalogPage reads the authenticated admin
+// projection GET /api/v1/catalog/admin/full (catalog.routes.ts), not the
+// public /catalog/full. That projection includes inactive services, so each
+// subcategory carries isActive. Catalog ids are database UUIDs; since
+// f1434967 (2026-09-03) the page rejects a non-UUID categoryId in the URL
+// with "Catalog selection unavailable", so the fixture uses real UUIDs.
+const CATEGORY_AIRCON_ID = '3f6c1a52-8d4e-4b7a-9c21-5e0f7a1b2c01';
+const SERVICE_CLEAN_ID = '3f6c1a52-8d4e-4b7a-9c21-5e0f7a1b2c11';
+const SERVICE_INSPECT_ID = '3f6c1a52-8d4e-4b7a-9c21-5e0f7a1b2c12';
+const ADMIN_CATALOG_ROUTE = '**/api/v1/catalog/admin/full';
 const CATALOG_FIXTURE = [{
-  id: 'cat-aircon', name: 'Aircon', slug: 'aircon', description: 'Aircon maintenance and repair',
+  id: CATEGORY_AIRCON_ID, name: 'Aircon', slug: 'aircon', description: 'Aircon maintenance and repair',
   iconUrl: null, displayOrder: 1,
   subcategories: [
     {
-      id: 'svc-clean', categoryId: 'cat-aircon', name: 'Aircon cleaning', slug: 'aircon-cleaning',
+      id: SERVICE_CLEAN_ID, categoryId: CATEGORY_AIRCON_ID, name: 'Aircon cleaning', slug: 'aircon-cleaning',
       description: '', pricingType: 'fixed', basePrice: 95000, minPrice: null, maxPrice: null,
       estimatedDurationMinutes: 90, unitLabel: null, unitPrice: null, hourlyRate: null, displayOrder: 1,
+      isActive: true,
     },
     {
-      id: 'svc-inspect', categoryId: 'cat-aircon', name: 'Aircon inspection', slug: 'aircon-inspection',
+      id: SERVICE_INSPECT_ID, categoryId: CATEGORY_AIRCON_ID, name: 'Aircon inspection', slug: 'aircon-inspection',
       description: 'Includes a visual inspection and written findings before any repair is approved.',
       pricingType: 'quote', basePrice: null, minPrice: null, maxPrice: null,
       estimatedDurationMinutes: 45, unitLabel: null, unitPrice: null, hourlyRate: null, displayOrder: 2,
+      isActive: true,
     },
   ],
 }];
 
 async function mockPopulatedCatalog(page: Page): Promise<void> {
-  await page.route('**/api/v1/catalog/full', (route) => route.fulfill({
+  await page.route(ADMIN_CATALOG_ROUTE, (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ success: true, data: CATALOG_FIXTURE }),
@@ -42,14 +54,18 @@ async function mockOrdinaryAdmin(page: Page): Promise<void> {
     contentType: 'application/json',
     body: JSON.stringify({
       success: true,
+      // Full GET /auth/me shape (formatUserResponse + mustRotatePassword).
       data: {
         id: '00000000-0000-0000-0000-000000000098',
+        phone: '+639170000098',
         email: 'catalog-reader@onservice.test',
         firstName: 'Catalog',
         lastName: 'Reader',
         role: 'admin',
+        avatarUrl: null,
         isVerified: true,
         isActive: true,
+        createdAt: '2026-01-01T00:00:00.000Z',
         mustRotatePassword: false,
       },
     }),
@@ -106,8 +122,8 @@ test.describe('CatalogPage', () => {
       });
 
       test('loading state', async ({ page }) => {
-        // Stall the public catalog endpoint so the loading indicator renders.
-        await page.route('**/api/v1/catalog/full', (route) => {
+        // Stall the admin catalog endpoint so the loading indicator renders.
+        await page.route(ADMIN_CATALOG_ROUTE, (route) => {
           void route;
         });
         await page.goto(ROUTE);
@@ -118,12 +134,12 @@ test.describe('CatalogPage', () => {
       });
 
       test('empty state', async ({ page }) => {
-        await page.route('**/api/v1/catalog/full', (route) => {
+        await page.route(ADMIN_CATALOG_ROUTE, (route) => {
           if (route.request().method() === 'GET') {
             route.fulfill({
               status: 200,
               contentType: 'application/json',
-              body: JSON.stringify({ data: [], pagination: { total: 0, page: 1 } }),
+              body: JSON.stringify({ success: true, data: [] }),
             });
           } else {
             route.continue();
@@ -139,12 +155,16 @@ test.describe('CatalogPage', () => {
       });
 
       test('error state', async ({ page }) => {
-        await page.route('**/api/v1/catalog/full', (route) => {
+        await page.route(ADMIN_CATALOG_ROUTE, (route) => {
           if (route.request().method() === 'GET') {
+            // Real errorHandler body for a non-operational 500.
             route.fulfill({
               status: 500,
               contentType: 'application/json',
-              body: JSON.stringify({ error: { message: 'server_error' } }),
+              body: JSON.stringify({
+                success: false,
+                error: { message: 'An unexpected error occurred. Please try again later.', statusCode: 500 },
+              }),
             });
           } else {
             route.continue();

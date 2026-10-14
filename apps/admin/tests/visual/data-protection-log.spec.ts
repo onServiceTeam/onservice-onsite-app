@@ -2,9 +2,18 @@ import { expect, test, waitForVisualSettled } from './_fixtures';
 
 const ROUTE = '/data-protection-log';
 const DSR_ENDPOINT = /\/api\/v1\/admin\/compliance\/dsr(?:\?.*)?$/;
+// data_subject_requests.id and users.id are UUID columns (migration 057), and
+// GET /api/v1/admin/compliance/dsr/:id rejects anything else with a 400. The
+// page puts the reviewed case id into ?dsrId= and only accepts a UUID there,
+// so a non-UUID fixture id paints a false "Invalid privacy case link" error
+// behind the review dialog.
+const RECEIVED_DSR_ID = '01990b6e-4c00-7a2d-8f31-2b9c0d5e7a41';
+// Single-case endpoint the page calls once ?dsrId= holds the reviewed case.
+const DSR_DETAIL_ENDPOINT = `**/api/v1/admin/compliance/dsr/${RECEIVED_DSR_ID}`;
+// Same fields as DsrRecord in packages/api/src/services/compliance.service.ts.
 const RECEIVED_DSR = {
-  id: 'DSR-REVIEW-0001',
-  userId: 'CU-0001',
+  id: RECEIVED_DSR_ID,
+  userId: '01990b6e-3f10-7c55-9e02-6d1a4b8c2f90',
   userEmail: 'privacy-subject@onservice.test',
   userRole: 'customer',
   providerProfileId: null,
@@ -14,6 +23,8 @@ const RECEIVED_DSR = {
   dueAt: '2026-09-13T04:00:00.000Z',
   completedAt: null,
   handledBy: null,
+  handledByName: null,
+  handledByEmail: null,
   userMessage: 'Please provide the personal data connected to my customer account.',
   adminNotes: null,
   responsePayloadUrl: null,
@@ -42,11 +53,20 @@ test.describe('DataProtectionLogPage', () => {
           contentType: 'application/json',
           body: JSON.stringify({ success: true, data: { rows: [RECEIVED_DSR], total: 1 } }),
         }));
+        // GET /dsr/:id answers { success, data: DsrRecord } (compliance-admin.routes.ts).
+        await page.route(DSR_DETAIL_ENDPOINT, (route) => route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: RECEIVED_DSR }),
+        }));
         await page.goto(ROUTE);
+        const detailResponse = page.waitForResponse(DSR_DETAIL_ENDPOINT);
         await page.getByRole('button', { name: /Review data request/i }).click();
         await expect(page.getByRole('dialog')).toContainText('Please provide the personal data');
         await expect(page.getByRole('button', { name: 'Start review' })).toBeVisible();
         await waitForVisualSettled(page);
+        await expect(page.getByText('Invalid privacy case link')).toHaveCount(0);
+        expect((await detailResponse).status()).toBe(200);
         await expect(page).toHaveScreenshot(`data-protection-log-review-${width}.png`, { fullPage: true });
       });
 

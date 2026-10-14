@@ -18,9 +18,12 @@ const VISUAL_DISPUTE = {
   refundPercent: null,
   decisionNotes: null,
   providerResponse: null,
+  providerRespondedAt: null,
   autoResolved: false,
-  createdAt: '2026-08-31T01:00:00.000Z',
   resolvedAt: null,
+  resolvedBy: null,
+  createdAt: '2026-08-31T01:00:00.000Z',
+  updatedAt: '2026-08-31T01:00:00.000Z',
   customerName: 'Visual Customer',
   providerName: 'Visual Provider Co.',
 };
@@ -36,7 +39,7 @@ async function mockDisputes(page: Page, mode: ListMode): Promise<void> {
       return;
     }
     if (mode === 'error') {
-      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Dispute queue unavailable.' } }) });
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ success: false, error: { message: 'An unexpected error occurred. Please try again later.', statusCode: 500 } }) });
       return;
     }
     const data = mode === 'success' ? [VISUAL_DISPUTE] : [];
@@ -82,7 +85,12 @@ test.describe('DisputesPage', () => {
       test('error state', async ({ page }) => {
         await mockDisputes(page, 'error');
         await page.goto(ROUTE);
-        await expect(page.getByText('Failed to load disputes. Please try again.')).toBeVisible();
+        // UX-1260 (6b3a6778, 2026-09-04) replaced the one-line red text with an
+        // ErrorState that has a heading, a "not an empty queue" warning and a retry button.
+        await expect(page.getByRole('heading', { name: 'Dispute queue unavailable' })).toBeVisible();
+        await expect(page.getByText('The dispute queue could not be read. Do not treat this as an empty queue.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Retry disputes' })).toBeVisible();
+        await expect(page.getByText('No disputes found.')).toHaveCount(0);
         await expect(page.getByText('Loading...')).toHaveCount(0);
         await expect(page).toHaveScreenshot(`disputes-error-${width}.png`, { fullPage: true, maxDiffPixelRatio: 0.01 });
       });

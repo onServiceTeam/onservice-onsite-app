@@ -583,13 +583,22 @@ const NOTIFICATION_TEMPLATE_RECORD = {
   variables: ['provider_name', 'service_address'],
   createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z',
 };
+// Must carry every field the GET /admin/recurring row mapper returns
+// (packages/api/src/routes/admin.routes.ts). An earlier version lacked
+// failedInstances and openSupportTickets, so the default baselines showed
+// "failed schedules" / "open support cases" with no number. Series are now
+// created from a completed source booking whose service they must match
+// (recurring.service.ts), hence originalBookingId + subcategoryName.
 const RECURRING_RECORD = {
   id: 'REC-0001', customerId: 'CU-0001', providerId: 'PV-0001',
-  categoryId: 'CAT-1', frequency: 'weekly', preferredDayName: 'Friday',
+  categoryId: 'CAT-1', frequency: 'weekly', preferredDay: 5,
+  preferredDayName: 'Friday',
   preferredTime: '09:00', city: 'Cebu City', province: 'Cebu',
   totalAmount: 280_000, status: 'active', nextBookingDate: '2026-09-04',
   totalInstances: 6, createdAt: '2026-07-01T00:00:00.000Z',
   customerName: 'Visual Baseline', categoryName: 'Home Cleaning',
+  subcategoryName: 'Regular house cleaning', providerName: 'Cebu Home Care',
+  originalBookingId: 'BK-0002', failedInstances: 0, openSupportTickets: 0,
 };
 
 export const test = base.extend<VisualFixtureOptions>({

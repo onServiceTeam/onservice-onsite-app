@@ -104,7 +104,10 @@ test.describe('AnalyticsPage', () => {
       test('commission evidence', async ({ page }) => {
         await page.goto(`${ROUTE}?tab=commission`);
         await waitForVisualSettled(page);
-        await expect(page.getByText('Current live rate 13%')).toBeVisible();
+        // 75693f91 (2026-09-01) renamed the pill from "Current live rate N%" to
+        // "Current base agreement N.NN%" (effective-dated tier agreement,
+        // two-decimal precision; see bug-ops-276 / bug-ux-341 unit tests).
+        await expect(page.getByText('Current base agreement 13.00%')).toBeVisible();
         await expect(page).toHaveScreenshot(`analytics-commission-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

@@ -18,6 +18,13 @@ test.describe('RecurringPage', () => {
       test('default render', async ({ page }) => {
         await page.goto(ROUTE);
         await waitForVisualSettled(page);
+        // The series card status column must show real counts. The real list
+        // API always sends failedInstances and openSupportTickets
+        // (packages/api/src/routes/admin.routes.ts); a fixture without them
+        // captured a baseline reading "failed schedules" with no number.
+        const queue = page.getByRole('region', { name: 'Recurring booking operations queue' });
+        await expect(queue.getByText('0 failed schedules', { exact: true })).toBeVisible();
+        await expect(queue.getByText('0 open support cases', { exact: true })).toBeVisible();
         await expect(page).toHaveScreenshot(`recurring-default-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

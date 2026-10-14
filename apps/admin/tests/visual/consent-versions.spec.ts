@@ -42,7 +42,11 @@ test.describe('ConsentVersionsPage', () => {
       test('publish dialog', async ({ page }) => {
         await page.goto(ROUTE);
         await page.getByRole('button', { name: 'Publish a new consent version' }).click();
-        await expect(page.getByRole('dialog')).toContainText('Creates an audited platform version');
+        // Dialog copy was rewritten on purpose in eae82afd (2026-09-03, scheduled
+        // consent activation); assert the current description, not the August copy.
+        await expect(page.getByRole('dialog')).toContainText(
+          'Record an audited version for a consent type supported by the customer and provider apps.',
+        );
         await expect(page.getByRole('button', { name: 'Publish version' })).toBeDisabled();
         await waitForVisualSettled(page);
         await expect(page).toHaveScreenshot(`consent-versions-publish-${width}.png`, { fullPage: true });
