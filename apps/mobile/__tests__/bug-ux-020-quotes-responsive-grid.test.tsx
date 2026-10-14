@@ -9,14 +9,21 @@ jest.mock('expo-router', () => ({
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 920, breakpoint: 'tablet', isPhone: false, isTablet: true, isDesktop: false }),
 }));
-jest.mock('@/services/booking.service', () => ({
-  getBookingQuotes: jest.fn().mockResolvedValue([
-    { id: 'quote-1', bookingId: 'booking-1', providerId: 'provider-1', quotedPrice: 120000, description: 'Standard clean', estimatedDurationMinutes: 90, status: 'submitted', laborAmount: 100000, materialsAmount: 20000, estimatedDays: 1, notes: '', portfolioPhotos: [], expiresAt: '2099-08-24T00:00:00.000Z', createdAt: '2026-08-23T00:00:00.000Z', providerName: 'Cebu Prime', providerRating: 4.8, providerTotalJobs: 42, lineItems: [] },
-    { id: 'quote-2', bookingId: 'booking-1', providerId: 'provider-2', quotedPrice: 135000, description: 'Deep clean', estimatedDurationMinutes: 120, status: 'submitted', laborAmount: 110000, materialsAmount: 25000, estimatedDays: 1, notes: '', portfolioPhotos: [], expiresAt: '2099-08-24T00:00:00.000Z', createdAt: '2026-08-23T00:00:00.000Z', providerName: 'Mandaue Air Care', providerRating: 4.7, providerTotalJobs: 31, lineItems: [] },
-  ]),
-  acceptQuote: jest.fn(),
-  declineQuote: jest.fn(),
-}));
+// D38 Milestone 2 (P5b): quotes are read through request.service, in the D38
+// shape (provider block, budget comparison, slot). Compare mode is when the
+// admin setting allows more than one open quote per request.
+jest.mock('@/services/request.service', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fixtures = require('../test-support/request-fixtures') as typeof import('../test-support/request-fixtures');
+  return {
+    ...jest.requireActual('@/services/request.service'),
+    getBookingQuotes: jest.fn().mockResolvedValue([
+      fixtures.quoteFixture({ id: 'quote-1', bookingId: 'booking-1', provider: { ...fixtures.quoteFixture().provider, id: 'provider-1', name: 'Cebu Prime' } }),
+      fixtures.quoteFixture({ id: 'quote-2', bookingId: 'booking-1', quotedPrice: 135000, provider: { ...fixtures.quoteFixture().provider, id: 'provider-2', name: 'Mandaue Air Care' } }),
+    ]),
+    declineQuote: jest.fn(),
+  };
+});
 
 import QuotesScreen from '../app/customer/booking/quotes';
 

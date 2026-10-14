@@ -1,215 +1,123 @@
-import React from 'react';
+import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+//
+// D38 Milestone 2 (package P5b): the quotes on the customer's request. With
+// the default setting (one open quote per request) this shows the single
+// quote from the first pro who responded. Accept and book opens the confirm
+// screen (nothing is accepted here). Decline asks for a reason; what happens
+// next comes from the server's answer (the request goes back to other pros,
+// or on the last allowed round the back office is asked), so the screen
+// promises neither before the choice. Message opens the thread with that pro.
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getBookingQuotes, acceptQuote, declineQuote, type BookingQuote } from '@/services/booking.service';
-import { formatPHP } from '@/utils/currency';
-import { colors, spacing, borderRadius } from '@/config/theme';
-import { Star, ChevronLeft, Clock } from '@/components/icons';
+import {
+  declineQuote,
+  getBookingQuotes,
+  type DeclineReason,
+  type QuoteDeclineResult,
+  type RequestQuote,
+} from '@/services/request.service';
+import { colors, spacing, borderRadius, typography } from '@/config/theme';
+import { ChevronLeft, Clock } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
-// A7 — shared UI kit for loading/empty/error states.
 import { SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
-import ConfirmModal from '@/components/ConfirmModal';
+import { getErrorMessage } from '@/utils/errors';
+import { customerChatRoute } from '@/utils/chat-routes';
 import { Routes } from '@/config/navigation';
+import { REALTIME_EVENTS } from '@/config/realtime-events';
+import { QuoteCard, isQuoteLive } from '@/components/booking/QuoteCard';
+import { DeclineReasonSheet } from '@/components/booking/DeclineReasonSheet';
+import { useSocketEvent } from '@/hooks/useSocketEvent';
+import { usePollWhileFocused } from '@/hooks/usePollWhileFocused';
+import { useRequestConfig } from '@/hooks/useRequestConfig';
+import { CUSTOMER_REQUEST_SUMMARY_KEY } from '@/hooks/useCustomerRequestSummary';
 
-function QuoteCard({ quote, onAccept, onDecline, isPending }: {
-  quote: BookingQuote;
-  onAccept: () => void;
-  onDecline: () => void;
-  isPending: boolean;
-}): React.ReactElement {
-  const isExpired = new Date(quote.expiresAt) < new Date();
-  const isResolved = quote.status !== 'submitted';
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
 
-  return (
-    <View
-      style={[styles.quoteCard, isResolved && styles.quoteResolved]}
-      accessibilityLabel={`Quote from ${quote.providerName ?? 'provider'} for ${formatPHP(quote.quotedPrice)}`}
-    >
-      <View style={styles.quoteHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.providerName}>{quote.providerName ?? 'Provider'}</Text>
-          <View style={styles.providerMeta}>
-            {quote.providerRating != null && (
-              <View style={styles.metaStar}>
-                <Star size={12} color={colors.warning} />
-                <Text style={styles.metaText}>{quote.providerRating.toFixed(1)}</Text>
-              </View>
-            )}
-            <Text style={styles.metaText}>• {quote.providerTotalJobs} jobs</Text>
-          </View>
-        </View>
-        <View style={styles.priceBox}>
-          <Text style={styles.priceLabel}>Total</Text>
-          <Text style={styles.priceValue}>{formatPHP(quote.quotedPrice)}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.quoteDesc}>{quote.description}</Text>
-
-      {quote.lineItems.length > 0 && (
-        <View style={styles.lineItemsSection}>
-          <Text style={styles.lineItemsTitle}>Breakdown</Text>
-          {quote.lineItems.map((item, idx) => (
-            <View key={item.id ?? idx} style={styles.lineItem}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.lineItemName}>{item.description}</Text>
-                <Text style={styles.lineItemMeta}>{item.quantity} {item.unit} × {formatPHP(item.unitPrice)}</Text>
-              </View>
-              <Text style={styles.lineItemTotal}>{formatPHP(item.lineTotal)}</Text>
-            </View>
-          ))}
-          <View style={styles.subtotalRow}>
-            <Text style={styles.subtotalLabel}>Labor</Text>
-            <Text style={styles.subtotalValue}>{formatPHP(quote.laborAmount)}</Text>
-          </View>
-          <View style={styles.subtotalRow}>
-            <Text style={styles.subtotalLabel}>Materials</Text>
-            <Text style={styles.subtotalValue}>{formatPHP(quote.materialsAmount)}</Text>
-          </View>
-        </View>
-      )}
-
-      {quote.estimatedDays != null && (
-        <View style={styles.estimateRow}>
-          <Text style={styles.estimateLabel}>Estimated Duration</Text>
-          <Text style={styles.estimateValue}>{quote.estimatedDays} day{quote.estimatedDays > 1 ? 's' : ''}</Text>
-        </View>
-      )}
-
-      {quote.notes ? (
-        <View style={styles.notesSection}>
-          <Text style={styles.notesLabel}>Notes</Text>
-          <Text style={styles.notesText}>{quote.notes}</Text>
-        </View>
-      ) : null}
-
-      {isExpired && quote.status === 'submitted' && (
-        <View style={styles.expiredBadge}>
-          <Text style={styles.expiredText}>Expired</Text>
-        </View>
-      )}
-
-      {isResolved && (
-        <View style={[styles.statusBadge, quote.status === 'accepted' ? styles.acceptedBadge : styles.declinedBadge]}>
-          <Text style={[styles.statusText, quote.status === 'accepted' ? styles.acceptedText : styles.declinedText]}>
-            {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
-          </Text>
-        </View>
-      )}
-
-      {!isResolved && !isExpired && (
-        <View style={styles.quoteActions}>
-          <TouchableOpacity
-            style={styles.declineBtn}
-            onPress={onDecline}
-            disabled={isPending}
-            accessibilityRole="button"
-            accessibilityLabel={`Decline quote from ${quote.providerName ?? 'provider'}`}
-          >
-            <Text style={styles.declineBtnText}>Decline</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.acceptBtn}
-            onPress={onAccept}
-            disabled={isPending}
-            accessibilityRole="button"
-            accessibilityLabel={`Accept quote from ${quote.providerName ?? 'provider'}`}
-          >
-            {isPending ? <ActivityIndicator size="small" color={colors.white} /> : (
-              <Text style={styles.acceptBtnText}>Accept Quote</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
+/** What happens next after a decline, from the server's answer. */
+function declineOutcomeCopy(result: Pick<QuoteDeclineResult, 'reopened' | 'opsReview'>): string {
+  if (result.reopened) return 'Quote declined. We let the pro know, and your request is open to other pros again.';
+  if (result.opsReview) return 'Quote declined. We let the pro know. Our team is now looking for more pros and may contact you.';
+  return 'Quote declined. We let the pro know.';
 }
 
 export default function QuotesScreen(): React.ReactElement {
-  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
+  const params = useLocalSearchParams<{ bookingId: string }>();
+  const bookingId = firstParam(params?.bookingId);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
-  const [pendingDecision, setPendingDecision] = React.useState<{
-    type: 'accept' | 'decline';
-    quoteId: string;
-  } | null>(null);
+  const config = useRequestConfig();
+  const [declining, setDeclining] = useState<RequestQuote | null>(null);
+
+  const refetchInterval = usePollWhileFocused({
+    connectedMs: false,
+    disconnectedMs: config.requestProviderPollSeconds * 1000,
+    enabled: !!bookingId,
+  });
   const { data: quotes, isLoading, isError, refetch } = useQuery({
     queryKey: ['bookingQuotes', bookingId],
     queryFn: () => getBookingQuotes(bookingId ?? ''),
     enabled: !!bookingId,
-    refetchInterval: 30_000,
+    refetchInterval,
   });
 
-  const acceptMutation = useMutation({
-    mutationFn: (quoteId: string) => acceptQuote(bookingId ?? '', quoteId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
-      // OPS-559: the booking is now payment_pending. Reset the cached copy
-      // (still 'quoted'): the pay screen then loads it fresh instead of
-      // showing "not awaiting payment", and the booking screen still open
-      // underneath refetches it too. Refresh the booking lists as well.
-      void queryClient.resetQueries({ queryKey: ['booking', bookingId] });
-      void queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      void queryClient.invalidateQueries({ queryKey: ['activeBookings'] });
-      // BUG-PHASE86-01 — pre-fix this routed to /customer/booking/[id]
-      // but that screen had no payment action for status='payment_
-      // pending', so the customer was stuck. Now route directly to
-      // the new pay-existing-booking screen.
-      setPendingDecision(null);
-      showToast('Quote accepted. Choose a payment method to confirm the booking.', 'success');
-      router.replace({ pathname: Routes.CUSTOMER.BOOKING_PAY, params: { bookingId: bookingId ?? '' } });
-    },
-    onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Could not accept quote.';
-      showToast(message, 'error');
-    },
-  });
+  const refreshForBooking = (payload: { bookingId?: string } | null | undefined): void => {
+    if (payload?.bookingId && payload.bookingId !== bookingId) return;
+    void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
+  };
+  useSocketEvent<{ bookingId?: string }>(bookingId ? REALTIME_EVENTS.QUOTE_RECEIVED : null, refreshForBooking);
+  useSocketEvent<{ bookingId?: string }>(bookingId ? REALTIME_EVENTS.REQUEST_UPDATED : null, refreshForBooking);
 
   const declineMutation = useMutation({
-    mutationFn: (quoteId: string) => declineQuote(bookingId ?? '', quoteId),
-    onSuccess: () => {
+    mutationFn: (input: { quoteId: string; reason: DeclineReason; note?: string }) =>
+      declineQuote(bookingId ?? '', input.quoteId, { reason: input.reason, note: input.note }),
+    onSuccess: (result) => {
+      setDeclining(null);
       void queryClient.invalidateQueries({ queryKey: ['bookingQuotes', bookingId] });
-      setPendingDecision(null);
-      showToast('Quote declined.', 'success');
+      void queryClient.invalidateQueries({ queryKey: ['request-status', bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
+      void queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      void queryClient.invalidateQueries({ queryKey: CUSTOMER_REQUEST_SUMMARY_KEY });
+      showToast(declineOutcomeCopy(result), 'success');
+      // No quote left to decide on: the request status screen says what happens next.
+      if (result.bookingStatus === 'requested') {
+        router.replace({ pathname: Routes.CUSTOMER.BOOKING_REQUEST_STATUS, params: { bookingId: bookingId ?? '' } });
+      }
     },
     onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Could not decline quote.';
-      showToast(message, 'error');
+      showToast(getErrorMessage(err, 'Could not decline this quote. Check your connection and try again.'), 'error');
+      void refetch();
     },
   });
 
-  const handleAccept = (quoteId: string): void => {
-    setPendingDecision({ type: 'accept', quoteId });
-  };
-
-  // BUG-PHASE51-01 fix — pre-fix the Decline button fired the
-  // mutation immediately on tap. The provider has invested time
-  // building the quote; a one-tap decline (especially with the
-  // button right next to Accept) loses that work to an accidental
-  // touch and is irreversible — the API has no "undecline" path.
-  // Now: confirm dialog matching the Accept-side pattern.
-  const handleDecline = (quoteId: string): void => {
-    setPendingDecision({ type: 'decline', quoteId });
-  };
+  const header = (title: string): React.ReactElement => (
+    <View style={styles.header}>
+      <TouchableOpacity
+        onPress={() => router.back()}
+        style={styles.backBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Back from quotes"
+      >
+        <ChevronLeft size={24} color={colors.text} />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle} accessibilityRole="header">{title}</Text>
+      <View style={styles.placeholder} />
+    </View>
+  );
 
   if (!bookingId) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back from quote comparison">
-            <ChevronLeft size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Compare Quotes</Text>
-          <View style={styles.placeholder} />
-        </View>
+        {header('Quotes')}
         <EmptyState
           title="Quote request unavailable"
-          description="Open quote comparison from a customer booking so provider quotes stay attached to the correct work request."
+          description="Open quotes from one of your requests so each pro's quote stays attached to the right job."
           actionLabel="View bookings"
           onAction={() => router.replace(Routes.TABS.BOOKINGS)}
         />
@@ -217,21 +125,34 @@ export default function QuotesScreen(): React.ReactElement {
     );
   }
 
+  const all = quotes ?? [];
+  const live = all.filter((quote) => isQuoteLive(quote));
+  const earlier = all.filter((quote) => !isQuoteLive(quote));
+  const title = live.length === 1 ? 'Your quote' : live.length > 1 ? 'Your quotes' : 'Quotes';
+  const openStatus = (): void => {
+    router.push({ pathname: Routes.CUSTOMER.BOOKING_REQUEST_STATUS, params: { bookingId } });
+  };
+
+  const card = (quote: RequestQuote): React.ReactElement => {
+    const canMessage = !!quote.providerUserId
+      && (!!quote.conversationId || (isQuoteLive(quote) && config.requestThreadsEnabled));
+    return (
+      <QuoteCard
+        quote={quote}
+        busy={declineMutation.isPending}
+        onAccept={() => router.push({
+          pathname: Routes.CUSTOMER.BOOKING_CONFIRM_QUOTE,
+          params: { bookingId, quoteId: quote.id },
+        })}
+        onDecline={() => setDeclining(quote)}
+        onMessage={canMessage ? () => router.push(customerChatRoute(bookingId, quote.providerUserId)) : undefined}
+      />
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Back from quote comparison"
-        >
-          <ChevronLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Compare Quotes</Text>
-        <View style={styles.placeholder} />
-      </View>
-
+      {header(title)}
       {isLoading ? (
         <View style={styles.bodyContent}>
           <SkeletonCard />
@@ -247,50 +168,60 @@ export default function QuotesScreen(): React.ReactElement {
           style={styles.body}
           contentContainerStyle={[styles.bodyContent, !isPhone && styles.bodyContentWide]}
         >
-          <Text style={styles.quotesCount}>
-            {quotes?.length ?? 0} quote{(quotes?.length ?? 0) !== 1 ? 's' : ''} received
-          </Text>
-
-          {(quotes ?? []).length === 0 ? (
+          {all.length === 0 ? (
             <EmptyState
               icon={<Clock size={48} color={colors.textTertiary} />}
-              title="Waiting for Quotes"
-              description="Providers will send quotes soon. You'll be notified when new quotes arrive."
+              title="No quotes yet"
+              description="Quotes appear here as soon as a pro responds. We also add them to your notifications."
+              actionLabel="See request status"
+              onAction={openStatus}
             />
-          ) : (
-            <View
-              style={[styles.quoteGrid, !isPhone && styles.quoteGridWide]}
-              accessibilityLabel={isPhone ? 'Quote list' : 'Quote comparison grid'}
-            >
-              {quotes?.map((quote) => (
-                <View key={quote.id} style={[styles.quoteCell, !isPhone && styles.quoteCellWide]}>
-                  <QuoteCard
-                    quote={quote}
-                    onAccept={() => handleAccept(quote.id)}
-                    onDecline={() => handleDecline(quote.id)}
-                    isPending={acceptMutation.isPending || declineMutation.isPending}
-                  />
-                </View>
+          ) : null}
+          {all.length > 0 && live.length === 0 ? (
+            <View style={styles.notice} accessibilityRole="text">
+              <Text style={styles.noticeText}>No quote is waiting for your answer right now.</Text>
+              <TouchableOpacity onPress={openStatus} style={styles.noticeLink} accessibilityRole="button">
+                <Text style={styles.noticeLinkText}>See request status</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {live.length > 0 ? (
+            <>
+              <Text style={styles.intro}>
+                {live.length === 1
+                  ? 'This pro responded to your request. Accept and book to see the full total and confirm, or decline it and tell us why.'
+                  : 'Compare the quotes. Accept and book shows the full total before you confirm.'}
+              </Text>
+              <View
+                style={[styles.quoteGrid, !isPhone && live.length > 1 && styles.quoteGridWide]}
+                accessibilityLabel={isPhone ? 'Quote list' : 'Quote comparison grid'}
+              >
+                {live.map((quote) => (
+                  <View key={quote.id} style={[styles.quoteCell, !isPhone && live.length > 1 && styles.quoteCellWide]}>
+                    {card(quote)}
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : null}
+          {earlier.length > 0 ? (
+            <View style={styles.earlier}>
+              <Text style={styles.earlierTitle}>Earlier quotes</Text>
+              {earlier.map((quote) => (
+                <View key={quote.id}>{card(quote)}</View>
               ))}
             </View>
-          )}
+          ) : null}
         </ScrollView>
       )}
-      <ConfirmModal
-        visible={pendingDecision !== null}
-        title={pendingDecision?.type === 'decline' ? 'Decline this quote?' : 'Accept this quote?'}
-        message={pendingDecision?.type === 'decline'
-          ? 'This cannot be undone. The provider will see your decision.'
-          : 'Accepting this quote will decline the other quotes. You will choose a payment method next.'}
-        confirmLabel={pendingDecision?.type === 'decline' ? 'Decline Quote' : 'Accept Quote'}
-        destructive={pendingDecision?.type === 'decline'}
-        loading={acceptMutation.isPending || declineMutation.isPending}
-        onConfirm={() => {
-          if (!pendingDecision) return;
-          if (pendingDecision.type === 'accept') acceptMutation.mutate(pendingDecision.quoteId);
-          else declineMutation.mutate(pendingDecision.quoteId);
+      <DeclineReasonSheet
+        visible={declining !== null}
+        providerName={declining?.provider?.name ?? null}
+        loading={declineMutation.isPending}
+        onSubmit={(input) => {
+          if (declining) declineMutation.mutate({ quoteId: declining.id, ...input });
         }}
-        onCancel={() => setPendingDecision(null)}
+        onCancel={() => setDeclining(null)}
       />
     </SafeAreaView>
   );
@@ -300,62 +231,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceMuted },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { padding: spacing.xs, minWidth: 44, minHeight: 44, justifyContent: 'center' as const },
-  backText: { fontSize: 22, color: colors.text },
   headerTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
-  placeholder: { width: 30 },
+  placeholder: { width: 44 },
   body: { flex: 1 },
   bodyContent: { padding: spacing.base, paddingBottom: 40 },
   bodyContentWide: { padding: spacing.xl, paddingBottom: spacing.xl, width: '100%', maxWidth: 1180, alignSelf: 'center' },
-  quoteGrid: { width: '100%' },
-  quoteGridWide: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.base },
+  intro: { ...typography.bodySmall, color: colors.textSecondary, marginBottom: spacing.base },
+  quoteGrid: { width: '100%', maxWidth: 640, alignSelf: 'center' },
+  quoteGridWide: { maxWidth: undefined, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.base },
   quoteCell: { width: '100%' },
   quoteCellWide: { flexBasis: '48%', flexGrow: 1, minWidth: 300 },
-  centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  errorText: { fontSize: 15, color: colors.textSecondary, marginBottom: spacing.md },
-  retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.info, borderRadius: 8 },
-  retryText: { color: colors.white, fontWeight: '600' },
-  quotesCount: { fontSize: 14, color: colors.textSecondary, marginBottom: spacing.base },
-  emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyEmoji: { fontSize: 48, marginBottom: spacing.md },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 6 },
-  emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  quoteCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.base, marginBottom: spacing.base, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, height: '100%' },
-  quoteResolved: { opacity: 0.7 },
-  quoteHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
-  providerName: { fontSize: 16, fontWeight: '700', color: colors.text },
-  providerMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  metaStar: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  metaText: { fontSize: 12, color: colors.textSecondary },
-  priceBox: { alignItems: 'flex-end' },
-  priceLabel: { fontSize: 11, color: colors.textSecondary, textTransform: 'uppercase' },
-  priceValue: { fontSize: 20, fontWeight: '800', color: colors.text },
-  quoteDesc: { fontSize: 14, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.md },
-  lineItemsSection: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, marginBottom: spacing.md },
-  lineItemsTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
-  lineItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  lineItemName: { fontSize: 13, color: colors.text },
-  lineItemMeta: { fontSize: 11, color: colors.textTertiary },
-  lineItemTotal: { fontSize: 13, fontWeight: '600', color: colors.text },
-  subtotalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  subtotalLabel: { fontSize: 13, color: colors.textSecondary },
-  subtotalValue: { fontSize: 13, fontWeight: '600', color: colors.text },
-  estimateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
-  estimateLabel: { fontSize: 13, color: colors.textSecondary },
-  estimateValue: { fontSize: 13, fontWeight: '600', color: colors.text },
-  notesSection: { backgroundColor: colors.backgroundSecondary, borderRadius: 8, padding: 10, marginBottom: spacing.md },
-  notesLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.xs },
-  notesText: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
-  expiredBadge: { backgroundColor: colors.errorLight, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: 8, alignSelf: 'flex-start', marginTop: spacing.xs },
-  expiredText: { fontSize: 12, fontWeight: '600', color: colors.error },
-  statusBadge: { paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: 8, alignSelf: 'flex-start', marginTop: spacing.xs },
-  acceptedBadge: { backgroundColor: colors.successLight },
-  declinedBadge: { backgroundColor: colors.errorLight },
-  statusText: { fontSize: 12, fontWeight: '600' },
-  acceptedText: { color: colors.success },
-  declinedText: { color: colors.error },
-  quoteActions: { flexDirection: 'row', gap: 10, marginTop: spacing.md },
-  declineBtn: { flex: 1, paddingVertical: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-  declineBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
-  acceptBtn: { flex: 2, paddingVertical: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.text, alignItems: 'center' },
-  acceptBtnText: { fontSize: 14, fontWeight: '700', color: colors.white },
+  notice: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: spacing.base, marginBottom: spacing.base, gap: spacing.xs },
+  noticeText: { ...typography.body, color: colors.text },
+  noticeLink: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  noticeLinkText: { ...typography.bodySmall, fontWeight: '700', color: colors.primary },
+  earlier: { marginTop: spacing.lg, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  earlierTitle: { ...typography.caption, fontWeight: '700', color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.sm },
 });

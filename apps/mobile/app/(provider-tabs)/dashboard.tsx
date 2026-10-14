@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import type { Booking } from '@/services/booking.service';
 // A7 — shared UI kit for loading/empty/error states + toast feedback.
 import { Badge, StatusBadge, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 import { showToast } from '@/lib/toast';
-import { Bell, Calendar, Wrench, CreditCard, Inbox } from '@/components/icons';
+import { Bell, Calendar, Wrench, CreditCard, Inbox, MessageSquare, BellOff } from '@/components/icons';
 import { formatPHP } from '@/utils/currency';
 // Phase 14 Remediation #5 — Bug 1234 NBI lifecycle banner.
 import NbiStatusBanner from '@/components/provider/NbiStatusBanner';
@@ -31,9 +31,44 @@ import { getErrorMessage } from '@/utils/errors';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import { useResponsive } from '@/hooks/useResponsive';
 
-import { Routes } from '@/config/navigation';
-import { isTesterFeedbackEnabled } from '@/components/feedback/SendFeedbackLink';
-import { FEEDBACK_BUTTON_CLEARANCE } from '@/components/feedback/TesterFeedbackButton';
+import { buildRoute, Routes } from '@/config/navigation';
+import { useProviderRequestSummary } from '@/hooks/useProviderRequestSummary';
+import { useChatUnreadCount } from '@/hooks/useChatInbox';
+import { useRequestConfig } from '@/hooks/useRequestConfig';
+import {
+  getPushRegistrationStatus,
+  onPushRegistrationStatus,
+  type PushRegistrationStatus,
+} from '@/services/push.service';
+
+/**
+ * D38 Milestone 2: what this device's phone push registration says, kept
+ * current. Android push is not set up yet (no Firebase project), so most
+ * providers read "phone alerts are off" here and know requests reach them
+ * only while the app is open.
+ */
+function usePushRegistrationStatus(): PushRegistrationStatus {
+  const [status, setStatus] = useState<PushRegistrationStatus>(() => getPushRegistrationStatus());
+  useEffect(() => {
+    setStatus(getPushRegistrationStatus());
+    return onPushRegistrationStatus(setStatus);
+  }, []);
+  return status;
+}
+
+function pushStatusLine(status: PushRegistrationStatus): string | null {
+  // 'unknown' means registration has not been tried yet; say nothing rather
+  // than guess. 'registered' means phone alerts work.
+  if (status === 'registered' || status === 'unknown') return null;
+  if (status === 'denied') {
+    return 'Phone alerts are off because notifications are blocked for onService. New requests show here only while the app is open. You can allow notifications in your phone settings.';
+  }
+  return 'Phone alerts are off on this device. New requests show here only while the app is open.';
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
 // BUG-PHASE94-01 — founding tier added so the badge shows the
 // proper label + color instead of falling back to raw "founding"
 // + grey textTertiary.
@@ -102,6 +137,11 @@ export default function ProviderDashboardScreen(): React.ReactElement {
     staleTime: 60 * 1000,
   });
   const unreadCount = unreadQuery.data ?? 0;
+  // D38 Milestone 2: the request counts, unread messages and phone alerts.
+  const { summary: requestSummary, loaded: requestSummaryLoaded } = useProviderRequestSummary();
+  const unreadMessages = useChatUnreadCount();
+  const pushLine = pushStatusLine(usePushRegistrationStatus());
+  const requestConfig = useRequestConfig();
 
   const availabilityMutation = useMutation({
     mutationFn: (isAvailable: boolean) => setAvailability(isAvailable),
@@ -151,7 +191,9 @@ export default function ProviderDashboardScreen(): React.ReactElement {
   return (
     <ScrollView
       style={[styles.container, { paddingTop: insets.top + spacing.sm }]}
-      contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopContent, isTesterFeedbackEnabled() && { paddingBottom: FEEDBACK_BUTTON_CLEARANCE }]}
+      /* Tester builds: the provider tab layout now ends every tab screen above
+         the floating Feedback button (sceneStyle), so no extra padding here. */
+      contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopContent]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -249,24 +291,64 @@ export default function ProviderDashboardScreen(): React.ReactElement {
 
       <View style={[styles.workspaceGrid, isDesktop && styles.desktopWorkspaceGrid]}>
         <View style={isDesktop ? styles.desktopPrimary : undefined}>
-          {/* D27 Phase 1 — entry to the new Job Requests (leads) inbox. Custom-quote
-          requests now reach matched providers; this is where they browse + quote. */}
+          {/* D38 Milestone 2: the request summary. Customers describe a job;
+              the first pro to send a quote gets it. The counts come from
+              GET /providers/me/job-requests/summary. */}
           <TouchableOpacity
             style={styles.leadsCard}
             activeOpacity={0.85}
-            onPress={() => router.push(Routes.PROVIDER.LEADS)}
+            onPress={() => router.push(Routes.PROVIDER_TABS.REQUESTS)}
             accessibilityRole="button"
-            accessibilityLabel="Open job requests"
+            accessibilityLabel="Open requests"
           >
             <View style={styles.leadsIcon}>
               <Inbox size={22} color={colors.accent} />
             </View>
             <View style={styles.leadsCopy}>
-              <Text style={styles.leadsTitle}>Job Requests</Text>
-              <Text style={styles.leadsSubtitle}>
-                Browse open custom-quote requests in your area and send a quote.
-              </Text>
+              <Text style={styles.leadsTitle}>Requests</Text>
+              {requestSummaryLoaded ? (
+                <>
+                  <Text style={styles.leadsSubtitle}>
+                    {requestSummary.openCount === 0
+                      ? 'No open requests in your area right now.'
+                      : `${plural(requestSummary.openCount, 'open request', 'open requests')} in your area, ${requestSummary.unseenCount} new`}
+                  </Text>
+                  {requestSummary.quotesWaitingCount > 0 ? (
+                    <Text style={styles.leadsSubtitle}>
+                      {`${plural(requestSummary.quotesWaitingCount, 'quote', 'quotes')} waiting for a customer's answer`}
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={styles.leadsSubtitle}>
+                  {requestConfig.requestMaxOpenQuotes === 1
+                    ? 'Customers describe a job and you send a price. The first pro to send a quote gets the request.'
+                    : `Customers describe a job and you send a price. Up to ${requestConfig.requestMaxOpenQuotes} pros can quote on each request.`}
+                </Text>
+              )}
             </View>
+            <Text style={styles.leadsArrow}>›</Text>
+          </TouchableOpacity>
+          {pushLine ? (
+            <View style={styles.pushNotice} accessibilityRole="text" accessibilityLabel={pushLine}>
+              <BellOff size={18} color={colors.warningDark} />
+              <Text style={styles.pushNoticeText}>{pushLine}</Text>
+            </View>
+          ) : null}
+          <TouchableOpacity
+            style={styles.messagesRow}
+            activeOpacity={0.85}
+            onPress={() => router.push(Routes.PROVIDER.MESSAGES)}
+            accessibilityRole="button"
+            accessibilityLabel={unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : 'Messages'}
+          >
+            <MessageSquare size={20} color={colors.primary} />
+            <Text style={styles.messagesLabel}>Messages</Text>
+            {unreadMessages > 0 ? (
+              <View style={styles.messagesBadge}>
+                <Text style={styles.messagesBadgeText}>{unreadMessages > 99 ? '99+' : unreadMessages}</Text>
+              </View>
+            ) : null}
             <Text style={styles.leadsArrow}>›</Text>
           </TouchableOpacity>
 
@@ -295,7 +377,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
                 title="No active jobs right now"
                 description={
                   profile?.isAvailable
-                    ? 'New job requests will appear here.'
+                    ? 'Jobs you are booked for will appear here. New customer requests are in the Requests tab.'
                     : 'Go online to start receiving jobs.'
                 }
               />
@@ -304,7 +386,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
                 <TouchableOpacity
                   key={job.id}
                   style={styles.jobCard}
-                  onPress={() => router.push(`/provider/job/${job.id}`)}
+                  onPress={() => router.push(buildRoute(Routes.PROVIDER.JOB_DETAIL, { id: job.id }))}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel={`View ${job.serviceName ?? job.categoryName ?? 'service'} job`}
@@ -514,6 +596,40 @@ const styles = StyleSheet.create({
   leadsTitle: { ...typography.h3, color: colors.text },
   leadsSubtitle: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
   leadsArrow: { fontSize: 28, color: colors.textTertiary, marginLeft: spacing.sm },
+  pushNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.warningLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  pushNoticeText: { ...typography.bodySmall, color: colors.text, flex: 1 },
+  messagesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 52,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.base,
+    marginBottom: spacing.lg,
+  },
+  messagesLabel: { ...typography.body, color: colors.text, fontWeight: '600', flex: 1 },
+  messagesBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  messagesBadgeText: { fontSize: 12, fontWeight: '700', color: colors.text },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

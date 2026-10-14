@@ -5,8 +5,12 @@
 // showing the old status or balance from its cache. The query client here
 // uses the app's 5-minute staleTime (app/_layout.tsx), so a cached booking is
 // not refetched on its own.
+//
+// D38 Milestone 2 (P5b): the accept call moved from the quotes screen to the
+// Confirm booking screen (app/customer/booking/confirm-quote.tsx), which
+// shows the server's total first. The cache resets moved with it.
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { Text } from 'react-native';
 
@@ -14,7 +18,7 @@ const mockReplace = jest.fn();
 let mockBookingId = 'booking-quote';
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), replace: mockReplace }),
-  useLocalSearchParams: () => ({ bookingId: mockBookingId }),
+  useLocalSearchParams: () => ({ bookingId: mockBookingId, quoteId: 'quote-1' }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
@@ -23,26 +27,23 @@ jest.mock('@/hooks/useResponsive', () => ({
 const mockGetBookingById = jest.fn();
 const mockAcceptQuote = jest.fn();
 jest.mock('@/services/booking.service', () => ({
-  getBookingQuotes: jest.fn().mockResolvedValue([{
-    id: 'quote-1',
-    bookingId: 'booking-quote',
-    providerId: 'provider-1',
-    providerName: 'Cebu Cooling',
-    providerRating: 4.8,
-    providerTotalJobs: 42,
-    quotedPrice: 150000,
-    description: 'Complete aircon cleaning with inspection.',
-    lineItems: [],
-    laborAmount: 150000,
-    materialsAmount: 0,
-    estimatedDays: 1,
-    notes: null,
-    status: 'submitted',
-    expiresAt: '2099-08-25T00:00:00.000Z',
-  }]),
-  acceptQuote: (...args: unknown[]) => mockAcceptQuote(...args),
-  declineQuote: jest.fn(),
   getBookingById: (...args: unknown[]) => mockGetBookingById(...args),
+}));
+jest.mock('@/services/request.service', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fixtures = require('../test-support/request-fixtures') as typeof import('../test-support/request-fixtures');
+  return {
+    ...jest.requireActual('@/services/request.service'),
+    getConfirmPreview: jest.fn().mockResolvedValue(fixtures.confirmPreviewFixture({ totalAmount: 187500, walletBalance: 200000, walletCovers: true })),
+    acceptQuote: (...args: unknown[]) => mockAcceptQuote(...args),
+  };
+});
+jest.mock('@/utils/cancellation-policy', () => ({
+  ...jest.requireActual('@/utils/cancellation-policy'),
+  fetchCancellationPolicy: jest.fn().mockResolvedValue({
+    version: 1, effective_from: '2026-01-01', tiers: [], intro_text: 'You can cancel before the pro starts.',
+    legal_disclaimer: '', provider_no_show_credit_php: 0,
+  }),
 }));
 
 const mockCreatePaymentIntent = jest.fn();
@@ -53,7 +54,7 @@ jest.mock('@/services/payment.service', () => ({
 }));
 
 import { getBookingById } from '@/services/booking.service';
-import QuotesScreen from '../app/customer/booking/quotes';
+import ConfirmQuoteScreen from '../app/customer/booking/confirm-quote';
 import PayExistingBookingScreen from '../app/customer/booking/pay';
 
 function appQueryClient(): QueryClient {
@@ -61,7 +62,7 @@ function appQueryClient(): QueryClient {
 }
 
 // Stands in for the booking detail screen, which stays mounted underneath the
-// quotes and pay screens and reads the same ['booking', id] query.
+// confirm and pay screens and reads the same ['booking', id] query.
 function BookingDetailUnderneath({ id }: { id: string }): React.ReactElement {
   const { data } = useQuery({
     queryKey: ['booking', id],
@@ -85,7 +86,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-it('accepting a quote refreshes the cached booking (still "quoted"), including the screen underneath, and the booking lists', async () => {
+it('confirming a quote refreshes the cached booking (still "quoted"), including the screen underneath, and the booking lists', async () => {
   mockBookingId = 'booking-quote';
   mockAcceptQuote.mockResolvedValue({ quoteId: 'quote-1', providerId: 'provider-1', totalAmount: 187500 });
   mockGetBookingById.mockResolvedValue({ id: 'booking-quote', status: 'payment_pending' });
@@ -97,12 +98,11 @@ it('accepting a quote refreshes the cached booking (still "quoted"), including t
   render(
     <QueryClientProvider client={client}>
       <BookingDetailUnderneath id="booking-quote" />
-      <QuotesScreen />
+      <ConfirmQuoteScreen />
     </QueryClientProvider>,
   );
   expect(await screen.findByText('Detail status: quoted')).toBeTruthy();
-  fireEvent.click(await screen.findByRole('button', { name: 'Accept quote from Cebu Cooling' }));
-  fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Accept Quote' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm booking' }));
 
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({
     pathname: '/customer/booking/pay',

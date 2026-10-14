@@ -21,6 +21,13 @@
  *   QueryClientProvider.
  * - New: tab screens end above the Feedback button in tester builds (the
  *   button covered the first "How it works" step on Home before scrolling).
+ *
+ * D38 Milestone 2 (package P5b) updates:
+ * - The provider tab layout now reads the Requests tab badge through
+ *   react-query, so it also gets a QueryClientProvider when rendered alone.
+ * - New: the provider tab screens end above the Feedback button in tester
+ *   builds too (the P5a review found the dashboard's own padding did not keep
+ *   the last row clear, and the new Requests and My quotes lists need it).
  */
 import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
@@ -240,6 +247,20 @@ describe('Room for the Feedback button on the customer tab screens', () => {
   });
 });
 
+describe('Room for the Feedback button on the provider tab screens', () => {
+  it('FB2-04 — tester builds end each provider tab screen above the button, so it never covers the last request or quote (normal builds get no extra space)', () => {
+    signIn('provider');
+    const tester = render(withQueries(<ProviderTabLayout />));
+    // 44px button + 12px gap above the tab bar + 12px breathing room.
+    expect(screen.getByLabelText('Tab navigator').getAttribute('data-scene-padding-bottom')).toBe('68');
+    tester.unmount();
+
+    delete process.env.EXPO_PUBLIC_TESTER_FEEDBACK;
+    render(withQueries(<ProviderTabLayout />));
+    expect(screen.getByLabelText('Tab navigator').getAttribute('data-scene-padding-bottom')).toBe('0');
+  });
+});
+
 describe('The Feedback button and the on-screen keyboard', () => {
   it('FB2-04 — on iPhone it hides as the keyboard opens and comes back when it closes', () => {
     signIn('customer');
@@ -261,7 +282,7 @@ describe('The Feedback button and the on-screen keyboard', () => {
   it('FB2-04 — in the Android app it hides while the keyboard is open', () => {
     signIn('provider');
     platform.OS = 'android';
-    const view = render(<ProviderTabLayout />);
+    const view = render(withQueries(<ProviderTabLayout />));
     expect(screen.getByRole('button', FEEDBACK)).toBeTruthy();
 
     act(() => { keyboard.__emit('keyboardDidShow'); });

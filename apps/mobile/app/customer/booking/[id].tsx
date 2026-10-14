@@ -33,6 +33,8 @@ import PulsingDot from '@/components/PulsingDot';
 import Avatar from '@/components/Avatar';
 import { useResponsive } from '@/hooks/useResponsive';
 import { buildRoute, Routes } from '@/config/navigation';
+import { JobMediaGallery } from '@/components/job-media/JobMediaGallery';
+import { isQuoteTimeWindow, timeWindowLabel } from '@/services/request.service';
 
 const ACTIVE_STATUSES = new Set([
   'matched', 'paid', 'provider_en_route', 'provider_arrived', 'in_progress',
@@ -188,7 +190,14 @@ export default function BookingDetailScreen(): React.ReactElement {
   // this state — there was no way for the customer to actually pay
   // for the quote they had just accepted.
   const needsPayment = booking.status === 'payment_pending';
-  const canViewQuotes = booking.bookingType === 'quote_based' && ['requested', 'quoted'].includes(booking.status);
+  // D38 Milestone 2: an open request (no quote accepted yet). Its own status
+  // screen follows it live; "View quotes" shows once a pro has quoted.
+  const isQuoteRequest = booking.bookingType === 'quote_based';
+  const isOpenRequest = isQuoteRequest && ['requested', 'quoted'].includes(booking.status);
+  const canViewQuotes = isOpenRequest;
+  const hasQuoteToReview = isQuoteRequest && booking.status === 'quoted';
+  // Migration 183: the window a quote booking was agreed for (E83).
+  const scheduledWindow = (booking as typeof booking & { scheduledWindow?: string | null }).scheduledWindow ?? null;
   const canViewChangeOrders = ['in_progress', 'completed_by_provider', 'confirmed'].includes(booking.status);
   const canFileDispute = ['completed_by_provider', 'confirmed'].includes(booking.status) && !linkedDispute;
   // BUG-PHASE76-01 — union legacy TEXT[] count + canonical
@@ -201,10 +210,25 @@ export default function BookingDetailScreen(): React.ReactElement {
 
   const bookingActions = (
     <>
-      {canViewQuotes && (
+      {isOpenRequest && (
+        <Button
+          title="Request status"
+          onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_REQUEST_STATUS, params: { bookingId: id } })}
+        />
+      )}
+      {hasQuoteToReview && (
         <Button
           title="View Quotes"
           onPress={() => router.push({ pathname: Routes.CUSTOMER.BOOKING_QUOTES, params: { bookingId: id } })}
+          variant="outline"
+        />
+      )}
+      {isQuoteRequest && (isOpenRequest || needsPayment) && (
+        <Button
+          title="Messages"
+          onPress={() => router.push(Routes.CUSTOMER.MESSAGES)}
+          variant="outline"
+          accessibilityLabel="Open messages with pros"
         />
       )}
       {needsPayment && (
@@ -369,6 +393,12 @@ export default function BookingDetailScreen(): React.ReactElement {
           <Text style={styles.sectionTitle}>Service</Text>
           <Text style={styles.serviceName}>{booking.serviceName ?? booking.categoryName ?? 'Service'}</Text>
           {booking.description && <Text style={styles.serviceDesc}>{booking.description}</Text>}
+          {/* D38: the photos, video and voice note sent with the request. */}
+          {isQuoteRequest && (
+            <View style={styles.requestMedia}>
+              <JobMediaGallery bookingId={booking.id} title="What you sent" />
+            </View>
+          )}
         </View>
 
         {proofSummaryQuery.data && (
@@ -383,13 +413,20 @@ export default function BookingDetailScreen(): React.ReactElement {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Schedule</Text>
+          {/* D38: an open request has no agreed time yet (the stored time is
+              only a placeholder until a pro's slot is accepted). */}
           <Text style={styles.detailText}>
-            {booking.scheduledAt
-              ? formatDateTime(booking.scheduledAt)
-              : booking.bookingType === 'quote_based'
-                ? 'To be agreed after you accept a quote'
-                : 'Schedule not set'}
+            {isOpenRequest
+              ? 'To be agreed with the pro'
+              : booking.scheduledAt
+                ? formatDateTime(booking.scheduledAt)
+                : isQuoteRequest
+                  ? 'To be agreed with the pro'
+                  : 'Schedule not set'}
           </Text>
+          {!isOpenRequest && isQuoteTimeWindow(scheduledWindow) ? (
+            <Text style={styles.windowText}>{`Agreed window: ${timeWindowLabel(scheduledWindow)}`}</Text>
+          ) : null}
         </View>
 
         <View style={styles.section}>
@@ -433,7 +470,7 @@ export default function BookingDetailScreen(): React.ReactElement {
           <View style={styles.receipt} accessibilityLabel="Quote pricing pending">
             <Text style={styles.receiptTitle}>Quote pricing</Text>
             <Text style={styles.quotePricingText}>
-              No service price or payment is due yet. Compare provider quotes, then accept one to set the booking scope and total.
+              No service price or payment is due yet. When a pro sends a quote, you can accept it and see the full total before you confirm.
             </Text>
           </View>
         ) : (
@@ -575,6 +612,8 @@ const styles = StyleSheet.create({
   serviceName: { ...typography.h3, color: colors.text },
   serviceDesc: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
   detailText: { ...typography.body, color: colors.text },
+  windowText: { ...typography.bodySmall, color: colors.textSecondary, marginTop: spacing.xs },
+  requestMedia: { marginTop: spacing.md },
   proofError: {
     backgroundColor: colors.warningLight,
     borderRadius: borderRadius.lg,

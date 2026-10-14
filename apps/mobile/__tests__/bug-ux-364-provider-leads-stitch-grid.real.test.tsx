@@ -6,6 +6,8 @@ const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), push: (...args: unknown[]) => mockPush(...args) }),
+  // D38 Milestone 2 (P5b): the old leads route shows the Requests screen, which reads ?tab.
+  useLocalSearchParams: () => ({}),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({
@@ -44,11 +46,16 @@ jest.mock('@/services/api', () => ({
     }),
   },
 }));
-jest.mock('@/services/socket.service', () => ({ getSocket: () => null }));
+// D38 Milestone 2 (P5b): the inbox listens through subscribeSocketEvent.
+jest.mock('@/services/socket.service', () => require('../test-support/socket-mock').socketServiceMock);
 
 import ProviderLeadsScreen from '../app/provider/leads';
 
-it('Bug UX-364 — provider job requests use a bounded desktop grid and explain the multi-provider quote lifecycle', async () => {
+// D38 Milestone 2 (P5b): the lifecycle text is now config-driven and true.
+// The old line "A request stays open to eligible providers until a customer
+// accepts a quote" stopped being true when the first quote takes the request
+// (request_max_open_quotes = 1, the default).
+it('Bug UX-364 — provider job requests use a bounded desktop grid and explain the quote lifecycle', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
 
   const { container } = render(
@@ -57,7 +64,8 @@ it('Bug UX-364 — provider job requests use a bounded desktop grid and explain 
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText(/stays open to eligible providers until a customer accepts a quote/i)).toBeTruthy();
+  expect(await screen.findByText(/The first pro to send a quote gets the request. The customer then accepts or declines it./)).toBeTruthy();
+  expect(screen.queryByText(/stays open to eligible providers until a customer accepts a quote/i)).toBeNull();
   expect(container.querySelector('flatlist')?.getAttribute('accessibilitylabel')).toBe('Tablet and desktop provider job request grid');
   fireEvent.click(screen.getByLabelText('Open Aircon Services job request and prepare a quote'));
   expect(mockPush).toHaveBeenCalledWith('/provider/job/request-1/quote');

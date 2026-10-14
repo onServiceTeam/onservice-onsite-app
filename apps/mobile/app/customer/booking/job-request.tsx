@@ -34,7 +34,7 @@ import {
 // A7 — toast feedback instead of modal alerts.
 import { showToast } from '@/lib/toast';
 import { platformConfig } from '@/config/platform.config';
-import { buildRoute, Routes } from '@/config/navigation';
+import { Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
 import ServiceScopeNotice from '@/components/ServiceScopeNotice';
 import { EmptyState, ErrorState } from '@/components/ui';
@@ -345,10 +345,9 @@ export default function JobRequestScreen(): React.ReactElement {
     },
     onSuccess: (booking) => {
       showToast('Request sent. Prices from pros will show on this request.', 'success');
-      // D38 Milestone 2: the request status screen (Routes.CUSTOMER.
-      // BOOKING_REQUEST_STATUS) is built by package P5b; until that screen
-      // exists, land on the booking detail, which shows the request.
-      router.replace(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: booking.id }));
+      // D38 Milestone 2: land on the request status screen ("We sent your
+      // request to N local pros"), which follows the request live.
+      router.replace({ pathname: Routes.CUSTOMER.BOOKING_REQUEST_STATUS, params: { bookingId: booking.id } });
     },
     onError: (err: unknown, mediaIds: string[]) => {
       // Not sent: the files are the form's own again (a lost answer is safe

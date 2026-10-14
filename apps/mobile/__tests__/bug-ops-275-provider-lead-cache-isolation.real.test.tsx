@@ -18,9 +18,13 @@ jest.mock('expo-router', () => ({
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
-jest.mock('@/services/booking.service', () => ({
+// D38 Milestone 2 (P5b): the quote screen reads the same lead detail
+// (GET /providers/me/job-requests/:id) through request.service.
+jest.mock('@/services/request.service', () => ({
+  ...jest.requireActual('@/services/request.service'),
   getProviderJobRequest: (...args: unknown[]) => mockGetProviderJobRequest(...args),
   submitQuote: jest.fn(),
+  getBookingQuotes: jest.fn().mockResolvedValue([]),
 }));
 jest.mock('@/services/provider-crm.service', () => ({ listTemplates: jest.fn().mockResolvedValue([]) }));
 jest.mock('@/services/api', () => ({

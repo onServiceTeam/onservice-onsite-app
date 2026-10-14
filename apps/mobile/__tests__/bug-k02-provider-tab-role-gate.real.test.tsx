@@ -10,6 +10,14 @@ jest.mock('@/stores/auth.store', () => ({
   useAuthStore: (selector: (state: typeof mockAuthState) => unknown) => selector(mockAuthState),
 }));
 jest.mock('@/components/provider/NewJobModal', () => () => <div data-testid="new-job-modal" />);
+// D38 Milestone 2 (P5b): the layout reads the Requests tab badge from the
+// request summary (react-query); this test is about the role gate only.
+jest.mock('@/hooks/useProviderRequestSummary', () => ({
+  useProviderRequestSummary: () => ({
+    summary: { openCount: 0, unseenCount: 0, quotesWaitingCount: 0, isAvailable: true },
+    loaded: true,
+  }),
+}));
 jest.mock('expo-router', () => {
   const ReactLib = require('react');
   const Tabs = ({ children }: { children?: React.ReactNode }) => ReactLib.createElement('div', { 'data-testid': 'provider-tabs' }, children);

@@ -29,6 +29,29 @@ import PaginationLoader from '@/components/PaginationLoader';
 import { buildRoute, Routes } from '@/config/navigation';
 type StatusFilter = 'all' | 'active' | 'completed' | 'cancelled';
 
+/** A booking-list row; quote requests also carry the server's request stage (D38). */
+type BookingRow = Booking & { requestStage?: string | null; openQuoteCount?: number | null };
+
+/**
+ * D38 Milestone 2: what a quote request's card says, from the server's
+ * stage (GET /bookings adds requestStage and openQuoteCount to quote rows).
+ * Null for ordinary bookings and booked jobs, which keep their status badge.
+ */
+function requestStageLabel(row: BookingRow): string | null {
+  if (row.bookingType !== 'quote_based') return null;
+  switch (row.requestStage) {
+    case 'waiting': return 'Waiting for a pro';
+    case 'no_pros': return 'Looking for pros';
+    case 'reopened': return 'Looking for more pros';
+    case 'quote_ready': return (row.openQuoteCount ?? 0) > 1 ? `${row.openQuoteCount} quotes ready` : 'Quote ready';
+    case 'payment_pending': return 'Pay to confirm';
+    case 'closed': return 'Closed';
+    default: return null;
+  }
+}
+
+const OPEN_REQUEST_STATUSES = new Set(['requested', 'quoted']);
+
 const FILTERS: { label: string; value: StatusFilter }[] = [
   { label: 'All', value: 'all' },
   { label: 'Active', value: 'active' },
@@ -99,27 +122,48 @@ export default function BookingsScreen(): React.ReactElement {
   const { breakpoint, isPhone } = useResponsive();
   const numColumns = byBreakpoint(breakpoint, { phone: 1, tablet: 2, desktop: 2 });
 
-  const renderItem = ({ item }: { item: Booking }): React.ReactElement => (
-    <TouchableOpacity
-      style={[styles.card, numColumns > 1 && styles.cardGrid]}
-      onPress={() => router.push(buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: item.id }))}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${item.serviceName ?? item.categoryName ?? 'service'} booking`}
-    >
-      <View style={styles.cardTop}>
-        {/* Phase 14 Remediation #5 — Bug 895/901 status pill via StatusBadge */}
-        <StatusBadge status={item.status} size="sm" />
-        <Text style={styles.cardDate}>{formatDate(item.scheduledAt)}</Text>
-      </View>
-      <Text style={styles.cardService}>{item.serviceName ?? item.categoryName ?? 'Service'}</Text>
-      {item.providerName && <Text style={styles.cardProvider}>{item.providerName}</Text>}
-      <View style={styles.cardBottom}>
-        <Text style={styles.cardPrice}>{formatPHP(item.totalAmount)}</Text>
-        <Text style={styles.cardArrow}>›</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: BookingRow }): React.ReactElement => {
+    const stage = requestStageLabel(item);
+    const isQuoteRequest = item.bookingType === 'quote_based';
+    const isOpenRequest = isQuoteRequest && OPEN_REQUEST_STATUSES.has(item.status);
+    // A request has no price until a quote is accepted: never show ₱0.
+    const showPrice = !isQuoteRequest || (item.totalAmount ?? 0) > 0;
+    const service = item.serviceName ?? item.categoryName ?? 'Service';
+    return (
+      <TouchableOpacity
+        style={[styles.card, numColumns > 1 && styles.cardGrid]}
+        onPress={() => router.push(isOpenRequest
+          ? { pathname: Routes.CUSTOMER.BOOKING_REQUEST_STATUS, params: { bookingId: item.id } }
+          : buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: item.id }))}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={stage ? `Open ${service} request, ${stage}` : `Open ${service} booking`}
+      >
+        <View style={styles.cardTop}>
+          {stage ? (
+            <View style={styles.stagePill} accessibilityLabel={`Request: ${stage}`}>
+              <Text style={styles.stageText}>{stage}</Text>
+            </View>
+          ) : (
+            /* Phase 14 Remediation #5 — Bug 895/901 status pill via StatusBadge */
+            <StatusBadge status={item.status} size="sm" />
+          )}
+          {/* A request's stored time is a placeholder until a pro's slot is accepted. */}
+          <Text style={styles.cardDate}>
+            {isOpenRequest ? `Requested ${formatDate(item.createdAt)}` : formatDate(item.scheduledAt)}
+          </Text>
+        </View>
+        <Text style={styles.cardService}>{service}</Text>
+        {item.providerName && <Text style={styles.cardProvider}>{item.providerName}</Text>}
+        <View style={styles.cardBottom}>
+          {showPrice
+            ? <Text style={styles.cardPrice}>{formatPHP(item.totalAmount)}</Text>
+            : <Text style={styles.cardNoPrice}>{isOpenRequest ? 'Price set by the pro’s quote' : 'No price agreed'}</Text>}
+          <Text style={styles.cardArrow}>›</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.base }]}>
@@ -315,6 +359,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardPrice: { ...typography.priceSmall, color: colors.primary },
+  cardNoPrice: { ...typography.bodySmall, color: colors.textSecondary },
+  stagePill: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  stageText: { ...typography.caption, fontWeight: '700', color: colors.primary },
   cardArrow: { fontSize: 22, color: colors.textTertiary },
 
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },

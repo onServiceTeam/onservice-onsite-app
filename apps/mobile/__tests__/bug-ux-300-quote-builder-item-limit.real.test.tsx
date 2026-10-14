@@ -10,13 +10,16 @@ jest.mock('expo-router', () => ({
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
-jest.mock('@/services/booking.service', () => ({
+// D38 Milestone 2 (P5b): the lead detail is read through request.service.
+jest.mock('@/services/request.service', () => ({
+  ...jest.requireActual('@/services/request.service'),
   getProviderJobRequest: jest.fn().mockResolvedValue({
     id: 'booking-1', categoryId: 'category-aircon', subcategoryId: 'subcategory-aircon',
     serviceName: 'Aircon repair', description: 'Aircon is not cooling', urgency: null,
     budgetMin: null, budgetMax: null, jobPhotos: [], intakeAnswers: null,
   }),
   submitQuote: jest.fn(),
+  getBookingQuotes: jest.fn().mockResolvedValue([]),
 }));
 jest.mock('@/services/provider-crm.service', () => ({
   listTemplates: jest.fn().mockResolvedValue([]),
@@ -30,6 +33,8 @@ it('Bug UX-300 — quote builder stops at the same 20 line-item limit enforced b
   render(<QueryClientProvider client={client}><QuoteBuilderScreen /></QueryClientProvider>);
 
   await screen.findByText('Aircon repair');
+  // D38 Milestone 2 (P5b): line items sit behind the optional itemized breakdown.
+  fireEvent.click(screen.getByRole('switch', { name: 'Add an itemized breakdown' }));
   const addButton = screen.getByText('+ Add Item');
   for (let index = 0; index < 25; index += 1) fireEvent.click(addButton);
 

@@ -6,12 +6,14 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
+// D38 Milestone 2 (P5b): the old leads route shows the Requests screen, which reads ?tab.
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }), useLocalSearchParams: () => ({}) }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 390, breakpoint: 'phone', isPhone: true, isTablet: false, isDesktop: false }),
   byBreakpoint: (_breakpoint: string, values: { phone: number }) => values.phone,
 }));
-jest.mock('@/services/socket.service', () => ({ getSocket: () => null }));
+// D38 Milestone 2 (P5b): the inbox listens through subscribeSocketEvent.
+jest.mock('@/services/socket.service', () => require('../test-support/socket-mock').socketServiceMock);
 jest.mock('@/services/api', () => ({
   __esModule: true,
   default: {

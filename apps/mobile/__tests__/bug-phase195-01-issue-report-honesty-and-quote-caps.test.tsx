@@ -93,6 +93,13 @@ function renderQuote(): { container: HTMLElement } {
   );
 }
 
+// D38 Milestone 2 (P5b): line items sit behind the optional "Add an itemized
+// breakdown" switch on the quote form; turn it on once the form shows.
+async function openItemizedBreakdown(container: HTMLElement): Promise<void> {
+  await waitFor(() => expect(container.querySelector('[aria-label="Add an itemized breakdown"]')).toBeTruthy());
+  fireEvent.click(container.querySelector('[aria-label="Add an itemized breakdown"]')!);
+}
+
 // Open the Report-Issue modal, type a description, and tap Send Report.
 async function submitAnIssue(container: HTMLElement): Promise<void> {
   await waitFor(() => expect(container.textContent).toContain('Inspect the area'));
@@ -173,6 +180,7 @@ describe('BUG-PHASE195-01 — quote line-item inputs match server caps (real ren
 
   it('Bug PHASE195-01 — the line-item description input is capped to 500', async () => {
     const { container } = renderQuote();
+    await openItemizedBreakdown(container);
     await waitFor(() => {
       const descInput = container.querySelector('input[placeholder="Item description"]');
       expect(descInput).toBeTruthy();
@@ -183,6 +191,7 @@ describe('BUG-PHASE195-01 — quote line-item inputs match server caps (real ren
 
   it('Bug PHASE195-01 — the line-item unit input is capped to 30', async () => {
     const { container } = renderQuote();
+    await openItemizedBreakdown(container);
     await waitFor(() => {
       const unitInput = container.querySelector('input[placeholder="unit"]');
       expect(unitInput).toBeTruthy();

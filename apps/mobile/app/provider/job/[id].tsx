@@ -27,6 +27,14 @@ import { MapIcon, ChevronLeft } from '@/components/icons';
 import { useLocation } from '@/hooks/useLocation';
 import { useResponsive } from '@/hooks/useResponsive';
 import { buildRoute, Routes } from '@/config/navigation';
+import {
+  getBookingQuotes,
+  getProviderJobRequest,
+  isQuoteTimeWindow,
+  timeWindowLabel,
+  type IntakeQuestionAnswer,
+} from '@/services/request.service';
+import { providerChatRoute } from '@/utils/chat-routes';
 
 const STATUS_LABELS: Record<string, string> = {
   requested: 'New Request',
@@ -46,15 +54,28 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 // D27 Phase 2 — render a stored intake answer. Booking JSON only keeps the
-// field_key, so turn `area_sqm` into `Area sqm` and booleans into Yes/No.
+// field_key. D38 human audit (the Milestone 1 deferred finding): a quote
+// request now shows each answer under the question the admin wrote, read
+// from the request detail (GET /providers/me/job-requests/:id,
+// intakeQuestions). Only when that is unavailable, or a question no longer
+// exists, is the key turned into words (`area_sqm` becomes `Area sqm`).
 function humanizeKey(key: string): string {
   const s = key.replace(/[_-]+/g, ' ').trim();
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function formatIntakeValue(value: string | number | boolean): string {
+function formatIntakeValue(value: string | number | boolean, unit?: string | null): string {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  return String(value);
+  return unit ? `${String(value)} ${unit}` : String(value);
+}
+
+/** The answers to show: labelled ones from the request detail, else the raw keys. */
+function intakeRows(
+  answers: Record<string, string | number | boolean> | null | undefined,
+  labelled: IntakeQuestionAnswer[] | null | undefined,
+): IntakeQuestionAnswer[] {
+  if (Array.isArray(labelled) && labelled.length > 0) return labelled;
+  return Object.entries(answers ?? {}).map(([key, value]) => ({ key, label: null, unit: null, value }));
 }
 
 const NEXT_STATUS: Record<string, { status: string; label: string; confirm?: string }> = {
@@ -113,6 +134,26 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   });
   const linkedDispute = disputeQuery.data?.disputes[0];
   const hasDisputeStatus = ['disputed', 'resolved'].includes(booking?.status ?? '');
+  // D38 Milestone 2: a quote request carries the answers under their
+  // question labels (request detail) and the pro's own request thread
+  // (their quote's conversationId). Both reads are this provider's own and
+  // change nothing on the server.
+  const isQuoteRequest = booking?.bookingType === 'quote_based';
+  const requestDetailQuery = useQuery({
+    queryKey: ['providerJobRequest', id],
+    queryFn: () => getProviderJobRequest(id ?? ''),
+    enabled: !!id && isQuoteRequest,
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const ownQuotesQuery = useQuery({
+    queryKey: ['providerOwnQuote', id],
+    queryFn: () => getBookingQuotes(id ?? ''),
+    enabled: !!id && isQuoteRequest,
+    retry: false,
+    staleTime: 30 * 1000,
+  });
+  const threadConversationId = (ownQuotesQuery.data ?? []).find((quote) => !!quote.conversationId)?.conversationId ?? null;
   const providerTier = providerMeQuery.data?.tier;
 
   const statusMutation = useMutation({
@@ -248,6 +289,12 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
   const navTint = getCategoryTint(booking.categoryName);
   const canCancel = ['matched', 'paid', 'provider_en_route'].includes(booking.status);
   const isActiveJob = ['paid', 'provider_en_route', 'provider_arrived', 'in_progress'].includes(booking.status);
+  // D38: the chat entry shows whenever this pro's thread with the customer
+  // exists (a request thread opens with the quote), not only on active jobs.
+  const hasThread = threadConversationId != null;
+  const answers = intakeRows(booking.intakeAnswers, requestDetailQuery.data?.intakeQuestions);
+  // Migration 183: the window a quote booking was agreed for (E83).
+  const scheduledWindow = (booking as typeof booking & { scheduledWindow?: string | null }).scheduledWindow ?? null;
   const canSubmitQuote = booking.bookingType === 'quote_based' && booking.status === 'requested';
   const canSubmitChangeOrder = booking.status === 'in_progress';
   const hasJobDestination = (
@@ -359,10 +406,10 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           disabled={statusMutation.isPending || cancelMutation.isPending}
         />
       )}
-      {isActiveJob && (
+      {(isActiveJob || hasThread) && (
         <Button
           title="Chat with Customer"
-          onPress={() => router.push(buildRoute(Routes.PROVIDER.CHAT, { id: booking.id }) as never)}
+          onPress={() => router.push(providerChatRoute(booking.id) as never)}
           variant="outline"
         />
       )}
@@ -457,15 +504,15 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
         )}
 
         {/* D27 Phase 2 — structured job details the customer answered on the
-            custom-quote intake form. Keyed by field_key; the readable label is
-            derived from the key. Helps the provider quote accurately. */}
-        {booking.intakeAnswers && Object.keys(booking.intakeAnswers).length > 0 && (
+            custom-quote intake form, each under the question the admin wrote
+            (D38). Helps the provider do the job as quoted. */}
+        {answers.length > 0 && (
           <Card style={styles.card}>
             <SectionHeader title="Job details" />
-            {Object.entries(booking.intakeAnswers).map(([key, value]) => (
-              <View key={key} style={styles.intakeRow}>
-                <Text style={styles.intakeKey}>{humanizeKey(key)}</Text>
-                <Text style={styles.intakeValue}>{formatIntakeValue(value)}</Text>
+            {answers.map((row) => (
+              <View key={row.key} style={styles.intakeRow}>
+                <Text style={styles.intakeKey}>{row.label ?? humanizeKey(row.key)}</Text>
+                <Text style={styles.intakeValue}>{formatIntakeValue(row.value, row.unit)}</Text>
               </View>
             ))}
           </Card>
@@ -488,6 +535,9 @@ export default function ProviderJobDetailScreen(): React.ReactElement {
           <SectionHeader title="Schedule" />
           <Text style={styles.detailText}>{formatDateTime(booking.scheduledAt)}</Text>
           <Text style={styles.relativeText}>{formatRelative(booking.scheduledAt)}</Text>
+          {isQuoteTimeWindow(scheduledWindow) ? (
+            <Text style={styles.relativeText}>{`Your quoted window: ${timeWindowLabel(scheduledWindow)}`}</Text>
+          ) : null}
         </Card>
 
         <Card style={styles.card}>

@@ -6,9 +6,10 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() }),
   useLocalSearchParams: () => ({ bookingId: 'booking-1' }),
 }));
-jest.mock('@/services/booking.service', () => ({
+// D38 Milestone 2 (P5b): quotes are read through request.service.
+jest.mock('@/services/request.service', () => ({
+  ...jest.requireActual('@/services/request.service'),
   getBookingQuotes: jest.fn().mockResolvedValue([]),
-  acceptQuote: jest.fn(),
   declineQuote: jest.fn(),
 }));
 jest.mock('@/components/icons', () => ({
@@ -19,11 +20,13 @@ jest.mock('@/components/icons', () => ({
 
 import QuotesScreen from '../app/customer/booking/quotes';
 
+// D38 Milestone 2 (P5b): the empty state's title is now "No quotes yet" (was
+// "Waiting for Quotes"); the icon rule this test pins is unchanged.
 it('Bug UX-021 — waiting-for-quotes uses the shared vector icon system instead of an emoji glyph', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><QuotesScreen /></QueryClientProvider>);
 
-  expect(await screen.findByText('Waiting for Quotes')).toBeTruthy();
+  expect(await screen.findByText('No quotes yet')).toBeTruthy();
   expect(screen.queryByText('⏳')).toBeNull();
   expect(screen.getByTestId('waiting-quotes-vector-icon')).toBeTruthy();
 });

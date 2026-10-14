@@ -49,6 +49,8 @@ jest.mock('@/services/provider-api.service', () => ({
 
 import ProviderDashboardScreen from '../app/(provider-tabs)/dashboard';
 
+// D38 Milestone 2 (P5b): the job-request entry is now the Requests card
+// (counts from the request summary), and it opens the Requests tab.
 it('Bug UX-354 — the provider dashboard follows the Stitch operational hierarchy with identity, job-request entry, and an explicit job action', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(
@@ -59,10 +61,10 @@ it('Bug UX-354 — the provider dashboard follows the Stitch operational hierarc
 
   await waitFor(() => expect(screen.getByText('Hello, Roberto')).toBeTruthy());
   expect(screen.getByLabelText('Provider account Roberto')).toBeTruthy();
-  const requests = screen.getByRole('button', { name: 'Open job requests' });
-  expect(requests.textContent).toContain('Browse open custom-quote requests');
+  const requests = screen.getByRole('button', { name: 'Open requests' });
+  expect(requests.textContent).toContain('Requests');
   expect(screen.getByRole('button', { name: 'View Plumbing job' }).textContent).toContain('View');
 
   fireEvent.click(requests);
-  expect(mockPush).toHaveBeenCalled();
+  expect(mockPush).toHaveBeenCalledWith('/(provider-tabs)/requests');
 });

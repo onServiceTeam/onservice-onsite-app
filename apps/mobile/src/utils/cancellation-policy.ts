@@ -67,3 +67,26 @@ export function policyToHelpAnswer(policy: CancellationPolicy): string {
   }
   return sentences.join(' ');
 }
+
+export interface CancellationConfirmSummary {
+  /** The policy's own introduction, written in the admin policy editor. */
+  intro: string;
+  /** The label of the link to the full policy (customer Terms screen). */
+  linkLabel: string;
+}
+
+/**
+ * D38 Milestone 2 (package P5b): the cancellation summary on the confirm
+ * booking screen. While E09 is open (the display policy here is not the
+ * source of the live refund math, see the header of this file), the confirm
+ * screen shows the policy's introduction and a link to the full policy, and
+ * no percentages: a percentage shown at the moment of confirming could
+ * differ from what the cancellation step actually refunds (merged plan
+ * question 3, default "intro text plus a link").
+ */
+export function policyToConfirmSummary(policy: CancellationPolicy): CancellationConfirmSummary {
+  const intro = typeof policy.intro_text === 'string' && policy.intro_text.trim()
+    ? policy.intro_text.trim()
+    : 'Cancellation terms apply once you confirm.';
+  return { intro, linkLabel: 'Read the full cancellation policy' };
+}

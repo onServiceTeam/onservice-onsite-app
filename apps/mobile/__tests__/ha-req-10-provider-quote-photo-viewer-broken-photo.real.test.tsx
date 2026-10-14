@@ -3,6 +3,10 @@
 // LazyImage remembers a load failure in its own state. The viewer used one
 // LazyImage for every photo, so after one broken photo, Previous and Next
 // showed the "image unavailable" placeholder for photos that load fine.
+//
+// D38 Milestone 2 (package P5b): the photos come from the request media list
+// (GET /api/v1/job-media/booking/:id, legacyPhotos for apps older than 1.0.4)
+// and the viewer opens from "View photos full screen" at the first photo.
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -43,14 +47,26 @@ jest.mock('expo-router', () => ({
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 390, breakpoint: 'phone', isPhone: true, isTablet: false, isDesktop: false }),
 }));
-jest.mock('@/services/booking.service', () => ({
+jest.mock('@/services/request.service', () => ({
+  ...jest.requireActual('@/services/request.service'),
   getProviderJobRequest: jest.fn().mockImplementation(async () => mockRequest),
   submitQuote: jest.fn(),
+  getBookingQuotes: jest.fn().mockResolvedValue([]),
 }));
 jest.mock('@/services/provider-crm.service', () => ({ listTemplates: jest.fn().mockResolvedValue([]) }));
 jest.mock('@/services/api', () => ({
   __esModule: true,
-  default: { get: jest.fn().mockResolvedValue({ data: { data: { tier: 'new', commissionRate: 0.15 } } }) },
+  default: {
+    get: jest.fn().mockImplementation(async (url: string) => {
+      if (url === '/api/v1/job-media/booking/booking-1') {
+        return { data: { success: true, data: { items: [], legacyPhotos: [
+          'https://app.onservice.ph/uploads/job-request/deleted.jpg',
+          'https://app.onservice.ph/uploads/job-request/two.jpg',
+        ] } } };
+      }
+      return { data: { data: { tier: 'new', commissionRate: 0.15 } } };
+    }),
+  },
 }));
 
 import QuoteBuilderScreen from '../app/provider/job/[id]/quote';
@@ -59,7 +75,7 @@ it('HA-REQ-10: after a broken photo in the viewer, Next still shows the next pho
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><QuoteBuilderScreen /></QueryClientProvider>);
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Open customer photo 1 of 2' }));
+  fireEvent.click(await screen.findByRole('button', { name: "View the customer's photos full screen, 2 photos" }));
   expect(screen.getByText('Photo 1 of 2')).toBeTruthy();
   // The broken photo shows the placeholder, which has no image inside it.
   expect(screen.getByLabelText('Customer photo 1, full screen').querySelector('Image')).toBeNull();

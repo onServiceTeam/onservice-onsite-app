@@ -10,13 +10,16 @@ jest.mock('expo-router', () => ({
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),
 }));
-jest.mock('@/services/booking.service', () => ({
+// D38 Milestone 2 (P5b): the lead detail is read through request.service.
+jest.mock('@/services/request.service', () => ({
+  ...jest.requireActual('@/services/request.service'),
   getProviderJobRequest: jest.fn().mockResolvedValue({
     id: 'booking-1', categoryId: 'category-aircon', subcategoryId: 'subcategory-aircon',
     serviceName: 'Aircon repair', description: 'Aircon is not cooling', urgency: null,
     budgetMin: null, budgetMax: null, jobPhotos: [], intakeAnswers: null,
   }),
   submitQuote: jest.fn(),
+  getBookingQuotes: jest.fn().mockResolvedValue([]),
 }));
 jest.mock('@/services/provider-crm.service', () => ({
   listTemplates: jest.fn().mockResolvedValue([
@@ -33,7 +36,10 @@ it('Bug UX-283 — quote builder offers only all-service or matching catalog tem
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><QuoteBuilderScreen /></QueryClientProvider>);
 
-  fireEvent.click(await screen.findByText('Use template'));
+  // D38 Milestone 2 (P5b): templates fill line items, which sit behind the
+  // optional itemized breakdown.
+  fireEvent.click(await screen.findByRole('switch', { name: 'Add an itemized breakdown' }));
+  fireEvent.click(screen.getByText('Use template'));
   expect(await screen.findByText('General Template')).toBeTruthy();
   expect(screen.getByText('Aircon Template')).toBeTruthy();
   expect(screen.queryByText('Plumbing Template')).toBeNull();

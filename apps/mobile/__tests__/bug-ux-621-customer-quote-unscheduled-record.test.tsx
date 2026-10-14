@@ -27,10 +27,14 @@ jest.mock('@/services/booking-proof.service', () => ({ getBookingProofSummary: j
 
 import BookingDetailScreen from '../app/customer/booking/[id]';
 
+// D38 Milestone 2 (P5b): the pending schedule now reads "To be agreed with
+// the pro" (the pro proposes the earliest slot in their quote), and an open
+// request offers its request status screen; "View Quotes" appears once a pro
+// has quoted (status 'quoted').
 it('Bug UX-621 — an unscheduled quote request renders its pending schedule instead of crashing', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><BookingDetailScreen /></QueryClientProvider>);
 
-  expect(await screen.findByText('To be agreed after you accept a quote')).toBeTruthy();
-  expect(screen.getByText('View Quotes')).toBeTruthy();
+  expect(await screen.findByText('To be agreed with the pro')).toBeTruthy();
+  expect(screen.getByText('Request status')).toBeTruthy();
 });
