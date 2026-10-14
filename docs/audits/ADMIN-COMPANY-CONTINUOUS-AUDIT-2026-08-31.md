@@ -4785,3 +4785,39 @@ real MemoryRouter history transition and asserts the recovered query is shown
 in the actual textbox. No account, booking, invoice, payment, provider,
 customer, database, GitHub, master, or production record changed. E32, E67,
 E68, E71, E72, E73, and E74 remain in force.
+
+## Privacy Workspace command and evidence re-audit (recovered 2026-10-14)
+
+Recorded on 2026-09-02 as "Checkpoint AF" in a local commit (15e4c278) that was never pushed; the AF label was later used for the financial checkpoint above, so this section is filed here under its own heading. The code it describes (commit `a102f4b`) is in the live line.
+
+The routed DPO home at `/privacy` was absent from the page-by-page ledger even
+though it is the only default home for a DPO account. Reopening the screen and
+its DSR and consent-read APIs found three operator-truth defects:
+
+- the **due within 2 days** total included every overdue request, while the
+  adjacent overdue total counted those same cases again;
+- an unavailable DSR source displayed two zeroes before showing its error,
+  creating a false clear-workload signal; and
+- exact-user consent history discarded the API total and always requested
+  offset zero, silently hiding every row after the first 100.
+
+UX-1033 now keeps upcoming and overdue workloads mutually exclusive and gives
+each card a direct queue exit, including `overdueOnly=true` for the exception
+queue. UX-1034 renders unavailable counts when the source fails. UX-1035
+validates the exact subject UUID before sending the sensitive, self-audited
+lookup and adds deterministic 100-row previous/next controls with the complete
+server total.
+
+Commit `a102f4b` passes GitHub CI `33651356011` and Gates `33651355988`.
+The clean runner passed Admin TypeScript, the production Admin build, the full
+rendered Admin suite, API and Mobile checks/tests, API image build/liveness, and
+all five repository gates. Local syntax and diff checks passed. Local Vitest,
+Admin TypeScript, and ESLint failed before target loading because OneDrive
+denied dependency/config reads or the Vitest global type file was absent; those
+attempts are not counted as code results.
+
+This checkpoint changes only DPO read presentation and navigation. It does not
+publish a consent document, record an acknowledgement, change a DSR, rewrite
+history, add a migration, merge master, deploy, synchronize a server, or touch
+production. The separate consent-publication boundary remains held, and the
+updated DPO home still needs fresh authenticated tablet/desktop visual evidence.
