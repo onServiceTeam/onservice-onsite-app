@@ -13,7 +13,9 @@ vi.mock('@/lib/api', () => ({
 import { EvidenceTab } from '../BookingDetailPage';
 
 it('Bug UX-308 — Booking 360 renders checklist, provenance, signature caveat, blockers, and unavailable proof fields', async () => {
-  get.mockResolvedValueOnce({
+  // The Evidence tab also loads the private request media panel (D38, HA-M2),
+  // so each read is answered by its URL instead of by call order.
+  const proofSummaryResponse = {
     data: {
       success: true,
       data: {
@@ -95,6 +97,13 @@ it('Bug UX-308 — Booking 360 renders checklist, provenance, signature caveat, 
         ],
       },
     },
+  };
+  get.mockImplementation(async (url: string) => {
+    if (url === '/api/v1/admin/bookings/booking-1/proof-summary') return proofSummaryResponse;
+    if (url === '/api/v1/job-media/booking/booking-1') {
+      return { data: { success: true, data: { items: [], legacyPhotos: [] } } };
+    }
+    throw new Error(`Unexpected request: ${url}`);
   });
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

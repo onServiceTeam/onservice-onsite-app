@@ -2,7 +2,11 @@
 // Phase 14 remediation — audited (D14r-9 markers pass)
  * Phase 07 — Booking 360 admin page.
  *
- * 5 tabs: Overview, Timeline, Evidence, Money, Audit.
+ * 6 tabs: Overview, Timeline, Evidence, Quotes, Money, Audit.
+ * D38 (Milestone 2, P6-M2): Evidence opens with the private request media
+ * panel (components/booking/JobMediaPanel.tsx); Quotes shows each quote's
+ * offered date and window, "could change if", round, and the customer's
+ * decline reason when the API sends one.
  * Provides super-admin actions: manual escrow release, refund, reassign,
  * cancel, force-complete. Mirrors the structure of CustomerDetailPage.tsx
  * (Phase 06).
@@ -46,6 +50,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import KpiCard from '@/components/ui/KpiCard';
 import { Textarea } from '@/components/ui/Textarea';
 import { useConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import { JobMediaPanel } from '@/components/booking/JobMediaPanel';
 import { useAuthStore } from '@/stores/auth.store';
 import { toast } from 'sonner';
 
@@ -1461,7 +1466,21 @@ function proofStageLabel(stage: string): string {
   return stage.replaceAll('_', ' ');
 }
 
+/**
+ * D38 (Milestone 2, P6-M2): the customer's private request media sits at the
+ * top of the Evidence tab and loads on its own, so a proof-summary outage
+ * never hides it (and the reverse).
+ */
 export function EvidenceTab({ bookingId }: { bookingId: string }): React.ReactElement {
+  return (
+    <div className="space-y-4">
+      <JobMediaPanel bookingId={bookingId} />
+      <ProofEvidence bookingId={bookingId} />
+    </div>
+  );
+}
+
+function ProofEvidence({ bookingId }: { bookingId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-booking-evidence', bookingId],
     queryFn: async () => {
@@ -2067,6 +2086,17 @@ interface AdminQuote {
   expiresAt: string | null;
   createdAt: string;
   lineItems: AdminQuoteLineItem[];
+  // D38 (Milestone 2), from bookingService.getBookingQuotes. Optional: quotes
+  // sent before D38 have no slot. The admin quotes route asks for
+  // includeDeclineReason, so declineReason is set (a reason code) on declined
+  // quotes and null otherwise; older API builds omit it. The customer's
+  // free-text decline note is never sent.
+  couldChangeIf?: string | null;
+  earliestDate?: string | null;
+  earliestTimeWindow?: string | null;
+  acceptedCustomerBudget?: boolean;
+  round?: number | null;
+  declineReason?: string | null;
 }
 interface AdminChangeOrder {
   id: string;
@@ -2080,7 +2110,54 @@ interface AdminChangeOrder {
   createdAt: string;
 }
 
-function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
+// Window hours mirror packages/api/src/services/booking/quote-slot.ts
+// QUOTE_WINDOW_HOURS (local Manila time). Display only.
+const QUOTE_WINDOW_LABELS: Record<string, string> = {
+  morning: 'Morning (8 AM to 12 PM)',
+  afternoon: 'Afternoon (12 PM to 5 PM)',
+  evening: 'Evening (5 PM to 9 PM)',
+  asap: 'As soon as possible, same day (by 9 PM)',
+};
+
+// Customer decline reasons (migration 183), worded as the provider sees them
+// (job-leads.service.ts DECLINE_REASON_LABELS).
+const QUOTE_DECLINE_REASON_LABELS: Record<string, string> = {
+  too_expensive: 'Price too high',
+  timing: 'Timing did not work',
+  changed_mind: 'Customer changed their mind',
+  other: 'Other reason',
+};
+
+/** "Wed, Oct 15, 2026" for a YYYY-MM-DD Manila calendar date. */
+function fmtQuoteDate(date: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  // Noon Manila keeps the calendar day whatever the viewer's own time zone is.
+  const parsed = new Date(`${date}T12:00:00+08:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString('en-PH', {
+    timeZone: 'Asia/Manila',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function quoteSlotText(quote: AdminQuote): string {
+  if (!quote.earliestDate) {
+    return 'No date offered. This quote was sent before providers chose a date and time window.';
+  }
+  const windowLabel = quote.earliestTimeWindow
+    ? QUOTE_WINDOW_LABELS[quote.earliestTimeWindow] ?? proofStageLabel(quote.earliestTimeWindow)
+    : 'no time window recorded';
+  return `${fmtQuoteDate(quote.earliestDate)}, ${windowLabel}`;
+}
+
+function quoteDeclineReasonText(reason: string): string {
+  return QUOTE_DECLINE_REASON_LABELS[reason] ?? proofStageLabel(reason);
+}
+
+export function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
   const q = useQuery({
     queryKey: ['admin-booking-quotes', bookingId],
     queryFn: async () => {
@@ -2127,7 +2204,10 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                       </span>
                     ) : null}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {quote.acceptedCustomerBudget ? (
+                      <Badge label="Accepted the customer's budget" variant="outline" />
+                    ) : null}
                     <Badge
                       label={quote.status}
                       variant={
@@ -2135,7 +2215,9 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                           ? 'success'
                           : quote.status === 'declined'
                             ? 'danger'
-                            : 'info'
+                            : quote.status === 'expired' || quote.status === 'withdrawn'
+                              ? 'warning'
+                              : 'info'
                       }
                     />
                     <span className="text-sm font-semibold text-[var(--color-text)]">
@@ -2148,6 +2230,30 @@ function QuotesTab({ bookingId }: { bookingId: string }): React.ReactElement {
                   <span>Materials {fmtCentavos(quote.materialsAmount)}</span>
                   {quote.estimatedDays != null ? <span>{quote.estimatedDays} day(s)</span> : null}
                 </div>
+                <dl className="mt-3 grid grid-cols-1 gap-2 rounded-md bg-[var(--color-surface-hover)] p-3 text-xs sm:grid-cols-2">
+                  <div>
+                    <dt className="text-[var(--color-text-tertiary)]">Earliest start offered</dt>
+                    <dd className="mt-0.5 text-[var(--color-text)]">{quoteSlotText(quote)}</dd>
+                  </div>
+                  {quote.round != null ? (
+                    <div>
+                      <dt className="text-[var(--color-text-tertiary)]">Request round</dt>
+                      <dd className="mt-0.5 text-[var(--color-text)]">Round {quote.round}</dd>
+                    </div>
+                  ) : null}
+                  {quote.couldChangeIf ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-[var(--color-text-tertiary)]">Could change if</dt>
+                      <dd className="mt-0.5 text-[var(--color-text)]">{quote.couldChangeIf}</dd>
+                    </div>
+                  ) : null}
+                  {quote.declineReason ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-[var(--color-text-tertiary)]">Customer&apos;s decline reason</dt>
+                      <dd className="mt-0.5 text-[var(--color-text)]">{quoteDeclineReasonText(quote.declineReason)}</dd>
+                    </div>
+                  ) : null}
+                </dl>
                 {quote.description ? (
                   <p className="text-sm text-[var(--color-text-secondary)] mt-2">
                     {quote.description}

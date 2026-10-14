@@ -90,6 +90,9 @@ const ACTION_LABELS: Record<string, string> = {
   dsr_rejected: 'Data subject request rejected',
   dsr_review_started: 'Data subject request review started',
   feedback_submission_updated: 'Tester feedback triage updated',
+  // D38 (migration 184): an admin opened private request or thread media (photos,
+  // video, voice). Target is the booking; details list the media ids.
+  job_media_viewed: 'Private job media viewed',
   message_flag_reviewed: 'Reported message reviewed',
   message_redacted: 'Message redacted',
   or_cancelled: 'Official receipt cancelled',
