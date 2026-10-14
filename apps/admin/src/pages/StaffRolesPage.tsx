@@ -515,6 +515,15 @@ function RolesTab(): React.ReactElement {
 
 // ─── Staff Tab ──────────────────────────────────────────────────────
 
+// R-ADM-11: a failed read is unknown and a read still in progress (first load,
+// or Retry after a failure) is not known yet. Neither is an empty company, so
+// neither shows 0. Mirrors queueSignalValue on the Customers page.
+function directorySummaryValue(isError: boolean, isPending: boolean, value: number | undefined): number | string {
+  if (isError) return 'Unavailable';
+  if (isPending) return 'Loading…';
+  return value ?? 0;
+}
+
 function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: number) => void }): React.ReactElement {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -552,6 +561,7 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
   const {
     data,
     isLoading,
+    isPending: isStaffPending,
     isError,
     refetch: refetchStaff,
     dataUpdatedAt: staffUpdatedAt,
@@ -709,11 +719,12 @@ function StaffTab({ page, onPageChange }: { page: number; onPageChange: (page: n
         <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 sm:col-span-2 xl:col-span-4">
           Company-wide counts. Search and filters below change the directory results, not these totals.
         </p>
+        {/* R-ADM-11: a failed directory read is unknown, not an empty company. */}
         {[
-          ['Directory profiles', data?.meta?.summary?.totalProfiles ?? data?.meta?.total ?? 0],
-          ['Active profiles', data?.meta?.summary?.activeProfiles ?? 0],
-          ['Admin-tier accounts', data?.meta?.summary?.totalAdminAccounts ?? 0],
-          ['Accounts missing profiles', data?.meta?.summary?.unprofiledAdminAccounts ?? 0],
+          ['Directory profiles', directorySummaryValue(isError, isStaffPending, data?.meta?.summary?.totalProfiles ?? data?.meta?.total)],
+          ['Active profiles', directorySummaryValue(isError, isStaffPending, data?.meta?.summary?.activeProfiles)],
+          ['Admin-tier accounts', directorySummaryValue(isError, isStaffPending, data?.meta?.summary?.totalAdminAccounts)],
+          ['Accounts missing profiles', directorySummaryValue(isError, isStaffPending, data?.meta?.summary?.unprofiledAdminAccounts)],
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg border border-[var(--color-border)] bg-white p-4">
             <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-tertiary)]">{label}</p>

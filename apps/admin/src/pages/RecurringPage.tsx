@@ -432,7 +432,8 @@ export default function RecurringPage(): React.ReactElement {
         <p className="mt-3 text-xs text-[var(--color-text-secondary)]">Filters apply to the full server queue. The selected series remains in the URL for an exact support handoff.</p>
       </section>
 
-      {listQuery.data ? (
+      {/* R-ADM-11: a failed reload keeps old data in the cache; old counts must not look current. */}
+      {listQuery.data && !listQuery.isError ? (
         <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Recurring booking operations summary">
           <Metric label="Matching series" value={listSummary.matchingSeries} />
           <Metric label="Active series" value={listSummary.activeSeries} />
@@ -503,7 +504,8 @@ export default function RecurringPage(): React.ReactElement {
         </section>
       ) : null}
 
-      {listQuery.data && listQuery.data.pagination.totalPages > 1 ? <div className="mt-4"><Pagination page={listQuery.data.pagination.page} totalPages={listQuery.data.pagination.totalPages} total={listQuery.data.pagination.total} pageSize={listQuery.data.pagination.pageSize} onPageChange={(nextPage) => updateParams({ page: nextPage <= 1 ? '' : String(nextPage) })} /></div> : null}
+      {/* R-ADM-11: the same failed reload must not leave the old result total showing either. */}
+      {listQuery.data && !listQuery.isError && listQuery.data.pagination.totalPages > 1 ? <div className="mt-4"><Pagination page={listQuery.data.pagination.page} totalPages={listQuery.data.pagination.totalPages} total={listQuery.data.pagination.total} pageSize={listQuery.data.pagination.pageSize} onPageChange={(nextPage) => updateParams({ page: nextPage <= 1 ? '' : String(nextPage) })} /></div> : null}
 
       {cancelTarget ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
