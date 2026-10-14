@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/format';
 import { useAdminSocketEvent } from '@/lib/use-admin-socket';
+import { useAuthStore } from '@/stores/auth.store';
 import {
   KpiCard,
   Button,
@@ -241,7 +242,14 @@ export default function DashboardPage(): React.ReactElement {
   });
 
   // Phase 11: prepend overdue/near-due DSRs as alert rows (compliance dashboard wiring).
+  // R-ADM-01 / D34: the server only lets super_admin and dpo read privacy
+  // records (requireDpoRole). A plain admin never asks, so the refusal is not
+  // shown as a broken source.
+  const canReadPrivacyDeadlines = useAuthStore(
+    (state) => state.user?.role === 'super_admin' || state.user?.role === 'dpo',
+  );
   const dsrAlerts = useQuery({
+    enabled: canReadPrivacyDeadlines,
     queryKey: ['dashboard-dsr-alerts'],
     queryFn: () => fetchJson<
       Array<{
@@ -320,7 +328,8 @@ export default function DashboardPage(): React.ReactElement {
     void bookingVolume.refetch();
     void funnel.refetch();
     void alerts.refetch();
-    void dsrAlerts.refetch();
+    // refetch() ignores `enabled`, so guard it here too.
+    if (canReadPrivacyDeadlines) void dsrAlerts.refetch();
     void cities.refetch();
     void qualityWatch.refetch();
     void marketplaceSummary.refetch();
