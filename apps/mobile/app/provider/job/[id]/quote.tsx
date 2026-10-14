@@ -885,7 +885,9 @@ export default function QuoteBuilderScreen(): React.ReactElement {
       </View>
 
       <View style={styles.totalBox}>
-        <Text style={styles.totalLabel}>Your quote (customer pays this plus the service fee)</Text>
+        {/* The customer service fee is 0 today (Ken, 2026-06-28); the customer's
+            confirm screen shows any fee from the server, so never promise one here. */}
+        <Text style={styles.totalLabel}>Your quote (the price the customer sees)</Text>
         <Text style={styles.totalValue}>{formatPHP(totalAmount)}</Text>
         {totalAmount > 0 && commissionRate != null && commissionAmount != null && providerTier && (
           <View style={styles.commissionRow}>

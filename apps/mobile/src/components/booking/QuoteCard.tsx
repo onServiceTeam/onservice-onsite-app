@@ -91,7 +91,9 @@ export function QuoteCard({ quote, onAccept, onDecline, onMessage, busy = false,
             {comparison}
           </Text>
         ) : null}
-        <Text style={styles.feeNote}>A service fee is added on the next screen before you confirm.</Text>
+        {/* The customer service fee is 0 today (Ken, 2026-06-28), so never
+            promise a fee here; the confirm screen shows the server's exact total. */}
+        <Text style={styles.feeNote}>You see the exact total on the next screen before you confirm.</Text>
       </View>
 
       <View style={styles.section}>
