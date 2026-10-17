@@ -24,12 +24,21 @@ and are kept as written, with the lines this update replaces marked)
   repair items come after the customer side unless Ken says otherwise.
 - P0 (house logo) landed on master: 370e17e3, 07a5cfd8, acea7354, 66f79967
   (LAUNCH-LIMITATIONS sections 137 and 138). Verified locally; not Deployed.
-- P1 (Google address search, server) and P2 (privacy and money-safety
-  switches) are being built by helper agents in two extra git worktrees
-  outside OneDrive (branches claude/geo-address-search and
-  claude/p2-privacy-money-switches). Only this session commits; their work
-  is merged onto master when verified. Both were cut before section 137 and
-  138 existed, so their LAUNCH-LIMITATIONS sections get renumbered on merge.
+- P2 (privacy and money-safety switches) landed in 71a2d4bd and its SERVER
+  PART IS LIVE (API only, 2026-10-17 22:49 UTC), on Ken's explicit request,
+  as an exception to the one-release plan (LAUNCH-LIMITATIONS section 139).
+  First real run of scripts/release/deploy-tester-release.sh: clean.
+- P1 (Google address search, server) landed in 3d33fd5a (section 140). Not
+  deployed; it stays off until Ken's Google billing and server key exist.
+- P3 (new look foundation and a 3-screen preview for Ken) is being built in
+  an extra worktree outside OneDrive (branch claude/p3-look-foundation). It
+  is not committed until Ken approves the preview.
+
+WHERE THINGS ARE (2026-10-18; replaces the 2026-10-17 lines below)
+- master on GitHub: 3d33fd5a (plus this record).
+- Tester server: API and live checkout at 71a2d4bd (migrations 176, through
+  188). The customer/provider website, the admin website and the APK
+  (1.0.5 build 6) are still the 8d319a18 builds.
 - The two 2026-10-17 private notes listed under OUTSTANDING OPERATIONS as
   "NOT done" were copied into the main checkout's private records on
   2026-10-17 and compared by hash.

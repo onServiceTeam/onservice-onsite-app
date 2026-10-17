@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-16
 **Raised by:** AI coder, from UX-tester feedback (Jenico Polo De Leon, 2026-06-16)
-**Status:** OPEN — needs Ken. Not blocking; a partial fix already shipped.
+**Status:** DECIDED (Ken, 2026-10-18): Option A, Google Places and Geocoding through our server (D41 Q16 and Ken's chat answer, recorded in `.ai-coder/decisions/D41-customer-review-2026-10-18.md`). The server side is built and on master (3d33fd5a, LAUNCH-LIMITATIONS section 140), not yet deployed; it stays switched off until Ken turns on billing in Google Cloud and the server key is set (`docs/runbooks/google-address-search.md`). The app side is part of the customer build program (slice P5c). The original text below is kept as written.
+
+*Original status line:* OPEN — needs Ken. Not blocking; a partial fix already shipped.
 **Severity:** Medium (UX quality on the core booking step). Not a launch blocker
 on its own, but the address step is the weakest-rated part of booking (tester
 scored "address on map was easy" 2/5).
