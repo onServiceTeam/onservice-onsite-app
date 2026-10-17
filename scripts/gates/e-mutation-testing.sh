@@ -11,14 +11,23 @@ set -euo pipefail
 
 GATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Honor the gate's tier from MODES.json (gate_e_state). REPORT mode means
-# the CI job passes regardless of the underlying check — Stryker baseline
-# work is owned by D12. BLOCKING mode means the script enforces strictly.
+# Honor the gate's tier from MODES.json (gate_e_state). In REPORT mode this
+# script runs no mutation testing and exits 0, so the CI job shows success
+# without checking anything. Since 2026-10-14 (D40) it says so plainly: a
+# "NOT RUN" line, a GitHub warning annotation and a job-summary line. The
+# mode itself is unchanged. BLOCKING mode means the script enforces strictly.
+# Self-test: scripts/gates/__tests__/gate-d-e-report-not-run.test.sh.
 mode=$(bash "$GATES_DIR/mode-lookup.sh" gate_e_state state 2>/dev/null || echo "BLOCKING")
 if [ "$mode" = "REPORT" ]; then
-  echo "Gate E: REPORT mode (per scripts/gates/MODES.json gate_e_state)."
-  echo "        Mutation testing is owned by D12; the gate is observational"
-  echo "        until then. Exit 0 to keep the CI job green."
+  echo "Gate E NOT RUN: report mode (MODES.json)"
+  echo "        gate_e_state.mode is REPORT, so Stryker did not run and no mutation"
+  echo "        score was measured. A green Gate E job is not evidence of mutation testing."
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "::warning title=Gate E NOT RUN::report mode (MODES.json gate_e_state). No mutation testing ran."
+  fi
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo "**Gate E NOT RUN:** report mode (MODES.json gate_e_state). No mutation testing ran." >> "$GITHUB_STEP_SUMMARY"
+  fi
   exit 0
 fi
 

@@ -125,3 +125,7 @@ docs/qa/ux-testing/feedback-v2.previous/
 
 # timestamped backups made during the 2026-08 server consolidation
 *.bak-*
+
+# Python byte-code caches written when the Gate C scripts run (D40)
+__pycache__/
+*.pyc

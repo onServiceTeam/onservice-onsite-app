@@ -17,15 +17,23 @@ set -euo pipefail
 
 GATES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Honor the gate's tier from MODES.json (gate_d_state). REPORT mode means
-# the CI job passes regardless of maestro/playwright availability — baseline
-# capture is operator/contractor work per the F3 + F4 handoff docs.
+# Honor the gate's tier from MODES.json (gate_d_state). In REPORT mode this
+# script compares no screenshots and exits 0, so the CI job shows success
+# without checking anything. Since 2026-10-14 (D40) it says so plainly: a
+# "NOT RUN" line, a GitHub warning annotation and a job-summary line. The
+# mode itself is unchanged. Promoting Gate D to BLOCKING is Ken's decision.
+# Self-test: scripts/gates/__tests__/gate-d-e-report-not-run.test.sh.
 mode=$(bash "$GATES_DIR/mode-lookup.sh" gate_d_state state 2>/dev/null || echo "BLOCKING")
 if [ "$mode" = "REPORT" ]; then
-  echo "Gate D: REPORT mode (per scripts/gates/MODES.json gate_d_state)."
-  echo "        Visual baseline capture is owned by R3/R4 handoff docs;"
-  echo "        the gate is observational until baselines land + the gate"
-  echo "        is promoted to BLOCKING."
+  echo "Gate D NOT RUN: report mode (MODES.json)"
+  echo "        gate_d_state.mode is REPORT, so no Playwright or Maestro screenshot"
+  echo "        was compared. A green Gate D job is not evidence of visual checks."
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "::warning title=Gate D NOT RUN::report mode (MODES.json gate_d_state). No screenshots were compared."
+  fi
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo "**Gate D NOT RUN:** report mode (MODES.json gate_d_state). No screenshots were compared." >> "$GITHUB_STEP_SUMMARY"
+  fi
   exit 0
 fi
 

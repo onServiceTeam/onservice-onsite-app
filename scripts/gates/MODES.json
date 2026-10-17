@@ -1,69 +1,96 @@
 {
   "_about": "Per-fragment / per-article mode declaration. The gate aggregators (run-gate-a.sh, c-constitution.sh) read this file to decide whether a failing fragment fails the gate (BLOCKING) or only logs (REPORT). Modes change as their owning dispatch lands. See scripts/gates/EXPECTED-FAILURES.md for the human-readable timeline and .ai-coder/governance/GATE-AMENDMENTS.md for the amendment process. This file is the machine-readable source of truth.",
   "_schema_version": 1,
-  "_updated_by_dispatch": "CONTINUOUS-AUDIT-2026-09-04",
-  "_updated_at_commit": "unique regression ID guard",
+  "_updated_by_dispatch": "D40",
+  "_updated_at_commit": "2026-10-14: no-fake-tests article, approved_by and reviewed_on fields, dated corrections to the Gate D and Gate E notes. 2026-10-17: no-admin-password-seeds article wired in; db-tests-fail-closed article added; no-fake-tests and a-cross-source-hashes-immutable tightened after an agent review; approved_by on the three D40 Gate C articles corrected (Ken has not approved or reviewed them); dated correction on unique-regression-ids",
+  "_fields": {
+    "mode": "BLOCKING or REPORT. Any other value, or a missing entry, is read as BLOCKING (fail closed, get-mode.py).",
+    "approved_by": "Who approved the current mode, as found in the repo history. 'unknown before 2026-10-14' means no record was found when these fields were added. An entry that names Claude means Claude applied the change under the D40 gate-change rule, which Ken has not confirmed yet (conflict C10); it is not Ken's approval.",
+    "reviewed_on": "When an approver last reviewed the current mode. 'unknown before 2026-10-14' means no record was found when these fields were added.",
+    "readers": "get-mode.py reads only the mode field of an entry and ignores every other field. gates.yml reads .gate_d_state.mode and .gate_e_state.mode with jq. Extra fields are safe; scripts/gates/__tests__/gate-modes-extra-fields.test.sh checks this.",
+    "enforcement": "This file is read from the commit being tested, so a commit can change its own gate modes. GitHub branch protection is off (Ken, D40, 2026-10-14), so nothing outside this repo stops that. Moving any entry from BLOCKING to REPORT is loosening and needs Ken's yes first (.ai-coder/governance/GATE-AMENDMENTS.md)."
+  },
 
   "gate_a_fragments": {
     "a-cross-source-cancellation-policy": {
       "mode": "BLOCKING",
       "owning_dispatch": "D02",
       "promoted_in": "D02",
-      "rationale": "The gate prevents customer display-tier drift across clients. E09 freezes both the display-policy editor and the separate live refund-setting controls; this gate does not certify that the two money-policy sources are unified."
+      "rationale": "The gate prevents customer display-tier drift across clients. E09 freezes both the display-policy editor and the separate live refund-setting controls; this gate does not certify that the two money-policy sources are unified.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-brand-color": {
       "mode": "BLOCKING",
       "owning_dispatch": "D02",
       "promoted_in": "D02",
-      "rationale": "Bug UX-018 supersedes Bug 1324; mobile theme.ts uses canonical Stitch primary #003D9B."
+      "rationale": "Bug UX-018 supersedes Bug 1324; mobile theme.ts uses canonical Stitch primary #003D9B.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-routes": {
       "mode": "BLOCKING",
       "owning_dispatch": "D02",
       "promoted_in": "D02",
-      "rationale": "Bug 1185 (static paths) fixed in D02 Part 4. Backtick template-string router calls deferred to D12 per LAUNCH-LIMITATIONS §routes-registry-template-strings."
+      "rationale": "Bug 1185 (static paths) fixed in D02 Part 4. Backtick template-string router calls deferred to D12 per LAUNCH-LIMITATIONS §routes-registry-template-strings.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-tier-criteria": {
       "mode": "BLOCKING",
       "owning_dispatch": "D02",
       "promoted_in": "D02",
-      "rationale": "Bug 1323 fixed; founding tier criteria server-canonical."
+      "rationale": "Bug 1323 fixed; founding tier criteria server-canonical.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-no-axios": {
       "mode": "BLOCKING",
       "owning_dispatch": "D01+D02",
       "promoted_in": "D02",
-      "rationale": "Bug 1271 fixed for clients (admin in D01, mobile in D02 Part 5). Scope: apps/ only — server outbound axios excluded by design."
+      "rationale": "Bug 1271 fixed for clients (admin in D01, mobile in D02 Part 5). Scope: apps/ only — server outbound axios excluded by design.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-no-emoji-icons": {
       "mode": "BLOCKING",
       "owning_dispatch": "D12",
       "promoted_in": "UX-AUDIT-2026-08-23",
-      "rationale": "Promoted after the 2026-08-23 UX audit replaced the remaining production emoji iconography with the central vector icon set and the corrected scanner reported zero violations. Future regressions now block CI."
+      "rationale": "Promoted after the 2026-08-23 UX audit replaced the remaining production emoji iconography with the central vector icon set and the corrected scanner reported zero violations. Future regressions now block CI.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-no-google-maps-placeholder": {
       "mode": "BLOCKING",
       "owning_dispatch": "D01",
       "promoted_in": "D01",
-      "rationale": "Bug 1286 fixed in D01."
+      "rationale": "Bug 1286 fixed in D01.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-hashes-immutable": {
       "mode": "BLOCKING",
       "owning_dispatch": "D03",
       "promoted_in": "D03",
-      "rationale": "Preventive: HASHES-CORRECTED.sha256 files (when added) must not be modified. Currently no such files exist; gate is vacuously passing but locks the rule in."
+      "rationale": "Preventive: HASHES-CORRECTED.sha256 files (when added) must not be modified. Currently no such files exist; gate is vacuously passing but locks the rule in. Tightened 2026-10-17 (D40, agent review): until then a comparison base (BASE_REF) that was not in the checkout made the check print OK having compared nothing. Since 2026-10-14 a push to master uses the previous master commit as the base, which a force-push can make unreachable. Now a missing base, or any git diff error, fails with NOT CHECKED. Self-test: scripts/gates/__tests__/gate-a-hashes-immutable-base.test.sh. The mode itself did not change.",
+      "approved_by": "unknown before 2026-10-14 (the 2026-10-17 tightening: Claude, under the D40 tightening rule (C10, pending Ken's confirmation); not approved or reviewed by Ken)",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-no-client-money": {
       "mode": "BLOCKING",
       "owning_dispatch": "D05",
       "promoted_in": "D05",
-      "rationale": "Promoted to BLOCKING in D05 (2026-04-30). Bug 175/176/208/1132/261/266/269/320/322/417/1219/1230 closed: every customer-facing validator now uses the server-canonical pattern (clients send IDs and quantities; server resolves prices from DB). Allowed exceptions are documented inline with `// gate-a-allowed:` markers (e.g., admin-defines-promo-value in createPromoCodeSchema) and at the schema-name level (adminWalletAdjustmentSchema, createAddonSchema/updateAddonSchema). Any future PR that introduces `servicePrice: z.number()` (or similar money-from-client) in a Zod validator fails this gate."
+      "rationale": "Promoted to BLOCKING in D05 (2026-04-30). Bug 175/176/208/1132/261/266/269/320/322/417/1219/1230 closed: every customer-facing validator now uses the server-canonical pattern (clients send IDs and quantities; server resolves prices from DB). Allowed exceptions are documented inline with `// gate-a-allowed:` markers (e.g., admin-defines-promo-value in createPromoCodeSchema) and at the schema-name level (adminWalletAdjustmentSchema, createAddonSchema/updateAddonSchema). Any future PR that introduces `servicePrice: z.number()` (or similar money-from-client) in a Zod validator fails this gate.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "a-cross-source-no-siguradoshield": {
       "mode": "BLOCKING",
       "owning_dispatch": "D04",
       "promoted_in": "D04",
-      "rationale": "Promoted to BLOCKING in D04 (Ken's Option A pull, 2026-04-30). Now a thin alias that delegates to gate_c_articles.no-shield-references for actual enforcement. The original REPORT-only fragment scanned apps/ + packages/ tolerantly; the D04 successor enforces strictly with a documented allowlist."
+      "rationale": "Promoted to BLOCKING in D04 (Ken's Option A pull, 2026-04-30). Now a thin alias that delegates to gate_c_articles.no-shield-references for actual enforcement. The original REPORT-only fragment scanned apps/ + packages/ tolerantly; the D04 successor enforces strictly with a documented allowlist.",
+      "approved_by": "unknown before 2026-10-14 (Ken decided the product rule in .ai-coder/decisions/D04-siguradoshield.md, Option A, 2026-04-30; who approved this gate mode is not recorded)",
+      "reviewed_on": "unknown before 2026-10-14"
     }
   },
 
@@ -72,49 +99,89 @@
       "mode": "BLOCKING",
       "owning_dispatch": "D12",
       "promoted_in": "D14r-8",
-      "rationale": "Promoted to BLOCKING in D14r-8. Production code uses logger.* throughout (apps/admin/src + apps/mobile/src + apps/mobile/app + packages/api/src); a fresh grep finds 0 console.* violations. The gate now blocks any future regression. Allowed exceptions remain inline `// gate-c-allowed:` markers."
+      "rationale": "Promoted to BLOCKING in D14r-8. Production code uses logger.* throughout (apps/admin/src + apps/mobile/src + apps/mobile/app + packages/api/src); a fresh grep finds 0 console.* violations. The gate now blocks any future regression. Allowed exceptions remain inline `// gate-c-allowed:` markers.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "article-4.6-no-emoji": {
       "mode": "BLOCKING",
       "owning_dispatch": "D12",
       "promoted_in": "UX-AUDIT-2026-08-23",
-      "rationale": "Redundant defense for Gate A's emoji check. Promoted after the 2026-08-23 zero-violation production scan so either gate blocks a future regression."
+      "rationale": "Redundant defense for Gate A's emoji check. Promoted after the 2026-08-23 zero-violation production scan so either gate blocks a future regression.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "article-7.1-no-axios": {
       "mode": "BLOCKING",
       "owning_dispatch": "D01+D02",
       "promoted_in": "D03",
-      "rationale": "Scope corrected in D03 to apps/ only (matches Gate A's a-cross-source-no-axios). Server-to-server outbound axios in packages/api/src/services/{payment,sms}.service.ts is out of scope for this gate."
+      "rationale": "Scope corrected in D03 to apps/ only (matches Gate A's a-cross-source-no-axios). Server-to-server outbound axios in packages/api/src/services/{payment,sms}.service.ts is out of scope for this gate.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "article-12-bigint-money-tests": {
       "mode": "BLOCKING",
       "owning_dispatch": "Phase-13",
       "promoted_in": "D03",
-      "rationale": "bigint-money-precision.test.ts already exists with 5+ tests (Phase 13 Dispatch E)."
+      "rationale": "bigint-money-precision.test.ts already exists with 5+ tests (Phase 13 Dispatch E).",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "article-16-closeout-exists": {
       "mode": "BLOCKING",
       "owning_dispatch": "D03",
       "promoted_in": "D03",
-      "rationale": "Activates per dispatch branch. Always BLOCKING when running on a phase/14-dNN-* branch."
+      "rationale": "Activates per dispatch branch. Always BLOCKING when running on a phase/14-dNN-* branch.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "unique-regression-ids": {
       "mode": "BLOCKING",
       "owning_dispatch": "CONTINUOUS-AUDIT-2026-09-04",
       "promoted_in": "CONTINUOUS-AUDIT-2026-09-04",
-      "rationale": "Enforces the permanent post-remediation one-bug, one-test, one-file rule by rejecting duplicate Bug IDs in direct it()/test() titles across test and spec files. Added after the continuous audit corrected ten unrelated duplicate title IDs and verified 1,377 unique regression titles."
+      "rationale": "Enforces the permanent post-remediation one-bug, one-test, one-file rule by rejecting duplicate Bug IDs in direct it()/test() titles across test and spec files. Added after the continuous audit corrected ten unrelated duplicate title IDs and verified 1,377 unique regression titles. Correction 2026-10-17 (D40, agent review): the first sentence overstates what the check does. scripts/gates/c-unique-regression-ids.py (TITLE_PATTERN, lines 39-41) only reads titles where 'Bug' is followed by LETTERS-DIGITS, such as 'Bug UX-018'. Plain numeric IDs such as 'Bug 870' are never checked, and neither are newer IDs with more than one letter group, such as 'Bug R-CUS-09'. On 2026-10-17 'Bug 870' and 'Bug 1271' each appeared in more than one direct test title, and 8 IDs of the R-XXX-NN form also repeated. Widening the check is backlog item BL-22 in .ai-coder/governance/STANDARD-V2-ADOPTION.md, a tightening for its own commit with a self-test; the repeats it finds have to be resolved or explained in that commit.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
+    },
+    "no-fake-tests": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D40",
+      "promoted_in": "D40",
+      "rationale": "Added 2026-10-14. Rejects the two fake-test shapes CLAUDE.md bans: a test block whose only assertions are file-existence checks (expect(existsSync(...)).toBe(true)) and that runs no other code, and an assertion that a text contains a bug citation such as Bug 1234. Exact rules, allowed cases and limits are in the header of scripts/gates/c-no-fake-tests.py. On its first run over the whole repo it found 17 cases in 6 test files. In the same change the banned assertions were removed from all 6 files. Correction 2026-10-17 (D40, agent review): that does not make them behaviour tests. Only 2 of the 6 files now test real behaviour: apps/mobile/__tests__/bug-phase128-01-mobile-pricing-cluster-removed.test.ts (runs the real stores and services) and the Bug 397 test in packages/api/__tests__/d08-encompassed-bugs.test.ts (runs the real rejectDsr). The other checks in d08, and the files d07-encompassed-bugs, d09-encompassed-bugs, s3-access-logging-med-o03 and test-fixtures-router-d-j27, still only read source, config or document text, which CLAUDE.md rule 4 says is not a behaviour test. 4 honest it.todo entries name missing behaviour tests (d07 Bug 73; d08 Bugs 401, 402 and 969). It does not flag general source-text regex tests. Tightened 2026-10-17 after an agent review found ways around both rules (literal-only filler such as expect(true).toBe(true), toBeDefined on existsSync, values written either way round, .exec, other separators such as Bug-1234 or BUG_1234, toMatchObject and object or array helpers, assert.notEqual and notStrictEqual, 0 read as absent for indexOf, and files in __tests__ folders that mobile jest runs without a .test name). Self-test cases I to N cover each form. On the whole repo the tightened article found one more case: a d07 check that LAUNCH-LIMITATIONS names a test file whose name carries a bug ID; it was replaced the same day by a check that every test file section 25 names exists. What still gets through (helper wrappers, citations kept in variables or split strings, existence checks without existsSync) is listed under LIMITS in the script header.",
+      "approved_by": "Claude, under the D40 tightening rule (C10, pending Ken's confirmation); not approved or reviewed by Ken",
+      "reviewed_on": "2026-10-14 (Claude self-review, then one agent review whose findings were fixed the same day); 2026-10-17 (second agent review; its findings were fixed the same day). Not reviewed by Ken."
+    },
+    "no-admin-password-seeds": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D01",
+      "promoted_in": "D40",
+      "rationale": "Bug 1235 (D01): no seed file under packages/api/seeds/ may set password_hash. The script scripts/gates/c-constitution-no-admin-password-seeds.sh was added in D01, but until 2026-10-17 no workflow and no gate runner called it, so it checked nothing in CI while packages/api/seeds/README.md called it a CI gate (backlog item BL-23). Wired into c-constitution.sh on 2026-10-17. The same change added one tightening: any non-comment line of a .sql seed that names password_hash now fails, which also catches INSERT statements and multi-line UPDATE statements that the D01 patterns missed. It passed on the whole repo when wired in. Rules and limits are in the script header. Self-test: scripts/gates/__tests__/gate-c-no-admin-password-seeds.test.sh.",
+      "approved_by": "Claude, under the D40 tightening rule (C10, pending Ken's confirmation); not approved or reviewed by Ken",
+      "reviewed_on": "2026-10-17 (Claude self-review only; not reviewed by Ken)"
+    },
+    "db-tests-fail-closed": {
+      "mode": "BLOCKING",
+      "owning_dispatch": "D40",
+      "promoted_in": "D40",
+      "rationale": "Added 2026-10-17 (D40, adoption item AD-09: the fail-closed guard on the database test files that lack it). A real-database test that picks it or it.skip from a DATABASE_URL safety flag must also have a top-level 'if (process.env.CI && !flag) throw' guard, so CI with a missing or wrong DATABASE_URL fails instead of skipping the test and staying green. On its first run it found 4 test files without the guard (bug-ops-387, bug-ops-390, bug-ops-408, bug-ux-350); the guard was added to all 4 in the same change, and 15 files then passed. Rules and limits are in the header of scripts/gates/c-db-tests-fail-closed.py. Self-test: scripts/gates/__tests__/gate-c-db-tests-fail-closed.test.sh.",
+      "approved_by": "Claude, under the D40 tightening rule (C10, pending Ken's confirmation); not approved or reviewed by Ken",
+      "reviewed_on": "2026-10-17 (Claude self-review only; not reviewed by Ken)"
     },
     "money-in-transaction": {
       "mode": "BLOCKING",
       "owning_dispatch": "D06",
       "promoted_in": "D06",
-      "rationale": "Promoted to BLOCKING in D06 (2026-04-30). Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237 — 14 services closed: every money/audit mutation either composes via a trx-aware *InTransaction helper or is annotated with `// gate-c-allowed: best-effort-audit-only` for the documented non-blocking audit pattern (try/catch + logger.warn so audit failures don't roll back the durable underlying state). Two real bugs adjacent to the 14-list also fixed in this dispatch: dispute.service.assignDispute and payout.service.approvePayout. Gate logic was rewritten in D06 — the prior Kysely-pattern regex was vacuously passing because the codebase uses raw pg; the new awk pattern detects db.query calls with INSERT INTO admin_actions/wallet_transactions or UPDATE wallets at the top level (not inside db.transaction). Allowed exceptions are documented inline with `// gate-c-allowed:` markers."
+      "rationale": "Promoted to BLOCKING in D06 (2026-04-30). Bugs 69, 70, 71, 78, 79, 80, 82, 83, 84, 85, 105, 106, 127, 237 — 14 services closed: every money/audit mutation either composes via a trx-aware *InTransaction helper or is annotated with `// gate-c-allowed: best-effort-audit-only` for the documented non-blocking audit pattern (try/catch + logger.warn so audit failures don't roll back the durable underlying state). Two real bugs adjacent to the 14-list also fixed in this dispatch: dispute.service.assignDispute and payout.service.approvePayout. Gate logic was rewritten in D06 — the prior Kysely-pattern regex was vacuously passing because the codebase uses raw pg; the new awk pattern detects db.query calls with INSERT INTO admin_actions/wallet_transactions or UPDATE wallets at the top level (not inside db.transaction). Allowed exceptions are documented inline with `// gate-c-allowed:` markers.",
+      "approved_by": "unknown before 2026-10-14",
+      "reviewed_on": "unknown before 2026-10-14"
     },
     "no-shield-references": {
       "mode": "BLOCKING",
       "owning_dispatch": "D04",
       "promoted_in": "D04",
-      "rationale": "Stricter SiguradoShield gate per Ken's Option A pull (.ai-coder/decisions/D04-siguradoshield.md, 2026-04-30). Replaces the REPORT-only Gate A no-siguradoshield fragment. Blocks any code-line reintroduction of SiguradoShield to UI surfaces or charge/payout code; comments documenting the removal are skipped. Allowlist covers spec docs, deprecated migrations, LAUNCH-LIMITATIONS §23, the decision file, and gate scripts. Implementation: scripts/gates/c-constitution-no-shield-references.sh (run as part of c-constitution.sh aggregator)."
+      "rationale": "Stricter SiguradoShield gate per Ken's Option A pull (.ai-coder/decisions/D04-siguradoshield.md, 2026-04-30). Replaces the REPORT-only Gate A no-siguradoshield fragment. Blocks any code-line reintroduction of SiguradoShield to UI surfaces or charge/payout code; comments documenting the removal are skipped. Allowlist covers spec docs, deprecated migrations, LAUNCH-LIMITATIONS §23, the decision file, and gate scripts. Implementation: scripts/gates/c-constitution-no-shield-references.sh (run as part of c-constitution.sh aggregator).",
+      "approved_by": "unknown before 2026-10-14 (Ken decided the product rule in .ai-coder/decisions/D04-siguradoshield.md, Option A, 2026-04-30; who approved this gate mode is not recorded)",
+      "reviewed_on": "unknown before 2026-10-14"
     }
   },
 
@@ -122,13 +189,17 @@
     "mode": "REPORT",
     "owning_dispatch": "D14r-3",
     "promoted_in": null,
-    "rationale": "F#4 admin half is DONE: 354 Playwright baselines (29 pages x 4 states x 3 widths) are committed and validated against a live admin app on 2026-06-10 (348 passed as-is; provider-detail re-captured after legitimate Phase-200-era UI drift: Staff/Disputes/Activity/Notes tabs, Selfie verification row, Service Areas sidebar entry). Promote to BLOCKING when the F#3 mobile half lands: the 84 Maestro flows were nav-less scaffolds with the wrong appId (com.onservice.app vs the real ph.onservice.app) and are being rewritten with real login + deep-link navigation (scripts/maestro/generate-visual-flows.mjs + capture-baselines.sh); capture needs an Android emulator session. See the two handoff docs in .ai-coder/handoff/."
+    "rationale": "F#4 admin half is DONE: 354 Playwright baselines (29 pages x 4 states x 3 widths) are committed and validated against a live admin app on 2026-06-10 (348 passed as-is; provider-detail re-captured after legitimate Phase-200-era UI drift: Staff/Disputes/Activity/Notes tabs, Selfie verification row, Service Areas sidebar entry). Promote to BLOCKING when the F#3 mobile half lands: the 84 Maestro flows were nav-less scaffolds with the wrong appId (com.onservice.app vs the real ph.onservice.app) and are being rewritten with real login + deep-link navigation (scripts/maestro/generate-visual-flows.mjs + capture-baselines.sh); capture needs an Android emulator session. See the two handoff docs in .ai-coder/handoff/. Correction 2026-10-14 (D40): the 2026-06-10 check above was a local run on a Windows PC against a locally started admin dev server. It was not CI and not the live server. As of 2026-10-14 the repo holds 588 admin baseline images, all Windows (-win32.png) and none Linux, while CI runs Linux. While this gate is REPORT the CI job does not run Playwright at all and prints NOT RUN.",
+    "approved_by": "unknown before 2026-10-14",
+    "reviewed_on": "unknown before 2026-10-14"
   },
 
   "gate_e_state": {
     "mode": "REPORT",
     "owning_dispatch": "D14r-8b",
     "promoted_in": null,
-    "rationale": "Stryker is not currently installed in packages/api/node_modules. Promoting Gate E to BLOCKING requires (1) adding @stryker-mutator/core + @stryker-mutator/jest-runner as devDeps, (2) configuring stryker.conf.cjs with the existing 99% threshold, (3) running a baseline against the full API suite to confirm score, (4) fixing any tests below the threshold. Tracked as a focused R-8b follow-up. Mutation score baseline at 99.3% from Phase 13 partial run."
+    "rationale": "Stryker is not currently installed in packages/api/node_modules. Promoting Gate E to BLOCKING requires (1) adding @stryker-mutator/core + @stryker-mutator/jest-runner as devDeps, (2) configuring stryker.conf.cjs with the existing 99% threshold, (3) running a baseline against the full API suite to confirm score, (4) fixing any tests below the threshold. Tracked as a focused R-8b follow-up. Mutation score baseline at 99.3% from Phase 13 partial run. Correction 2026-10-14 (D40): Stryker has been listed in the root package.json devDependencies since 2026-04-28 (commit 02aeed39; version 9.6.1 today), and packages/api/stryker.config.json exists (break threshold 99). npm installs it in the root node_modules (node_modules/@stryker-mutator), but e-mutation-testing.sh looks only for packages/api/node_modules/@stryker-mutator, which does not exist in a local install checked on 2026-10-14, so promoting this gate also needs that check fixed. While this gate is REPORT the CI job does not run Stryker and prints NOT RUN.",
+    "approved_by": "unknown before 2026-10-14",
+    "reviewed_on": "unknown before 2026-10-14"
   }
 }

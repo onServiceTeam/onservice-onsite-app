@@ -20,6 +20,38 @@
 #                                    must exist.
 #   - unique-regression-ids:          direct Bug IDs in it()/test() titles are
 #                                    unique across apps/ and packages/.
+#                                    Correction 2026-10-17 (D40): only IDs of
+#                                    the form "Bug LETTERS-DIGITS" are read;
+#                                    plain numbers ("Bug 870") and forms like
+#                                    "Bug R-CUS-09" are not checked (BL-22,
+#                                    MODES.json note).
+#   - no-fake-tests:                 test files contain neither of the two
+#                                    fake-test shapes CLAUDE.md bans: a test
+#                                    whose only assertions are
+#                                    expect(existsSync(...)).toBe(true), or an
+#                                    assertion that a text contains "Bug NNNN".
+#                                    Exact rules: header of c-no-fake-tests.py.
+#                                    Added 2026-10-14 under D40 (tightening
+#                                    only); tightened again 2026-10-17 after
+#                                    an agent review. Self-test:
+#                                    __tests__/gate-c-no-fake-tests.test.sh.
+#   - no-admin-password-seeds:       no seed file under packages/api/seeds/
+#                                    sets password_hash (Bug 1235, D01).
+#                                    The script dates from D01 but nothing
+#                                    ran it until it was wired in here on
+#                                    2026-10-17 (D40, BL-23; tightening
+#                                    only). Rules: header of
+#                                    c-constitution-no-admin-password-seeds.sh.
+#                                    Self-test:
+#                                    __tests__/gate-c-no-admin-password-seeds.test.sh.
+#   - db-tests-fail-closed:          a real-database test that picks it or
+#                                    it.skip from a DATABASE_URL safety flag
+#                                    must also stop in CI when that flag is
+#                                    false, so CI cannot skip it silently.
+#                                    Added 2026-10-17 under D40 (AD-09;
+#                                    tightening only). Rules: header of
+#                                    c-db-tests-fail-closed.py. Self-test:
+#                                    __tests__/gate-c-db-tests-fail-closed.test.sh.
 #   - money-in-transaction:          money mutations (wallets, wallet_transactions,
 #                                    admin_actions writes) must be inside
 #                                    db.transaction().
@@ -142,6 +174,46 @@ if regression_id_output=$(python3 "$GATES_DIR/c-unique-regression-ids.py" 2>&1);
   report_article "unique-regression-ids" 1
 else
   report_article "unique-regression-ids" 0 "$regression_id_output"
+fi
+
+# ---------------------------------------------------------------------------
+# No fake tests (BLOCKING, added 2026-10-14 under D40)
+#
+# Rejects the two fake-test shapes CLAUDE.md bans. The rules, what is allowed
+# and the known limits are in the header of c-no-fake-tests.py. If python3 or
+# the script is missing, the article fails (fail closed).
+# ---------------------------------------------------------------------------
+if fake_test_output=$(python3 "$GATES_DIR/c-no-fake-tests.py" 2>&1); then
+  report_article "no-fake-tests" 1
+else
+  report_article "no-fake-tests" 0 "$fake_test_output"
+fi
+
+# ---------------------------------------------------------------------------
+# No admin password seeds (BLOCKING, wired in 2026-10-17 under D40, BL-23)
+#
+# Bug 1235: no seed may set password_hash. The rules and limits are in the
+# header of c-constitution-no-admin-password-seeds.sh. If the script is
+# missing or cannot read the seeds folder, the article fails (fail closed).
+# ---------------------------------------------------------------------------
+if seeds_output=$(bash "$GATES_DIR/c-constitution-no-admin-password-seeds.sh" 2>&1); then
+  report_article "no-admin-password-seeds" 1
+else
+  report_article "no-admin-password-seeds" 0 "$seeds_output"
+fi
+
+# ---------------------------------------------------------------------------
+# Database tests fail closed in CI (BLOCKING, added 2026-10-17 under D40, AD-09)
+#
+# A test that skips when there is no safe test database must throw in CI
+# instead, so a missing DATABASE_URL turns CI red rather than green. The
+# rules and limits are in the header of c-db-tests-fail-closed.py. If python3
+# or the script is missing, the article fails (fail closed).
+# ---------------------------------------------------------------------------
+if db_guard_output=$(python3 "$GATES_DIR/c-db-tests-fail-closed.py" 2>&1); then
+  report_article "db-tests-fail-closed" 1
+else
+  report_article "db-tests-fail-closed" 0 "$db_guard_output"
 fi
 
 # ---------------------------------------------------------------------------

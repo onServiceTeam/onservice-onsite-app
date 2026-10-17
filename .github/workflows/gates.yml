@@ -6,8 +6,22 @@ on:
   push:
     branches: [master, phase/**]
 
+# Nothing on GitHub requires these checks today. Branch protection and
+# rulesets are off on master by Ken's choice (D40, 2026-10-14), so a red or
+# missing result does not stop a push. These jobs report; they do not enforce.
+
 env:
-  BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/master' }}
+  # Comparison base for the diff-based checks (a-cross-source-hashes-immutable,
+  # Gate B, Gate E).
+  # - Pull request: the PR's base commit.
+  # - Push to master: the commit master pointed to before this push
+  #   (github.event.before). Fixed 2026-10-14 (D40). Before that every push
+  #   used origin/master, which after checkout is the pushed commit itself,
+  #   so on a direct push to master those diffs compared a commit with itself
+  #   and saw nothing.
+  # - Anything else (a phase/** push, or a "before" of all zeros): origin/master,
+  #   as before.
+  BASE_REF: ${{ github.event.pull_request.base.sha || (github.ref == 'refs/heads/master' && github.event.before != '0000000000000000000000000000000000000000' && github.event.before) || 'origin/master' }}
 
 jobs:
   gate-a:
@@ -24,18 +38,35 @@ jobs:
   gate-b:
     name: Gate B — bug deferral
     runs-on: ubuntu-latest
+    # Read by the "All gates passed" job to report whether Gate B really ran.
+    outputs:
+      dispatch: ${{ steps.dispatch.outputs.number }}
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - name: Determine dispatch number
         id: dispatch
+        # The branch name comes in through env, not pasted into the script,
+        # so a crafted pull-request branch name cannot run shell commands.
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
-          BRANCH="${{ github.head_ref || github.ref_name }}"
+          BRANCH="$BRANCH_NAME"
           DISPATCH=$(echo "$BRANCH" | grep -oE "d[0-9]+" | grep -oE "[0-9]+" | head -1 || echo "")
           echo "number=$DISPATCH" >> "$GITHUB_OUTPUT"
       - name: Run Gate B
         if: steps.dispatch.outputs.number != ''
         run: bash scripts/gates/b-bug-deferral.sh "${{ steps.dispatch.outputs.number }}"
+      # D40, 2026-10-14: without this step Gate B shows green on master while
+      # checking nothing.
+      - name: Gate B not run (no dispatch number in the branch name)
+        if: steps.dispatch.outputs.number == ''
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          echo "Gate B NOT RUN: it only runs on a branch whose name has a dispatch number (dNN). This run is on: $BRANCH_NAME"
+          echo "::warning title=Gate B NOT RUN::only runs on dNN dispatch branches. This job's success checked nothing."
+          echo "**Gate B NOT RUN:** only runs on dNN dispatch branches." >> "$GITHUB_STEP_SUMMARY"
 
   gate-c:
     name: Gate C — constitution
@@ -60,6 +91,9 @@ jobs:
   gate-d:
     name: Gate D — visual screenshots
     runs-on: ubuntu-latest
+    # Read by the "All gates passed" job to report whether Gate D really ran.
+    outputs:
+      mode: ${{ steps.mode.outputs.value }}
     steps:
       - uses: actions/checkout@v7
       - name: Read Gate D enforcement mode
@@ -117,6 +151,9 @@ jobs:
   gate-e:
     name: Gate E — mutation testing
     runs-on: ubuntu-latest
+    # Read by the "All gates passed" job to report whether Gate E really ran.
+    outputs:
+      mode: ${{ steps.mode.outputs.value }}
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -175,5 +212,72 @@ jobs:
     name: All gates passed
     runs-on: ubuntu-latest
     needs: [gate-a, gate-b, gate-c, gate-d, gate-e]
+    # Fail closed (D40, 2026-10-14). Before this, the job had no "if", so when
+    # a gate failed this job was SKIPPED, and GitHub counts a skipped required
+    # check as passing. Now it always runs, and the step below fails unless
+    # every gate job finished with result "success". The job name is unchanged
+    # (GATE-AMENDMENTS.md hard rule). Reminder: nothing on GitHub requires this
+    # check today, because branch protection is off (D40).
+    if: always()
     steps:
-      - run: echo "All gates green. Ready for human review."
+      - name: Check that every gate job finished with success
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          # BEGIN gates-summary-check
+          # scripts/gates/__tests__/gate-summary-fail-closed.test.sh copies the
+          # lines between BEGIN and END and runs them against fixtures, so keep
+          # this block self-contained (bash + python3, input in NEEDS_JSON).
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          EXPECTED = ["gate-a", "gate-b", "gate-c", "gate-d", "gate-e"]
+          LABELS = {"gate-a": "Gate A", "gate-b": "Gate B", "gate-c": "Gate C",
+                    "gate-d": "Gate D", "gate-e": "Gate E"}
+
+          def fail(lines):
+              print("All gates passed: FAILED")
+              for line in lines:
+                  print("  " + line)
+              sys.exit(1)
+
+          try:
+              needs = json.loads(os.environ.get("NEEDS_JSON", ""))
+          except ValueError:
+              fail(["The gate job results could not be read (NEEDS_JSON is not valid JSON)."])
+          if not isinstance(needs, dict) or not needs:
+              fail(["The gate job results are missing or empty."])
+
+          problems = []
+          for job in sorted(set(EXPECTED) | set(needs)):
+              entry = needs.get(job)
+              result = entry.get("result") if isinstance(entry, dict) else None
+              if result != "success":
+                  problems.append(f"{LABELS.get(job, job)} ({job}): result is {result or 'missing'}, not success.")
+          if problems:
+              fail(problems)
+
+          def outputs(job):
+              value = needs[job].get("outputs")
+              return value if isinstance(value, dict) else {}
+
+          not_run = []
+          if not outputs("gate-b").get("dispatch"):
+              not_run.append("Gate B NOT RUN: it only runs on dNN dispatch branches.")
+          for job in ("gate-d", "gate-e"):
+              if outputs(job).get("mode") != "BLOCKING":
+                  not_run.append(f"{LABELS[job]} NOT RUN: report mode (MODES.json).")
+
+          lines = ["All 5 gate jobs finished with result success."] + not_run
+          if not_run:
+              lines.append("A success here is not evidence for any gate listed as NOT RUN.")
+          for line in lines:
+              print(line)
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as summary:
+                  summary.write("\n".join(lines) + "\n")
+          PY
+          # END gates-summary-check
