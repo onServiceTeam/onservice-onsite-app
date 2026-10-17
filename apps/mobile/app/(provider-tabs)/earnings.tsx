@@ -212,7 +212,7 @@ export default function EarningsScreen(): React.ReactElement {
 
           <View style={styles.infoRow}>
             <View style={styles.infoCard}>
-              <Lock size={22} color={colors.accent} style={styles.infoIconImg} />
+              <Lock size={22} color={colors.primary} style={styles.infoIconImg} />
               <Text style={styles.infoLabel}>Pending job earnings</Text>
               <Text style={styles.infoValue}>
                 {summaryQuery.isLoading

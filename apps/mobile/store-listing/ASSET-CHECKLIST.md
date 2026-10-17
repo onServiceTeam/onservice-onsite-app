@@ -2,13 +2,33 @@
 
 ## Required Assets
 
+The logo is the house (Ken, 2026-10-14). Rules and the SVG masters every
+image below is drawn from: `docs/design-system/brand/README.md`. When the mark
+changes, regenerate all of these together and check each one by eye.
+
+**Before building an APK after any change here** (an image above, or the
+icon, splash or notification settings in `app.config.ts`): regenerate the
+native project with `npx expo prebuild -p android --clean`. The `android/`
+folder is not in git, and a build that skips prebuild keeps the old icons and
+splash inside the APK. After the build, install it on a phone or emulator
+and check by eye: the launcher icon, the themed (monochrome) icon on Android
+13 and later, the notification icon and the start-up splash, including the
+hand-off from the splash tile to the first app screen. Record that check in
+the release notes.
+
 ### App Icons
-- [ ] `assets/icon.png` — 1024x1024px, no transparency, no rounded corners (Expo handles these)
-- [ ] `assets/adaptive-icon.png` — 1024x1024px, Android adaptive icon foreground layer
-- [ ] `assets/notification-icon.png` — 96x96px, white on transparent for Android notifications
+- [ ] `assets/icon.png`: 1024x1024px, no transparency, no rounded corners (Expo handles these). Full-bleed #003D9B with a white house.
+- [ ] `assets/adaptive-icon.png`: 1024x1024px, Android adaptive icon foreground layer: white house on transparent, inside the 66 of 108 dp safe circle. The #003D9B background colour is set in `app.config.ts`.
+- [ ] `assets/adaptive-icon-monochrome.png`: 1024x1024px, Android 13+ themed icon layer: the same white house on transparent (Android tints it).
+- [ ] `assets/notification-icon.png`: 96x96px, white house on transparent for Android notifications (no tile)
+
+### Web
+- [ ] `public/favicon.ico`: the browser-tab icon. Favicon cut (#003D9B rounded tile, white house at 75% of the tile) drawn at 16, 32 and 48 px, PNG frames; the same file as `apps/admin/src/assets/brand/favicon.ico`. Expo copies it into the web build as is.
+- [ ] `public/index.html`: links it as `/favicon.ico?v=<first 8 hex digits of its SHA-256>`. Change the version whenever `favicon.ico` changes, or returning visitors keep the old icon for up to a year (the web server caches `.ico` files that long). `__tests__/bug-ux-1429-web-favicon-versioned-link.test.ts` fails until it matches. Do not set `web.favicon` in `app.config.ts`: Expo would then add a second, unversioned link.
+- [ ] `assets/favicon.png`: 48x48px, the 48 px frame of `public/favicon.ico`, byte for byte. The legal pages embed it as their PNG tab icon.
 
 ### Splash Screen
-- [ ] `assets/splash.png` — 1284x2778px (optimized for iPhone 14 Pro Max, scales down)
+- [ ] `assets/splash-icon.png`: 1024x1024px, square and transparent: white tile with the #003D9B house, 62.5% of the width. Expo draws it 200 dp wide on the #003D9B splash background (about 125 dp of tile). Replaced the tall 1284x2778px `splash.png` (2026-10-17), which showed the logo far too small on Android.
 
 ### Google Play Store Screenshots (per locale)
 - [ ] `store-listing/en/screenshots/phone-1.png` — 1080x1920px or 1242x2208px

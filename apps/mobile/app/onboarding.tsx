@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { storage } from '@/services/api';
 import { Button } from '@/components/ui';
+import BrandMark from '@/components/BrandMark';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Home, Lock, Star } from '@/components/icons';
@@ -109,9 +110,15 @@ export default function OnboardingScreen(): React.ReactElement {
           { width: pageWidth, height: pageHeight, backgroundColor: isPhone ? item.bgColor : colors.surface },
         ]}
       >
-        <View style={[styles.visualPanel, !isPhone && styles.visualPanelWide, { backgroundColor: item.bgColor }]}>
+        <View style={StyleSheet.flatten([styles.visualPanel, !isPhone && styles.visualPanelWide, { backgroundColor: item.bgColor }])}>
           <View style={styles.slideIconWrap}><SlideIcon size={isPhone ? 96 : 128} color={colors.white} /></View>
-          {!isPhone ? <Text style={styles.visualBrand}>onService PH</Text> : null}
+          {/* Bug UX-1423: the house logo (white tile, blue house) with the wordmark. */}
+          {!isPhone ? (
+            <View style={styles.visualBrand} testID="onboarding-brand">
+              <BrandMark tone="onDark" size={40} testID="onboarding-brand-mark" />
+              <Text style={styles.visualBrandName}>onService PH</Text>
+            </View>
+          ) : null}
         </View>
         <View style={[styles.copyPanel, !isPhone && styles.copyPanelWide]}>
           {!isPhone ? <Text style={styles.eyebrow}>CLEAR, ON-APP SERVICE RECORDS</Text> : null}
@@ -192,7 +199,11 @@ const styles = StyleSheet.create({
   slideWide: { flexDirection: 'row', paddingHorizontal: 0, alignItems: 'stretch' },
   visualPanel: { alignItems: 'center', justifyContent: 'center' },
   visualPanelWide: { width: '38%', paddingHorizontal: spacing.xl },
-  visualBrand: { ...typography.h3, color: colors.white, marginTop: spacing.lg },
+  visualBrand: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.lg },
+  // Bug UX-1431: 20 px bold is large text under WCAG 2.2 (bold from 18.66 px),
+  // so white passes on every slide colour, including the purple third slide
+  // (#8B5CF6, 4.2:1, which an 18 px wordmark failed).
+  visualBrandName: { ...typography.h3, fontSize: 20, lineHeight: 28, color: colors.white, fontWeight: '800' },
   copyPanel: { alignItems: 'center' },
   copyPanelWide: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 64, paddingBottom: 90 },
   eyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 1.2, marginBottom: spacing.md },

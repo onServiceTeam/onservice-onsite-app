@@ -40,6 +40,7 @@ import {
   MessageSquare,
 } from '@/components/icons';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import BrandMark, { BRAND_BLUE } from '@/components/BrandMark';
 import {
   resolveLayout,
   getForcedView,
@@ -245,10 +246,10 @@ export function DesktopNavigation({
 
   return (
     <View style={styles.navRail} accessibilityLabel={`${workspace} navigation`}>
-      <View style={styles.brandBlock}>
-        <View style={styles.brandMark}>
-          <Text style={styles.brandMarkText}>oS</Text>
-        </View>
+      {/* Bug UX-1421: the house logo (blue tile, white house) on the white
+          rail, replacing the retired "oS" letters. */}
+      <View style={styles.brandBlock} testID="desktop-brand">
+        <BrandMark tone="onLight" size={40} testID="desktop-brand-mark" />
         <View style={styles.brandCopy}>
           <Text style={styles.brandName}>onService PH</Text>
           <Text style={styles.workspaceLabel}>{workspace}</Text>
@@ -416,17 +417,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  brandMark: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-  },
-  brandMarkText: { ...typography.button, color: colors.white, fontWeight: '700' },
   brandCopy: { flex: 1, minWidth: 0 },
-  brandName: { ...typography.h3, color: colors.text, fontSize: 17 },
+  // Bug UX-1430: the wordmark is one colour everywhere on light backgrounds,
+  // the fixed brand blue #003D9B (brand README), not the ink text colour.
+  brandName: { ...typography.h3, color: BRAND_BLUE, fontSize: 17 },
   workspaceLabel: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
   navSectionLabel: {
     ...typography.caption,

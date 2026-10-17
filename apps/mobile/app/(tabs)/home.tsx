@@ -30,6 +30,7 @@ import { getAddresses, type SavedAddress } from '@/services/address.service';
 import api from '@/services/api';
 // A7 — shared UI kit for the top-level loading + error states.
 import { StatusBadge, Skeleton, ErrorState } from '@/components/ui';
+import BrandMark, { BRAND_BLUE } from '@/components/BrandMark';
 import { formatPHP } from '@/utils/currency';
 import { formatRelative } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
@@ -281,9 +282,14 @@ export default function HomeScreen(): React.ReactElement {
         {frameShowsBrand ? (
           <View style={styles.headerSpacer} />
         ) : (
-          <Text style={styles.wordmark} accessibilityLabel="onService" testID="home-wordmark">
-            onService
-          </Text>
+          // Bug UX-1422: the house logo (blue tile, white house) beside the
+          // wordmark; "onService" stays short because the bar is narrow.
+          <View style={styles.brandRow} testID="home-brand">
+            <BrandMark tone="onLight" size={28} testID="home-brand-mark" />
+            <Text style={styles.wordmark} accessibilityLabel="onService" testID="home-wordmark">
+              onService
+            </Text>
+          </View>
         )}
 
         <TouchableOpacity
@@ -738,11 +744,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
   },
   headerSpacer: { flex: 1 },
+  // Gap of 25% of the tile between tile and wordmark (brand README lockup).
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // Wordmark on a light background: the fixed brand blue (brand README), not
+  // the theme's primary colour.
   wordmark: {
     fontSize: 20,
     lineHeight: 28,
     fontWeight: '700',
-    color: colors.primary,
+    color: BRAND_BLUE,
     letterSpacing: -0.2,
   },
   titleBlock: { paddingHorizontal: spacing.base, paddingBottom: spacing.md },

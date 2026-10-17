@@ -302,7 +302,7 @@ export default function ProviderDashboardScreen(): React.ReactElement {
             accessibilityLabel="Open requests"
           >
             <View style={styles.leadsIcon}>
-              <Inbox size={22} color={colors.accent} />
+              <Inbox size={22} color={colors.primary} />
             </View>
             <View style={styles.leadsCopy}>
               <Text style={styles.leadsTitle}>Requests</Text>
@@ -583,13 +583,16 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     marginBottom: spacing.lg,
   },
+  // Bug UX-1396: brand-blue icon on the pale brand-blue tile, like the other
+  // blue icon tiles. The pale amber tile went with the old orange icon and
+  // made the card look like the warning banner below it.
   leadsIcon: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: borderRadius.md,
-    backgroundColor: colors.warningLight,
+    backgroundColor: colors.primaryLight,
     marginRight: spacing.md,
   },
   leadsCopy: { flex: 1, minWidth: 0 },

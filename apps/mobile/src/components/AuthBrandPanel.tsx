@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Home, CheckCircle2 } from '@/components/icons';
+import { CheckCircle2 } from '@/components/icons';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
+import BrandMark from '@/components/BrandMark';
 
 interface AuthBrandPanelProps {
   eyebrow: string;
@@ -19,7 +20,10 @@ export default function AuthBrandPanel({ eyebrow, title, description }: AuthBran
   return (
     <View style={styles.panel} accessibilityLabel="onService account benefits">
       <View style={styles.brandRow}>
-        <View style={styles.brandIcon}><Home size={28} color={colors.primary} /></View>
+        {/* The shared logo tile, so every screen draws one mark. Same look as
+            before (white 48 px tile, 28 px blue house); see
+            __tests__/brand-mark-shared-tile.guard.real.test.tsx. */}
+        <BrandMark tone="onDark" size={48} testID="auth-brand-mark" />
         <Text style={styles.brandName}>onService PH</Text>
       </View>
       <Text style={styles.eyebrow}>{eyebrow}</Text>
@@ -48,14 +52,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: borderRadius.xl,
   },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: 48 },
-  brandIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   brandName: { ...typography.h3, color: colors.white, fontWeight: '800' },
   eyebrow: { ...typography.caption, color: colors.white, fontWeight: '800', letterSpacing: 1.1, marginBottom: spacing.md, opacity: 0.82 },
   title: { ...typography.h1, color: colors.white, fontSize: 36, lineHeight: 42, marginBottom: spacing.md },

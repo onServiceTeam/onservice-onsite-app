@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
   },
   portfolioSummaryWide: { flexDirection: 'row', alignItems: 'stretch', padding: spacing.lg },
   summaryCopy: { flex: 1, minWidth: 0 },
-  summaryEyebrow: { ...typography.caption, color: colors.accent, fontWeight: '800', marginBottom: spacing.xs },
+  summaryEyebrow: { ...typography.caption, color: colors.primary, fontWeight: '800', marginBottom: spacing.xs },
   summaryTitle: { ...typography.h2, color: colors.text, marginBottom: spacing.xs },
   summaryText: { ...typography.bodySmall, color: colors.textSecondary, lineHeight: 20, maxWidth: 560 },
   trustLinks: { flex: 1, flexDirection: 'row', gap: spacing.sm },

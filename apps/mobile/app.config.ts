@@ -92,11 +92,23 @@ const config: ExpoConfig = {
   web: {
     bundler: 'metro',
     output: 'single',
-    favicon: './assets/icon.png',
+    // No `favicon` setting on purpose. The browser-tab icon is the house logo
+    // (favicon cut, docs/design-system/brand/README.md) in public/favicon.ico,
+    // and public/index.html links it as /favicon.ico?v=<version> so returning
+    // visitors get past the web server's one-year icon cache (Bug UX-1429).
+    // With web.favicon set and no public/favicon.ico, Expo would add its own
+    // unversioned <link rel="icon" href="/favicon.ico"> after ours, and
+    // browsers use the last one.
   },
+  // House logo (Ken, 2026-10-14). Every image below is drawn from the SVG
+  // masters in docs/design-system/brand/; regenerate them together.
   icon: './assets/icon.png',
+  // A square image: Expo draws the splash image inside a 200 dp square, so
+  // the old tall image showed the logo about 30 dp wide. The white house tile
+  // fills 62.5% of this one (about 125 dp). The expo-splash-screen package is
+  // not installed, so its imageWidth option is not available here.
   splash: {
-    image: './assets/splash.png',
+    image: './assets/splash-icon.png',
     resizeMode: 'contain',
     backgroundColor: '#003D9B',
   },
@@ -155,8 +167,11 @@ const config: ExpoConfig = {
   },
   android: {
     adaptiveIcon: {
+      // White house on transparent; the brand-blue background comes from here.
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#003D9B',
+      // Android 13+ themed icons: a one-colour house the system tints.
+      monochromeImage: './assets/adaptive-icon-monochrome.png',
     },
     package: 'ph.onservice.app',
     versionCode: 6,
