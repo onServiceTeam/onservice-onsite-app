@@ -39,6 +39,17 @@ test.describe('SystemSettingsPage', () => {
       test('empty state', async ({ page }) => {
         // Force every admin GET to return an empty list so EmptyState renders.
         await page.route('**/api/v1/admin/**', (route) => {
+          // 2026-10-18: the request alert banner (MarketplaceAlertBanner,
+          // added 2026-10-14) is not part of this page's empty state. Given
+          // this settings object instead of an alert list, its check failed
+          // and it showed "Request alerts could not be checked" about a
+          // second after the page settled, so the screenshot had the banner
+          // or not depending on how fast the run was. Its requests go to the
+          // shared fixture's "no open alerts" answer instead.
+          if (route.request().url().includes('/api/v1/admin/marketplace-health/')) {
+            void route.fallback();
+            return;
+          }
           if (route.request().method() === 'GET') {
             route.fulfill({
               status: 200,
@@ -75,6 +86,14 @@ test.describe('SystemSettingsPage', () => {
         });
         await page.goto(ROUTE);
         await waitForVisualSettled(page);
+        // 2026-10-18: wait for the error itself. The page retries once before
+        // it shows the error, and its loading skeleton has no "loading" text,
+        // so waitForVisualSettled alone let a re-capture store the skeleton
+        // as the "error" picture. With every admin GET failing, the request
+        // alert banner reports its own failed check too.
+        await expect(page.getByRole('heading', { name: 'System Settings could not load' })).toBeVisible();
+        await expect(page.getByLabel('Loading system settings')).toHaveCount(0);
+        await expect(page.getByText('Request alerts could not be checked. Retrying automatically.')).toBeVisible();
         await expect(page).toHaveScreenshot(`system-settings-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,

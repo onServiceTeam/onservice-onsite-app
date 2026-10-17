@@ -4369,3 +4369,51 @@ Found while checking the D40 change set. None is fixed. Details are in the priva
 - **The Redis password sits on a process command line.** The Redis container's start command and its health check (`docker-compose.prod.yml`) carry the Redis password as a command-line value. The new release runbook keeps the password off the operator's own command lines (`docs/runbooks/tester-server-release.md` step 4), but that rule does not cover the stack's own Redis command. Changing it means recreating the Redis container on the live server, so it is a Ken decision.
 - **One dormant background charge path is not behind the payment hold.** The payment routes refuse before any write while external payments are held (E14, section 48). One background charge path does not go through that hold yet. It is dormant today, because recurring automatic payments cannot be set up (the API refuses, E20). Putting it behind the hold, with a test, is adoption backlog item BL-24.
 - **The newer web-server configuration will load by itself at the next restart.** The live web server still runs the 2026-08-24 configuration (section 132 notes the drift). The newer configuration in the repo is already on disk, so it takes effect at the next restart of that web server for any reason: a server reboot, an automatic restart, a Docker restart, or maintenance for one of the other sites it serves. Every site it serves is affected at that moment, not only onService. Applying it on purpose, at a time Ken approves, with the change list checked first, is safer than waiting for an unplanned restart.
+
+## 137. Admin screenshot baselines re-captured for the house logo, and one check CI does not run (2026-10-18)
+
+Part of the house logo change (Ken, 2026-10-14; `docs/design-system/brand/README.md`). Written before that change was committed; the commit that lands it goes into `.ai-coder/CURRENT-DISPATCH`.
+
+**Status: Implemented. The local checks below passed on the uncommitted working tree on 2026-10-18.** It becomes Verified only at the commit that lands these exact baseline files together with the logo change.
+
+What was done:
+- All 588 admin screenshot baselines were captured twice on 2026-10-18 (about 01:20 and 02:05), on this Windows PC, with every admin visual spec (598 tests across 34 specs, `--update-snapshots=all`). Against the committed pictures, 513 changed and 75 came out byte for byte the same. The 75 are pictures with no sidebar logo in view (tablet widths, the catalog page area, the privacy workspace page area).
+- The two captures agreed except for 55 pictures: 54 differed by 1 to 102 faint pixels (text edge smoothing) and 1 was a bad capture (below).
+- A pixel check of the sidebar logo spot finds the house tile in 473 pictures (461 plain, 11 under a dimmed dialog, 1 drawn lower on the page) and the "oS" tile in 0. The committed pictures had the "oS" tile in the same spots. The other 115 have no sidebar logo in view: 78 at the 820 and 768 px tablet widths (the sidebar is behind the menu button), 21 of the catalog page area, 15 sign-in pictures, 1 of the privacy workspace page area. All 15 sign-in pictures show the white tile with the blue house.
+- A run with no updates then passed 598 of 598 tests, with 0 flaky and no retries.
+
+Why every picture, not only the sign-in page: Playwright passes a picture when fewer than 1% of its pixels differ (plus its own colour tolerance for each pixel), and a normal re-capture rewrites only pictures that fail. The logo tile is about 0.03% of a picture, so without a full re-capture the committed pictures would have kept the "oS" tile and still passed. The same tolerance had hidden older screen changes: many committed pictures were older than the Marketplace sidebar item, the request alert banner and newer page wording. For example, `disputes-empty-1920` showed the Disputes page from before 2026-09-01. So the F#4 check of 2026-10-14 (`CLAUDE.md`) meant "passes within tolerance", not "shows today's screen", for those pictures.
+
+How we know the logo change altered nothing else: every spec was also rendered with only the three logo-change files (`Sidebar.tsx`, `LoginPage.tsx`, `index.css`) put back to their committed versions, everything else the same (a scratch dev server, nothing in the repo changed). Compared with the new baselines:
+- 98 byte for byte the same;
+- 432 differ only at the logo tile;
+- 43 differ at the logo tile plus up to 102 faint pixels elsewhere (edge smoothing; no pixel outside the tile changed strongly);
+- 15 sign-in pictures differ only in the blue brand panel (house tile, "onService PH" in one colour, white bullets instead of orange, the panel text 4 px higher because the logo row is shorter) and in the outline of the focused input (orange before, blue now, UX-1393).
+
+The other differences between the committed pictures and the new ones (214 pictures) are in that committed-code render too, so they are older screen changes catching up, not caused by the logo change. The 175 larger ones were sorted by where they are: the sidebar item list and scroll position, the request alert banner on error states, and page content (for example the Business Accounts column names, Audit Log wording and the Catalog price guide). 12 of them were looked at old against new, with a map of the changed pixels, and every one matched an earlier screen change (for example the Payouts "Clear hold" button, a "Publish new version" button that was blank in the old picture, and a Service Areas subtitle).
+
+Review (self-review), looked at by eye:
+- one error and one empty picture of every spec at 1280 px (62 pictures, contact sheets);
+- 12 old-against-new pairs of the larger content changes;
+- the sign-in page at 1280, 1440 and 1920 px, old and new;
+- the sidebar logo at full size, expanded and under dialogs;
+- extra pictures that no baseline covers (taken in scratch, not committed): the collapsed sidebar rail and the phone drawer (house tile in both), and the sign-in page at 390 and 768 px.
+
+Not all 513 were opened one by one.
+
+Three test fixes (they make the tests wait for the right screen; no check was loosened):
+- `apps/admin/tests/visual/system-settings.spec.ts`, error state: a re-capture stored the loading skeleton as the "error" picture, because the page retries once before it shows the error and its skeleton has no "loading" text. The test now waits for the error heading.
+- `apps/admin/tests/visual/system-settings.spec.ts`, empty state: the request alert banner showed up or not depending on how fast the run was. Its requests now get the shared fixture's "no open alerts" answer. Before this fix, 3 of 5 widths failed a no-update run; after it, 15 of 15 passed (each width 3 times).
+- `apps/admin/tests/visual/notification-templates.spec.ts`, error state: the second capture stored the "Loading notification templates" spinner as the 1920 px "error" picture, for the same reason. The test now waits for the error text, for the spinner to be gone and for the alert banner. The re-captured picture is byte for byte the error picture from the first capture. Both specs' empty and error tests then passed 48 of 48 (each 3 times, no retries).
+
+Still open:
+- **At 768 px the sign-in subtitle wraps.** Next to the new logo tile, "Philippines operations console" breaks onto two lines at 768 px wide. Before, it fit on one line. Cosmetic, not fixed, and no baseline covers that width.
+- **The admin wordmark is still the ink colour.** The brand README says "onService PH" next to the blue tile should be brand blue `#003D9B`; the sidebar and the compact sign-in header still draw it in ink `#051A3E`. Changing it means capturing the baselines again.
+- **Other state tests depend on timing.** 16 specs answer every admin request with one fixed reply in some state tests. Whether the alert banner is in such a picture depends on how fast the page draws. Only the two specs above now wait for it. The three captures of 2026-10-18 agreed on all the others, so they are stable on this PC, but they could flake on a faster or slower one.
+- **F#4 goes stale again with the next admin screen change.** Gate D still does not run in CI, so only a local run catches it.
+- **UX-1393 (the keyboard focus outline is blue, not orange) is checked only by a local Playwright test** (`apps/admin/tests/visual/login.spec.ts`). CI never runs it, and the jsdom unit tests cannot compute `:focus-visible`. It passed in both local runs on 2026-10-18.
+- **Two odd System Settings review-dialog pictures, already in the old baselines and not fixed:**
+  - at 1024 px the full-page picture draws the sidebar and header partway down the page;
+  - at 1280 px a settings card behind the dialog is squeezed into a narrow column, one word per line (less so at 1440 px).
+
+  Whether the narrow column also happens in a normal browser was not checked.

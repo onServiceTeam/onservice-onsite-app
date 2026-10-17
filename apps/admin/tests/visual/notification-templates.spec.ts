@@ -159,6 +159,14 @@ test.describe('NotificationTemplatesPage', () => {
         });
         await page.goto(ROUTE);
         await waitForVisualSettled(page);
+        // 2026-10-18: wait for the error itself. The list query retries
+        // before it shows the error, so waitForVisualSettled alone let a
+        // re-capture store the "Loading notification templates" spinner as
+        // the "error" picture (seen at 1920). With every admin GET failing,
+        // the request alert banner reports its own failed check too.
+        await expect(page.getByText('Notification templates could not be loaded')).toBeVisible();
+        await expect(page.getByText('Loading notification templates…')).toHaveCount(0);
+        await expect(page.getByText('Request alerts could not be checked. Retrying automatically.')).toBeVisible();
         await expect(page).toHaveScreenshot(`notification-templates-error-${width}.png`, {
           fullPage: true,
           maxDiffPixelRatio: 0.01,
