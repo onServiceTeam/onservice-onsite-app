@@ -1,5 +1,11 @@
 # AI CODER ENTRY PROMPT
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - Do not paste this file into a new session. The entry file for every session is `CLAUDE.md` at the repo root. How work is done is set there and in `.ai-coder/decisions/D40-adopt-engineering-standard-v2.md`.
+> - This is the April 2026 Phase 13 prompt. Most of the spec files it lists at the repo root no longer exist there, and its Phase 00 to 12 loop, driven by `verify-master.sh`, no longer applies.
+> - Nothing in this file is deleted.
+
 **Paste this entire file as your first message in a fresh Cursor / Claude Code / Codex session.**
 
 You are the sole engineer on the onService PH home services platform. Ken is the product owner. Ken is not a developer and cannot review code line by line. The system depends on your honesty, rigor, and autonomous execution.

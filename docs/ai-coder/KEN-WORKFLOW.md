@@ -1,5 +1,12 @@
 # KEN-WORKFLOW — onService Onsite App
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - This April 2026 guide is not a "single source of truth" any more. The entry file for every session is `CLAUDE.md` at the repo root, and how work is done is set there and in `.ai-coder/decisions/D40-adopt-engineering-standard-v2.md`.
+> - `AI-CODER-PROMPT.md`, which this guide calls the canonical agent prompt, is also historical now.
+> - Its phase-by-phase review rhythm no longer matches how work is done.
+> - Nothing in this file is deleted.
+
 This is the consolidated guide for Ken (founder / QA reviewer) and any
 AI coding agent working in this repo. It merges the three legacy
 top-level files into a single source of truth:

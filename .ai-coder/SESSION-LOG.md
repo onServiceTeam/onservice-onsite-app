@@ -1,5 +1,12 @@
 # Phase 14 Session Log
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - This log stopped on 2026-04-30 and is no longer kept. Do not append to it.
+> - For the current state, read `.ai-coder/CURRENT-DISPATCH`, the public checkpoint under D40. The detailed working log is a private worklog kept in private records (not in the repo).
+> - The D01 to D02 gap-fill entry below says branch protection on `master` enforced 6 status checks. That was the record in April 2026. On 2026-10-14 GitHub returns no branch protection and no rulesets for `master`, and Ken chose to keep it off for now (D40). Nothing is enforced by GitHub today.
+> - Nothing in this file is deleted.
+
 Append-only log of session activity per `.ai-coder/EXECUTION-DISCIPLINE.md` Step 1.6. The next session reads the last entry to confirm continuity. If the log claims work was completed but `git log` does not show the commits, that is an inconsistency requiring escalation.
 
 ---

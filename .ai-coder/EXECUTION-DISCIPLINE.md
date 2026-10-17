@@ -1,5 +1,14 @@
 # EXECUTION DISCIPLINE
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - This is the Phase 14 session manual. How work is done now is set by `CLAUDE.md` and `.ai-coder/decisions/D40-adopt-engineering-standard-v2.md`.
+> - Its branch and pull-request loop (`phase/14-d<NN>-*` branches, "you never merge your own PRs", stop if on `master`) no longer matches practice. Work lands directly on `master` (`CLAUDE.md`).
+> - Its "halt" rules are replaced by the D40 rule: block only the affected step, write it down, keep doing other ready work, and never invent a decision that is Ken's.
+> - `.ai-coder/SESSION-LOG.md` (steps 1.4 and 1.6) is no longer kept. The current checkpoint is `.ai-coder/CURRENT-DISPATCH`, which the D40 change set turns into the public checkpoint.
+> - "All 5 gates green" is not proof. On `master`, Gates B, D and E report green without checking anything, and GitHub branch protection is off by Ken's choice (D40).
+> - The second paragraph below says this file is read-only for the AI coder. Only this banner was added, as D40 directs for the older process documents. The text below is unchanged and nothing is deleted.
+
 This is the AI coder's session-by-session operating manual for executing Phase 14. It is consulted at the start of every session, every time. It exists because Phase 13 produced 1,371 bugs while AI coders ran without procedures and improvised. The procedures here are the structural defense.
 
 This document is read-only for the AI coder. If you find an error in it, write `.ai-coder/escalations/E<NN>-discipline-error-<date>.md` and halt.

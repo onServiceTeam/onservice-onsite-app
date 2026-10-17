@@ -112,6 +112,38 @@ test fixtures remain off, and the sole remaining active privileged account has
 TOTP enabled. `NODE_ENV=production` remains blocked only by the absent real
 Turnstile secret; see `LAUNCH-LIMITATIONS.md` §41.
 
+> **Correction (2026-10-14, D40):** the paragraph above describes 2026-08-24.
+> It is not the current state of the tester server. Two shortcuts are on there,
+> on purpose, and they have different dates:
+>
+> - **Shared test sign-in code:** already on by 2026-10-11.
+>   `LAUNCH-LIMITATIONS.md` section 126 (dated 2026-10-11) lists "phone sign-in
+>   accepts a shared developer code" as still true on the tester server. When
+>   it was switched back on after 2026-08-24 is not recorded in the repo.
+>   Section 129 (2026-10-12) records that, at Ken's request, customer and
+>   provider test accounts keep signing in with a shared test code on
+>   allowlisted test numbers, "as before".
+> - **Admin two-step sign-in:** off since 2026-10-12, at Ken's request
+>   (section 129). Admin sign-in there is email and password only, so SEC-001's
+>   two-step sign-in is switched off there by setting.
+>
+> "All three bypass flags are now disabled" was therefore no longer true there
+> by 2026-10-11 at the latest.
+> Both shortcuts must be removed before a real launch (section 129). The API
+> refuses to start with the admin shortcut in production mode (the production
+> guard described in E07). This correction is based on sections 126 and 129.
+> The relaxed rate-limit setting and the server itself were not re-checked for
+> it.
+>
+> **Correction (2026-10-17).** An earlier draft of the note above repeated a
+> sentence from section 129: that the admin console "is still behind the
+> separate site password and network allowlist". That is not true. Section 129
+> now carries a dated correction, and `LAUNCH-LIMITATIONS.md` section 135 is
+> the one public statement of how the admin console is reached on the tester
+> server. It is a tracked tester-server weakness (E07, `docs/qa/RISK-REGISTER.md`
+> R-2), to close before a real launch; whether an access gate comes back sooner
+> is Ken's decision. Details are in the private records (not in the repo).
+
 ## Phase 13 Dispatch D security hardening (additions)
 
 ### Password hash format (scrypt cost migration)

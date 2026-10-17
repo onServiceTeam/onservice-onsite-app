@@ -1,5 +1,13 @@
 # ESCALATION PROTOCOL
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - This is the Phase 13 and 14 escalation guide. How work is done now is set by `CLAUDE.md` ("When something needs Ken (hard stops)" and "When you are unsure") and `.ai-coder/decisions/D40-adopt-engineering-standard-v2.md`.
+> - Its "stop and ask" rule, and "How long to wait for Ken" ("Do NOT continue with the phase"), are replaced by the D40 rule: write the escalation or decision file, block only the affected step, keep doing other ready work, and never invent a decision that is Ken's. Ken has not yet confirmed the exact wording of that rule (`.ai-coder/governance/STANDARD-V2-ADOPTION.md`, conflict C5).
+> - "Phase" here means the Phase 13 and 14 programme, which is complete. What needs Ken each time is listed in `.ai-coder/governance/AUTHORIZATION-REGISTER.md` (every row DRAFT until Ken confirms it).
+> - If an escalation would expose secrets, server details or a security weakness, it goes in the private records (not in the repo). The repo is public.
+> - Banner added 2026-10-17 to finish the D40 change set. The text below is unchanged and nothing is deleted.
+
 When you stop and ask Ken vs when you decide and continue.
 
 ---

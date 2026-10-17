@@ -8,7 +8,7 @@ this register is the QA/operational view.
 | ID | Risk | Sev | State | Workaround / mitigation | Owner |
 |---|---|---|---|---|---|
 | R-1 | **The production/demo host contains PayMongo live credentials while the external hosted checkout entry is invalid under E14.** A real gateway call can charge money, but the current API-created browser URL is not an approved hosted checkout. | P1 | Open (E14) | Do not test with real payment methods, infer payment from a redirect, or manually mark an attempt paid. Use protected test credentials in non-production and validate the approved Checkout Session or client Payment Method flow plus verified webhooks before enabling external checkout. | Ken / eng |
-| R-2 | Developer OTP, relaxed rate limits, and the admin 2FA bypass were enabled on the public box. | P1 | **Resolved in deployment (2026-08-24)** | Real SMS credentials were verified present; all three bypasses are off, the fixed OTP value was removed, one account using the published demo credential was deactivated, 13 sessions were revoked, and the remaining privileged account has TOTP. | — |
+| R-2 | Developer OTP, relaxed rate limits, and the admin 2FA bypass were enabled on the public box. | P1 | **Out of date since 2026-10-11 at the latest: two shortcuts are on for the tester server, kept on or switched on at Ken's request (see note R-2 below the table).** Was: Resolved in deployment (2026-08-24) | Was (2026-08-24): Real SMS credentials were verified present; all three bypasses are off, the fixed OTP value was removed, one account using the published demo credential was deactivated, 13 sessions were revoked, and the remaining privileged account has TOTP. Now: see note R-2. | Ken / eng (set 2026-10-14; previously no owner) |
 | R-3 | In-app chat send + photo attachment is unreliable. | P2 | Known (LL §25) | Support routes users to "Call provider"; photo evidence via job-photos/dispute upload. | Eng (v1.1) |
 | R-4 | Live provider GPS streaming not shipped. | P3 | Known (LL §32) | UI shows status pills (en route/arrived/in progress), not a moving pin. | Eng (v1.1) |
 | R-5 | Promo codes have a canonical server resolver and redemption ledger, but customers have no checkout input and the feature flag remains off. | P2 | Partially built (LL §30) | Admin banner explains the unwired customer state; do not run promo campaigns until the mobile input, preview/create linkage, and end-to-end tests ship. | Eng / product |
@@ -23,6 +23,37 @@ this register is the QA/operational view.
 | R-14 | Provider authority to set fixed service prices is unresolved (E16). | P1 | Open money-policy hold | Treat admin catalog pricing as canonical. Do not expose or imply provider-set fixed prices until the source-of-truth decision is approved. | Ken / product |
 | R-15 | The internal large-payout review threshold is an application control, not a legal AML classification. The company's covered-person and reporting obligations have not been determined by Philippine counsel/compliance. | P1 | Open legal/compliance determination | Keep conservative internal holds and reasoned audit records. Do not label a held request a statutory covered/suspicious transaction or file/report based only on the app threshold; obtain counsel/compliance advice before live payout operations. | Ken / counsel / compliance |
 | R-16 | The live API cannot yet use `NODE_ENV=production` because no real Turnstile secret or Cloudflare provisioning token is configured. | P1 | Open deployment hold (LL §41) | Keep every bypass independently disabled. Do not weaken the production secret guard or use test keys. Provision real server/client keys, run the verifier and deployed challenge flow, then switch the environment label. | Ken / eng |
+
+**Note R-2 (correction, 2026-10-14, D40).** The "Resolved" state above was true
+on 2026-08-24. It is not true for the current tester server. The two
+shortcuts have different dates:
+
+- **Shared test sign-in code:** already on by 2026-10-11.
+  LAUNCH-LIMITATIONS.md section 126 (dated 2026-10-11) lists "phone sign-in
+  accepts a shared developer code" as still true on the tester server. When it
+  was switched back on after 2026-08-24 is not recorded in the repo. Section
+  129 (2026-10-12) records that, at Ken's request, customer and provider test
+  accounts keep signing in with a shared test code on allowlisted test
+  numbers, "as before".
+- **Admin two-step sign-in:** off since 2026-10-12, at Ken's request. Section
+  129 records that admin sign-in on the tester server is now email and
+  password only. Section 126's correction says admin two-step was still on
+  when checked on 2026-10-11.
+
+So two of the R-2 shortcuts are on, on purpose, and the "Resolved" state was
+already untrue by 2026-10-11 at the latest. R-16's "keep every bypass independently disabled" is out of
+date for the same reason. This note is based on sections 126 and 129. The relaxed
+rate-limit setting and the server itself were not re-checked for this note.
+Removing these shortcuts is a launch step (section 129, "Before a real
+launch"). No end date or trigger before launch has been set. That is Ken's
+decision.
+
+**Addition to note R-2 (2026-10-17).** Admin console access on the tester
+server is part of R-2: see LAUNCH-LIMITATIONS.md section 135 (the one public
+statement; section 129's "site password and network allowlist" sentence was
+wrong). Tracked in E07. Severity stays P1 under R-2. Whether to restore an
+access gate before launch is Ken's decision. Details are in the private
+records (not in the repo).
 
 ## Findings from the automated test runs (2026-06-10/11)
 

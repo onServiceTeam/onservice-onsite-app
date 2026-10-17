@@ -3,7 +3,29 @@
 **Date:** 2026-06-09
 **Raised by:** AI coder (security audit of live box, requested by Ken)
 **Severity:** High (auth bypass reachable from the public internet)
-**Status:** RESOLVED via the production-safe path (verified 2026-08-24).
+**Status (correction, 2026-10-14, D40):** NOT RESOLVED ON THE CURRENT TESTER
+SERVER, BY KEN'S CHOICE. Two shortcuts are on there, with different dates.
+The shared test sign-in code was already on by 2026-10-11:
+`LAUNCH-LIMITATIONS.md` section 126 (dated 2026-10-11) lists "phone sign-in
+accepts a shared developer code" as still true, and when it was switched back
+on is not recorded in the repo. Section 129 (2026-10-12) records that, at
+Ken's request, customer and provider test accounts keep signing in with a
+shared test code on allowlisted test numbers. Admin sign-in on the tester
+server has been email and password only (no second step) since 2026-10-12, at
+Ken's request (section 129). Removing both is a launch step (section 129,
+"Before a real launch"). No earlier end trigger is set; that is Ken's
+decision. This status line is based on sections 126 and 129; the server itself
+was not re-checked for it. The status below is kept as history.
+**Access gates (correction, 2026-10-17):** the "Historical mitigation" gates
+listed below are not in place for the admin console. It is not behind a site
+password or a network allowlist: the site password on the admin and app sites
+was lifted on Ken's instruction on 2026-06-28 for open testing
+(`nginx/nginx.conf`, "E07 staging gate LIFTED"). `LAUNCH-LIMITATIONS.md`
+section 129 said otherwise; section 135 corrects it. This is a tracked
+tester-server weakness (`docs/qa/RISK-REGISTER.md` R-2), to close before a real
+launch. Whether to put an access gate back sooner is Ken's decision. Details
+are in the private records (not in the repo).
+**Earlier status (true on 2026-08-24, out of date since 2026-10-11 at the latest):** RESOLVED via the production-safe path (verified 2026-08-24).
 Developer OTP, relaxed rate limits, and the admin 2FA bypass are disabled; the
 fixed OTP value is removed; the API was recreated healthy; and fixtures remain
 off. One active privileged account still matched a credential formerly exposed
@@ -25,6 +47,11 @@ Tracked in docs/runbooks/launch-cutover.md.
 > Historical warning: this file was already tracked in the public repository.
 > The described bypasses are now disabled and any previously printed credential
 > must remain treated as permanently burned.
+>
+> (Status note, 2026-10-14, D40: "now disabled" was true on 2026-08-24 only.
+> It is not true on the current tester server; see the status at the top of
+> this file and `LAUNCH-LIMITATIONS.md` sections 126 and 129. The rule that
+> previously printed credentials stay burned still applies.)
 
 ## What was found
 

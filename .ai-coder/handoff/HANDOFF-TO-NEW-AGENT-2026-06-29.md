@@ -184,6 +184,14 @@ strategy that was superseded — leave them as point-in-time history.)
   `INSERT INTO pgmigrations (name, run_on) SELECT '146_xxx', NOW() WHERE NOT EXISTS (SELECT 1 FROM pgmigrations WHERE name='146_xxx');`
 
 ### 2.5 Redis cache gotcha (you WILL hit this)
+> **HISTORICAL METHOD (2026-10-17): do not use the commands below.** They read the
+> Redis password into a shell variable and pass it with `redis-cli -a`, which puts
+> the password on a command line. Use `docs/runbooks/tester-server-release.md`
+> step 4 instead: it clears the same catalog keys without the password ever being
+> on a command line or on screen. The cache facts in this section (1 hour, cleared
+> only by an admin catalog change) still hold. Banner added under D40; the text
+> below is unchanged and nothing is deleted.
+
 - `/api/v1/catalog/full` (and other catalog GETs) are cached in Redis for **1
   hour**. After any deploy that changes catalog output, the live response stays
   stale until you bust the key. The app only auto-invalidates on an admin catalog

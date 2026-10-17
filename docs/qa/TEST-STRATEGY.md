@@ -58,6 +58,14 @@ manual exploratory charter before every release that touches these paths.
 The current real gap is the middle-to-top of the pyramid: multi-actor E2E and
 native-device coverage. The base (unit/component) and visual layers are strong.
 
+> **Correction (2026-10-14, D40):** "the visual layer is strong" was not true.
+>
+> - Gate D is report-only (`scripts/gates/MODES.json`, `gate_d_state`). CI never runs the Playwright visual specs. The admin visual checks are run locally only, on Windows, and six specs had silently stopped running before the 2026-10-14 review (LAUNCH-LIMITATIONS.md section 132).
+> - No mobile visual baselines are committed. F#3 is still open.
+> - Accessibility coverage is incomplete (RISK-REGISTER R-11). A search of the repo on 2026-10-14 found no record of the "manual a11y passes" required for Tier 3.
+> - The unit, API and screen-render tests start in CI on every push to `master` (`.github/workflows/ci.yml`). That is the strongest layer today. But `ci.yml` cancels a run when a newer push to the same branch arrives before it finishes (`cancel-in-progress: true`), so not every pushed commit gets a finished run. Check that the exact commit has a finished green run. Passing tests there still prove only what those tests check.
+> - The authorization suite in `qa/api-security/` and the live Playwright E2E run are not part of CI.
+
 ## Test integrity (non-negotiable)
 
 This codebase has a documented history of tests that passed without proving
@@ -70,6 +78,26 @@ Phase 14). The standing rule, already in `CLAUDE.md`, is enforced here:
 
 A green suite must mean the product works. Volume without integrity is worse
 than no tests because it manufactures false confidence.
+
+> **Note (2026-10-14, D40):** "enforced" above means enforced by review, not by a
+> machine check. On master `8d319a18`, no CI check rejects file-exists or
+> source-text tests. The
+> only related check is Gate C's `unique-regression-ids`, which rejects duplicate
+> bug IDs in test titles, but only IDs with a letters-dash prefix such as
+> "UX-018"; plain numeric IDs and three-part IDs such as "R-CUS-09" are not
+> checked (adoption backlog BL-22, added 2026-10-17). At least one test of the banned shape is still on
+> `master` (`packages/api/__tests__/d07-encompassed-bugs.test.ts`, the Bug 1224
+> block, which asserts `existsSync(...)` and matches source text).
+>
+> The D40 gate commit adds a Gate C article, `no-fake-tests`
+> (`scripts/gates/c-no-fake-tests.py`). It rejects two narrower shapes: a test
+> whose only assertions say a file exists, and an assertion that some text
+> contains a bug citation such as "Bug 1234". It does not reject general
+> source-text tests, so a test like the Bug 1224 block above can still pass it.
+> It catches only the exact written forms of its two shapes; small variants
+> (for example `.exec()` instead of `.match()`) still pass (added 2026-10-17).
+> Its exact rules are in the script header. If that script is not in the repo,
+> the commit has not landed and this paragraph does not apply yet.
 
 ## Environments
 

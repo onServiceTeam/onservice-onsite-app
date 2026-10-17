@@ -1,5 +1,13 @@
 # Launch Readiness — status snapshot (updated 2026-08-24)
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - This is a snapshot from 2026-08-24. It is not the current status and not a launch certificate.
+> - It is not a "single source" any more. For current state, read `.ai-coder/CURRENT-DISPATCH` (the public checkpoint under D40), `LAUNCH-LIMITATIONS.md`, the open escalation and decision files, and `docs/runbooks/launch-cutover.md`.
+> - The "Current authority" sentence below names `AGENTS.md`. That file is not in the repo. It is kept in private records (not in the repo) and is not an authority for this project.
+> - The "Security posture" bullet below says the developer OTP and the admin two-step bypass were disabled on 2026-08-24. That is no longer true on the tester server. The shared test sign-in code was already on by 2026-10-11 (`LAUNCH-LIMITATIONS.md` section 126; when it was switched back on is not recorded in the repo), and Ken asked on 2026-10-12 for it to stay on. Admin two-step sign-in has been off there since 2026-10-12, at Ken's request (section 129).
+> - Nothing in this file is deleted.
+
 Single source for "what's done / what's left to go live." For the operational
 detail of each external item, see `docs/runbooks/launch-cutover.md`.
 

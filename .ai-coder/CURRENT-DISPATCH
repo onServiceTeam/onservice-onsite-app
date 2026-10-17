@@ -1,3 +1,183 @@
+CURRENT CHECKPOINT (public-safe)
+================================
+Updated: 2026-10-17, Manila time. First written 2026-10-14, night, during the
+D40 adoption change set.
+Rule: update this file at every slice boundary and every release.
+Public repo: no secrets, server addresses, credential locations or tester data here.
+
+HANDOVER (2026-10-14 to 2026-10-17)
+- The D40 change set was written by another Claude account. That session
+  stopped at its weekly usage limit on 2026-10-14 (about 22:05 Manila) before
+  it finished. Nothing was committed or pushed.
+- This account read the uncommitted work, checked it, and finished the D40
+  documents on 2026-10-17. Still uncommitted: it waits on review and on being
+  split into four commits, in the order under CURRENT WORK item 1 (test
+  fixes, gate, release, documents).
+- The same working folder also holds other unfinished jobs that are not part
+  of D40: the house logo, removing orange from the admin and app, a public
+  homepage, and the Service Provider wording (not started).
+- One writer at a time: the other account may resume around 2026-10-20.
+  Before it does, Ken confirms which account carries on.
+
+WHERE THINGS ARE
+- master on GitHub: 8d319a18 "chore(mobile): APK 1.0.5 (build 6)"
+- Live tester server: 8d319a18 (API, admin web, customer and provider web).
+  Released 2026-10-14 (LAUNCH-LIMITATIONS.md section 133). Source: the
+  private release worklog; the 2026-10-16/17 handover review saw the same
+  commit live (read-only).
+- APK offered to testers: 1.0.5 (build 6). Phones on 1.0.3 or 1.0.4 are offered
+  it through the in-app updater. No real-phone test is on record yet
+  (LAUNCH-LIMITATIONS.md:4288).
+- Latest migration: 186_marketplace_alerts.sql (175 migration files). The live
+  database is migrated through 186 (private release worklog).
+- CI on 8d319a18: CI run 38555374628 and Gates run 38555374447, both green.
+  Gates B, D and E reported green without running their checks.
+- GitHub protection: OFF by Ken's choice (D40). Nothing is enforced by GitHub.
+- Stage: tester pilot. Not a launch. Not launch-ready.
+
+WHO IS WRITING
+- Active writer: one Claude Code session. It may run helper agents on separate
+  files; only that session commits and pushes.
+- The Codex automation is PAUSED. Resuming it, or starting any second
+  autonomous writer, needs Ken (authorization register, Class 3).
+- How master moves today: a direct push after the local suites pass
+  (register R1). CI and Gates run after the push and cannot block it. The
+  pay-path commits d6161a6b to 8d319a18 went this way; only 8d319a18 has CI
+  runs. For a risky change, CI may run first on a short-lived branch, and then
+  master moves to that exact commit (CLAUDE.md, "Branches and merging").
+
+CURRENT WORK
+1. Now: the D40 adoption change set. Documents, gate scripts with their
+   self-tests, release scripts with fixture tests, and test-file fixes that
+   remove banned fake-test shapes. No product code. Its own commits, undoable
+   with git revert. Records: .ai-coder/governance/STANDARD-v2.md,
+   STANDARD-V2-ADOPTION.md, AUTHORIZATION-REGISTER.md.
+   Not committed yet. Commit order (corrected 2026-10-17; the first version
+   named only the 6 fake-test fixes, but the new db-tests-fail-closed article
+   also fails on master until 4 more test files carry their guard):
+   a. Test fixes, 10 files: the 6 files with banned fake-test shapes and the
+      4 database test files that get the fail-closed guard (bug-ops-387,
+      bug-ops-390, bug-ops-408, bug-ux-350).
+   b. chore(gate): scripts/gates/ (scripts, MODES.json, EXPECTED-FAILURES.md,
+      self-tests; never the untracked scripts/gates/__pycache__/ folder),
+      .github/workflows/gates.yml and packages/api/seeds/README.md.
+   c. Release: scripts/release/ (scripts, tests, fixtures), the new CI job
+      "Release scripts - behaviour tests" in .github/workflows/ci.yml, the
+      deploy.yml header and the release runbook.
+   d. Documents: everything else in the D40 file list, now including the
+      banner added to .ai-coder/handoff/HANDOFF-TO-NEW-AGENT-2026-06-29.md.
+      Never the house-logo, orange-removal or homepage files that sit in the
+      same working folder.
+   Commit b before commit a turns Gate C red on master. The documents are
+   written to be true once a to c have landed, so they go last.
+2. Next: the P1 repair items, in order, starting with the list in the private
+   tracker. Recounted on 2026-10-17 against 8d319a18 (private re-validation):
+   102 of the 124 repair items are open, 1 P0, 31 P1 and 70 P2. R-CUS-09 and
+   R-NOT-01 are Verified and Deployed (not checked on a real phone). (The
+   2026-10-14 count at fa7fb079 was 104 open, 29 P1.)
+- Also prepared by the other account, outside D40: a public homepage and the
+  www address switch. Tested on a copy only; nothing is applied to live.
+  Applying it touches the shared front door, so Ken picks the time (register
+  Class 3, item 1).
+- Done just before: pay-path fixes R-CUS-09 and R-NOT-01 (d6161a6b, 5e73bdd3,
+  82be713f), live at 8d319a18 with APK 1.0.5 (LAUNCH-LIMITATIONS.md section
+  133).
+
+NEXT ACTION
+- Review and land the D40 change set in its four commits (order under
+  CURRENT WORK item 1), then watch the first Gates run with the fail-closed
+  summary and the first run of the CI job "Release scripts - behaviour
+  tests". Then pick the first open P1 item in the private tracker.
+
+OUTSTANDING OPERATIONS
+- None recorded as running on the tester server.
+- Done 2026-10-17: the release script used for 8d319a18 was copied from a
+  temporary session folder into the private release records. The cleaned
+  scripts in the change set (scripts/release/) are not that script.
+- Done 2026-10-17: the at-risk private notes that were then in the
+  worktree's own git-ignored qa-frameworks/ folder (the newest worklog entry
+  and the homepage switch plan, among others) were copied into the main
+  checkout's qa-frameworks/; a file-by-file compare later that day found
+  every copy identical.
+- NOT done: two private notes written later on 2026-10-17 (the D40
+  governance notes and the release-script notes) exist only in the
+  worktree's qa-frameworks/ folder. The public "details in the private
+  records" pointers in the D40 documents lead to them. Copy them into the main
+  checkout's qa-frameworks/ (files only, then compare both copies) before the
+  worktree is removed.
+- Never remove the worktree with a recursive delete (it can follow links into
+  other folders on Windows), and compare both copies before removing it.
+- Written since the first version of this file:
+  docs/runbooks/tester-server-release.md. It has not been used for a real
+  release yet. A CI job for the release-script tests is in the change set
+  but has never run on GitHub; the full local run on 2026-10-17 passed
+  (adoption backlog AD-08).
+- Waiting on Ken: a supervised reload of the shared web server
+  (LAUNCH-LIMITATIONS.md:4062-4064 and :4272). The same web server also serves
+  other businesses' sites, so a reload briefly affects them too.
+
+BLOCKERS WAITING ON KEN (public-safe list)
+- Confirm the authorization register. Every row is DRAFT.
+- Confirm or reverse four rules the change set already applies in CLAUDE.md
+  under D40: the reworded hard-stop rule, the removal of relax-merge-restore,
+  the new launch-rule wording and the gate-change rule
+  (STANDARD-V2-ADOPTION.md, conflicts C3, C5, C7, C10). CLAUDE.md marks each
+  one "Pending Ken".
+- Retire the process sections of .ai-coder/CONSTITUTION.md, including Article
+  11's one-task limit on chat instructions (conflict C11; only Ken may edit
+  it).
+- Admin console access on the tester server: whether an access gate comes
+  back before more people get the address (Ken decision 15;
+  LAUNCH-LIMITATIONS.md section 135; E07).
+- Before the D40 change set is pushed: one public-safety point for Ken
+  (adoption record, bad news 8; details in the private records).
+- Other adoption decisions: Gate D option, Claude's GitHub identity, one name
+  for the live box, retire or keep the paused Codex automation, where the one
+  private work list lives (STANDARD-V2-ADOPTION.md, section 6).
+- Pick a time to apply the homepage and www switch (shared front door).
+- Accounts: Resend account and domain records for email sign-in codes
+  (LAUNCH-LIMITATIONS.md:4097-4101); a Firebase project for Android push
+  (:4273); a Slack alert webhook (:4271).
+- Open escalations: E11 and E14 (payment-provider setup on the tester server),
+  E83 (money timing on window bookings), E84 (admin-cancel notice wording).
+- Attorney: F#10 disclaimer; the public Terms and privacy pages; E18, E21, E40.
+- A real-phone test of the in-app update.
+- Security clean-up items (private records, not in the repo).
+- Repair items marked "waiting on Ken" (private tracker).
+
+ALREADY DECIDED BY KEN, NOT YET BUILT (2026-10-14)
+- The logo is the house mark, the same everywhere (screens, favicons, the
+  Android app icon and splash, the homepage, emails and PDFs). No "oS" tile,
+  no orange in the mark. Needs a new APK. Separate job, not part of D40.
+- Android download: the homepage offers the APK directly and says "Google
+  Play listing coming soon", with no Google Play badge until the app is
+  listed. Whether and when to list is still open
+  (docs/operations/PLATFORM-SUPPORT.md section 7).
+
+PRIVATE RECORDS (not in the repo)
+They live in the git-ignored qa-frameworks/ folder of the main checkout on
+Ken's PC, except the two 2026-10-17 notes that are still only in the session
+worktree (see OUTSTANDING OPERATIONS):
+- release worklog: qa-frameworks/human-audit-2026-10-13/
+- 124-item repair tracker: qa-frameworks/repair-intake-2026-10-09/
+- D40 gap analysis, and other governance notes: private records (not in the repo)
+Never copy their contents into this repo.
+
+RESTART CHECKLIST
+1. Git: run git fetch origin and git status; compare HEAD with origin/master and with the commit above; keep any uncommitted work, never reset, stash or clean someone else's.
+2. Live: take the live commit from the newest private worklog entry. Do not read the server for this: read-only live checks (register R4) are not granted until Ken confirms them, except inside an R2 release. GET /api/v1/config shows only that the API answers and its switches, not the commit.
+3. Read .ai-coder/decisions/D40-adopt-engineering-standard-v2.md and .ai-coder/governance/AUTHORIZATION-REGISTER.md. Rows R4 and R5 are marked Uncertain and are not granted. R3 rests on Ken's own request; only its end trigger is not set.
+4. Read the newest entry of the private release worklog and the private repair tracker (qa-frameworks, not in the repo; check whether a session worktree holds a newer copy).
+5. Check no other writer is active: the Codex automation still says PAUSED, and origin/master has no commits you cannot account for.
+6. Continue with NEXT ACTION above, and update this file at the next slice boundary or release.
+
+
+------------------------------------------------------------------------
+HISTORICAL / SUPERSEDED BY D40 (2026-10-14). NOT IN FORCE.
+The checkpoint below was written on 2026-04-30. It is kept unchanged so
+nothing is deleted. Its "HALT" instruction no longer applies: under D40 a
+blocked item stops only that step, and other ready work continues.
+------------------------------------------------------------------------
 dispatch: PHASE-14-AI-COMPLETE
 branch: master
 status: All 14 dispatches merged + tagged. v0.14.0-d{01..14}-complete on master.

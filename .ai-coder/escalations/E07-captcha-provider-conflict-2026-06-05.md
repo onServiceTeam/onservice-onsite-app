@@ -12,6 +12,15 @@ bypass were independently disabled, but `NODE_ENV=production` cannot pass the
 intentional secret guard until real widget credentials are provisioned and
 verified. Cloudflare test keys are not an acceptable substitute.
 
+**Status note (2026-10-14, D40):** the sentence above about the bypasses being
+disabled describes 2026-08-24. On the tester server, the shared test sign-in
+code was already on by 2026-10-11 (`LAUNCH-LIMITATIONS.md` section 126; when it
+was switched back on is not recorded in the repo), and Ken asked on 2026-10-12
+for it to stay on (section 129). Admin two-step sign-in has been off there
+since 2026-10-12, at Ken's request (section 129). See the other E07 file,
+`E07-live-server-auth-bypass-config-2026-06-09.md`. The CAPTCHA status itself
+is unchanged by this note.
+
 ## Resolution (what shipped)
 
 - Server: `verifyCaptchaToken` documented as Turnstile, accepts

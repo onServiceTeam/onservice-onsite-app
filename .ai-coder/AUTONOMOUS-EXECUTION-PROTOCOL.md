@@ -1,5 +1,14 @@
 # THE AUTONOMOUS EXECUTION PROTOCOL
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - This is the Phase 13 protocol. How work is done now is set by `CLAUDE.md` and `.ai-coder/decisions/D40-adopt-engineering-standard-v2.md`. Nothing in this file is deleted.
+> - **Void, not just historical:** "Ken's silence is permission" (section "When to ask Ken explicitly anyway"). Claude cannot give itself authority. Silence is not a yes.
+> - **Void, not just historical:** the rule that the AI coder tags `v1.0.0-launch-ready` (section "The end of the chain", step 1). The launch tag is Ken's to apply, after all sign-offs (`docs/runbooks/launch-cutover.md`).
+> - Also no longer in force: "stop, escalate, wait" on any doubt. Under D40, Claude blocks only the affected step, writes it down, and keeps doing other ready work. It never invents the decision.
+> - No CI workflow runs the `verify-master.sh` phase gates described below. That script was last changed on 2026-04-29.
+> - Nothing here is enforced by GitHub. Branch protection is off by Ken's choice (D40).
+
 **The default workflow for this project is: AI coder runs phase → self-verifies → moves to next phase. No human gate between phases. Ken catches up at his pace, with the evidence chain available for any phase he wants to audit.**
 
 This document defines exactly when the AI coder may auto-proceed and when it MUST stop.
@@ -215,6 +224,8 @@ In these cases, asking is not a stop — it's a sanity check. Frame it tightly: 
 
 If Ken doesn't reply within a reasonable window: proceed with the AI coder's recommendation, document the decision, and continue. Ken's silence is permission, given that he asked for autonomy.
 
+> **VOID (D40, 2026-10-14):** the rule above is not in force. Ken's silence is not permission. A decision that needs Ken waits for Ken; Claude blocks only that step and keeps doing other ready work.
+
 ---
 
 ## The ratchet
@@ -231,6 +242,8 @@ After any failed audit or any Ken-initiated stop, the ratchet **resets** — bac
 ## The end of the chain
 
 When PHASE-12 completes successfully, the AI coder:
+
+> **VOID (D40, 2026-10-14):** step 1 below is not in force. The AI coder never applies `v1.0.0-launch-ready`. Ken applies it after all sign-offs (`docs/runbooks/launch-cutover.md`). The "production-ready" message below is void too: a checklist cannot prove the product is ready (standard section A).
 
 1. Tags the commit `v1.0.0-launch-ready`
 2. Generates `LAUNCH-READINESS-REPORT.md` summarizing all 13 phases

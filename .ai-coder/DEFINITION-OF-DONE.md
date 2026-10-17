@@ -1,5 +1,13 @@
 # DEFINITION OF DONE
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - The current definition of done is the "Definition of done (one task)" section of `CLAUDE.md`, added by the D40 adoption change set. Use that one.
+> - This file is the Phase 13 phase-by-phase definition. Several of its steps no longer match how work is done: condition 12 (rebase onto `main` for a pull request), condition 14 ("You stopped... If Ken approved, only then do you start the next phase") and the self-attestation sentence used as proof. Under D40, Claude moves on to the next ready item and does not stop to wait for Ken's approval after each piece; only a step that truly needs Ken waits.
+> - The checkpoint scripts and phase logs it names are not run by CI.
+> - Its warnings about what "done" is not (the section "What 'Done' is NOT") still describe the right attitude.
+> - Nothing in this file is deleted.
+
 A phase is "done" only when EVERY one of the following is true. There is no "mostly done." There is no "done with caveats." There is "done" or "not done."
 
 ---

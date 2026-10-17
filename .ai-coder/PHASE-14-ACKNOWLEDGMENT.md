@@ -1,5 +1,13 @@
 # PHASE 14 ACKNOWLEDGMENT
 
+> **HISTORICAL: superseded for process by D40 (2026-10-14); kept for reference.**
+>
+> - This is a signed record from 2026-04-29, at the start of Phase 14. Phase 14 is complete. How work is done now is set by `CLAUDE.md` and `.ai-coder/decisions/D40-adopt-engineering-standard-v2.md`.
+> - Several promises below no longer match practice: "I never push to main directly", "I will not merge my own pull requests", one pull request per dispatch, and "halt and surface to Ken". Work now lands directly on `master` (`CLAUDE.md` "Branches and merging"), and a blocked item stops only that step while other ready work continues. That last rule is applied under D40, and its wording is pending Ken (`.ai-coder/governance/STANDARD-V2-ADOPTION.md`, conflict C5).
+> - It says branch protection with "Include administrators" stops even Ken from bypassing the gates. That is not true today: on 2026-10-14 GitHub reported no branch protection and no rulesets on `master`, and Ken chose to keep it off for now (D40). Nothing is enforced by GitHub.
+> - The promise not to fake green checks, and the other honesty rules, still stand. They are in `CLAUDE.md`.
+> - Banner added 2026-10-17 to finish the D40 change set. The text below is unchanged and nothing is deleted.
+
 **Read at commit:** `2cc0326da59e95133f1f3597899992023b28baac` (`2cc0326`)
 **Date:** 2026-04-29
 **Branch at time of read:** `phase/13-reconciliation`

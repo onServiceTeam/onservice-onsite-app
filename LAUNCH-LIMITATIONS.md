@@ -468,7 +468,7 @@ forever because public Git history cannot make it secret again.
 
 **Gate:** [scripts/gates/c-constitution-no-admin-password-seeds.sh](scripts/gates/c-constitution-no-admin-password-seeds.sh)
 prevents any future seed from setting `password_hash` on `users` or
-`admin_users` tables.
+`admin_users` tables. **(Correction 2026-10-17: until the D40 gate commit nothing ran this gate; see section 135.)**
 
 **Source decision:** Phase 14 Dispatch 01 Bug 1235 fix.
 
@@ -578,7 +578,7 @@ template-string migration tracked here for D12.
 [scripts/gates/run-gate-a.sh](scripts/gates/run-gate-a.sh),
 [scripts/gates/c-constitution.sh](scripts/gates/c-constitution.sh).
 
-The five gates (A through E) are now binding required-status-checks on the
+**(Correction 2026-10-17: the next two sentences are not true today; see section 135.)** The five gates (A through E) are now binding required-status-checks on the
 `master` branch. PRs cannot merge with any BLOCKING gate failing. Per-fragment
 and per-article modes live in `MODES.json`:
 
@@ -4154,7 +4154,7 @@ platform, so on the live **tester** server:
 - **Admin sign-in is email + password only** (`ADMIN_DISABLE_2FA=1`). This
   reverses the 2026-08-24 change recorded in section 37. The admin console is
   still behind the separate site password and network allowlist, and the
-  server refuses to start with this setting in production mode.
+  server refuses to start with this setting in production mode. **(Correction 2026-10-17: the site password and network allowlist part is not true; see section 135.)**
 - **Customer and provider test accounts sign in instantly** with their
   allowlisted test phone numbers and a shared test code (`ALLOW_DEV_OTP`),
   as before. Real SMS is never sent to them.
@@ -4286,3 +4286,86 @@ Limits (open):
   - At 1024 px the Active Bookings table scrolls sideways, so its Actions column is out of view.
   - The "Dispatch attention" card shows 0 and "No loaded booking currently needs dispatch attention" while the bookings are still loading. That is a false zero of the same kind fixed on the Staff page.
 - **Nothing has been tried on a real phone yet**, including the in-app update from 1.0.3 to 1.0.4.
+
+## 133. Pay-path fixes are live: the pro is told when the customer pays (2026-10-14)
+
+Recorded on 2026-10-17. This release reached the tester server on 2026-10-14 but was not written up here at the time.
+
+Live at `8d319a18` since about 19:30 Manila time on 2026-10-14 (API and the customer and provider web app; the admin build did not change), and in APK 1.0.5 (build 6), published the same evening. There is no database migration in it: the live database stays at migration 186. These are the two pay-path items Ken put first (D40 point 2):
+
+- **R-NOT-01: the assigned pro is told when the customer pays** (`d6161a6b`, `82be713f`). With request-first booking (D38) the pro is chosen when the customer accepts a quote, and the customer then pays from the wallet. Before this fix the pro heard nothing. Now, once the payment is saved, the assigned Service Provider gets a "Customer paid" notice: an inbox entry, a live update while the app is open, and an in-app banner with a coin icon. Tapping it opens the job. A failed notice is logged and never undoes the payment. The same notice is wired to the payment webhook, which stays unused while external payments are held (E14). Tests: 13 API tests against a real Postgres database, and a banner render test.
+- **R-CUS-09: truthful booking screens after paying a quote** (`5e73bdd3`):
+  - when a pro is already assigned, the confirmation says who is coming and when, and that they have been told, instead of "We're finding the best provider for you";
+  - "Leave a Review" becomes "You reviewed this job" once a review exists, instead of ending in an error;
+  - saving an address shows the server's real reason, and a network failure shows the screen's own message, never "HTTP 502";
+  - the booking action bar stays usable on a small phone.
+
+  Each of these has a render test that was seen failing first.
+
+Evidence: CI run `38555374628` and Gates run `38555374447` passed on `8d319a18`. Gates B, D and E reported green there without running their real checks (section 134). Before the release the local suites passed apart from known local-only cases (mobile 789 of 790, API 1,410 of 1,413). Status: Verified and Deployed (tester server, APK channel).
+
+The two fixes must stay together: the new confirmation says the pro has been told, which is true only while the R-NOT-01 API change is live. A rollback of one needs a rollback of the other.
+
+Limits (open):
+- **Android push is still not configured** (no Firebase project, sections 131 and 132). On Android the pro sees the notice in the inbox, or live only while the app is open.
+- **Getting 1.0.5:** phones on 1.0.3 or 1.0.4 are offered it through the in-app updater, and the prompt can be dismissed. Phones on 1.0.1 or 1.0.2 must install a newer build by hand once (section 131).
+- **Nothing in this release has been tried on a real phone**, including on a small screen.
+- **Payment is wallet only** (E14). No real money was moved as a test.
+
+## 134. Engineering standard v2 adopted: what changes and what does not (D40, 2026-10-14 to 2026-10-17)
+
+Ken adopted the Universal Autonomous Software Engineering Standard v2.0 in full on 2026-10-14 (`.ai-coder/decisions/D40-adopt-engineering-standard-v2.md`). The change set that applies it was written on 2026-10-14 by a session on another Claude account. That session stopped at its weekly usage limit the same night, before it finished. This account checked and finished the documents on 2026-10-17. This entry was written before the change set was committed; its commits and CI runs are recorded in `.ai-coder/CURRENT-DISPATCH`. The full record is `.ai-coder/governance/STANDARD-V2-ADOPTION.md`.
+
+What is adopted (in the change set):
+- `CLAUDE.md` rewritten as the short entry file: who decides what, Ken's standing rules, status words, review labels, risk tiers, a definition of done for one task, and the plain statement that GitHub enforces nothing. `.cursorrules` and the Copilot instruction file now only point to it.
+- A public checkpoint (`.ai-coder/CURRENT-DISPATCH`), one copy of the standard (`.ai-coder/governance/STANDARD-v2.md`), the adoption record, and an authorization register.
+- Dated "historical" banners on the old Phase 13 and 14 process files. Nothing is deleted.
+- New records: `docs/operations/DATA-INVENTORY.md`, `docs/operations/INTEGRATIONS.md`, `docs/operations/PLATFORM-SUPPORT.md`, and the tester-server release runbook `docs/runbooks/tester-server-release.md`, with cleaned release scripts and their fixture tests.
+- More honest CI: the "All gates passed" job fails closed; Gates B, D and E print "NOT RUN" instead of passing silently; a direct push to master is compared with the previous master commit; and three new BLOCKING Gate C articles, each with its own test:
+  - `no-fake-tests`, with fixes for 17 old fake-shaped tests in 6 files;
+  - `no-admin-password-seeds`, an old seeds check that nothing ran until now (section 135);
+  - `db-tests-fail-closed`: a database test must fail in CI, not skip, when its test database is missing. The guard was added to the 4 database test files that lacked it.
+- A CI job, "Release scripts - behaviour tests", that runs the release-script tests and a check that every preflight refusal in the two release scripts has a test that catches it.
+- Dated truth corrections in about 16 documents, including section 135 below.
+
+What is DRAFT, waiting on Ken:
+- every row of the authorization register;
+- five rules applied under D40 whose exact words Ken has not confirmed, each marked "Pending Ken" in `CLAUDE.md`: retiring relax-merge-restore (C3), the "block only that step" hard-stop rule (C5), the launch-rule wording (C7), who approves gate changes (C10), and which parts of `.ai-coder/CONSTITUTION.md` count as superseded (C11);
+- the other open adoption decisions (section 6 of the adoption record).
+
+What is NOT enforced:
+- GitHub branch protection, rulesets, secret scanning, push protection and Dependabot are off, by Ken's choice (D40 point 4). Nothing on GitHub stops a push, even when CI is red.
+- "BLOCKING" means the gate's CI job fails. It does not stop the push.
+- Gates B, D and E check nothing on master today. After the change set they say "NOT RUN"; they still check nothing.
+- The new fake-test check catches two shapes of fake test and their common variants; some variants still get past it (examples in `CLAUDE.md`). The other test rules are kept only by Claude and by review.
+- The three new Gate C articles and the release-scripts CI job had not run on GitHub when this entry was written. Their first CI run is pending; its run IDs go into `.ai-coder/CURRENT-DISPATCH`.
+- The release runbook and scripts have never run a real release, and rollback has never been practised. Their tests passed in a full local run on Windows on 2026-10-17; the Linux-only file-mode checks have never run anywhere.
+- Even switched on, GitHub settings would guard against accidents only, not against the account Claude uses.
+
+Still open: adoption backlog items BL-04 to BL-22 and BL-24 (BL-01 to BL-03 are the three new records above; BL-23 is the seeds check, wired in by the change set); the Gate D choice; and a restart test from the checkpoint (AD-12).
+
+## 135. Dated corrections to sections 21, 22 and 129 (2026-10-17)
+
+Found while finishing the D40 change set. Nothing above is removed. Each corrected line now ends or starts with a short pointer to this section.
+
+**Section 21 (lines 469-471): the admin-password-seeds gate did not run.** On `8d319a18` and before, `scripts/gates/c-constitution-no-admin-password-seeds.sh` existed, but no gate runner and no workflow called it, so it prevented nothing. `packages/api/seeds/README.md:46` made the same claim. Until the D40 gate commit nothing ran this gate; that commit wires it into Gate C as the BLOCKING article `no-admin-password-seeds`, with its own test (backlog item BL-23 in `.ai-coder/governance/STANDARD-V2-ADOPTION.md`; first CI run pending). `scripts/gates/EXPECTED-FAILURES.md` and the seeds README record the same.
+
+**Section 22 (lines 581-582, and 600-604): the gates are not required checks.**
+- "The five gates (A through E) are now binding required-status-checks on the `master` branch. PRs cannot merge with any BLOCKING gate failing." That is not true today. On 2026-10-14 GitHub reported no branch protection and no rulesets on `master`, and Ken chose to keep it that way for now (D40). The gates run after a push and cannot stop it. Pull requests are not the normal path: work lands directly on `master`.
+- On `master` at `8d319a18` (Gates run `38555374447`), Gates B, D and E reported green without running their real checks. The D40 change set makes them print "NOT RUN".
+- "BLOCKING" in `scripts/gates/MODES.json` still means the gate's CI job fails. It does not stop a push.
+- The gate-amendment paragraph (lines 600-604, "requires Ken's signoff via PR") is replaced by "Current gate-change rule (D40)" in `.ai-coder/governance/GATE-AMENDMENTS.md`: a gate change goes in its own commit with a test, loosening needs Ken's yes first, and tightening lands with Ken told. That rule is itself pending Ken's confirmation (conflict C10).
+
+**Section 129 (lines 4155-4157): the admin console is not behind a site password or a network allowlist.**
+- The sentence "The admin console is still behind the separate site password and network allowlist" was already wrong when it was written. The admin site password was lifted on Ken's instruction on 2026-06-28, so testers could reach the sites without one (`nginx/nginx.conf`, "E07 staging gate LIFTED"), and no network allowlist sits in front of the admin console either.
+- The rest of that bullet stands: admin sign-in there is email and password only, at Ken's request, and the API refuses to start with that setting in production mode.
+- This is a known weakness of the tester server, kept by Ken's choice for open testing and tracked in E07 and `docs/qa/RISK-REGISTER.md` (R-2). It must be closed before a real launch. Whether an access gate comes back sooner is Ken's decision (decision 15 in `.ai-coder/governance/STANDARD-V2-ADOPTION.md`). Details are in the private records (not in the repo). This section is the one public statement of it; the other D40 documents point here.
+- The same wrong sentence was copied into the first drafts of two D40 documents (`docs/SECURITY-POSTURE.md` and `docs/operations/PLATFORM-SUPPORT.md`). Both were corrected before commit.
+
+## 136. Three open operations items found while finishing D40 (2026-10-17)
+
+Found while checking the D40 change set. None is fixed. Details are in the private records (not in the repo).
+
+- **The Redis password sits on a process command line.** The Redis container's start command and its health check (`docker-compose.prod.yml`) carry the Redis password as a command-line value. The new release runbook keeps the password off the operator's own command lines (`docs/runbooks/tester-server-release.md` step 4), but that rule does not cover the stack's own Redis command. Changing it means recreating the Redis container on the live server, so it is a Ken decision.
+- **One dormant background charge path is not behind the payment hold.** The payment routes refuse before any write while external payments are held (E14, section 48). One background charge path does not go through that hold yet. It is dormant today, because recurring automatic payments cannot be set up (the API refuses, E20). Putting it behind the hold, with a test, is adoption backlog item BL-24.
+- **The newer web-server configuration will load by itself at the next restart.** The live web server still runs the 2026-08-24 configuration (section 132 notes the drift). The newer configuration in the repo is already on disk, so it takes effect at the next restart of that web server for any reason: a server reboot, an automatic restart, a Docker restart, or maintenance for one of the other sites it serves. Every site it serves is affected at that moment, not only onService. Applying it on purpose, at a time Ken approves, with the change list checked first, is safer than waiting for an unplanned restart.
