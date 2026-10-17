@@ -1,7 +1,28 @@
 CURRENT CHECKPOINT (public-safe)
 ================================
-Updated: 2026-10-17, Manila time. First written 2026-10-14, night, during the
+Updated: 2026-10-18, Manila time. First written 2026-10-14, night, during the
 D40 adoption change set.
+
+UPDATE 2026-10-18 (read this first; the sections below it are from 2026-10-17
+and are kept as written, with the lines this update replaces marked)
+- D40 landed on master in five commits: a5098d05, e8694d4d, 1e83fd0a,
+  11bec855 and the test-fixture fix 683e4df8. CI run 39043220746 and Gates run
+  39043220739 on 683e4df8 are green; the new "Release scripts - behaviour
+  tests" job passed on GitHub. Gates B, D and E still report green without
+  running their checks. D40 changed documents, gates, release scripts and
+  tests only, so the tester server still runs 8d319a18 and that is correct.
+- Ken redirected the work on 2026-10-17: customer side first, from his own
+  review of the customer app (docs/qa/customer-review-2026-10-17/: his notes,
+  his storage decision S1, and the audit, gap analysis, design audit and
+  batch plan). His questions are in
+  .ai-coder/decisions/D41-customer-review-2026-10-18.md (OPEN).
+- Order now: Batch 0 = the house-logo and orange-removal job (in review,
+  then APK 1.0.6 build 7), then customer Batch 1a (needs no answer from Ken),
+  then the batches that wait on D41. The P1 repair items come after the
+  customer side unless Ken says otherwise.
+- The two 2026-10-17 private notes listed under OUTSTANDING OPERATIONS as
+  "NOT done" were copied into the main checkout's private records on
+  2026-10-17 and compared by hash.
 Rule: update this file at every slice boundary and every release.
 Public repo: no secrets, server addresses, credential locations or tester data here.
 
@@ -84,7 +105,8 @@ CURRENT WORK
   133).
 
 NEXT ACTION
-- Review and land the D40 change set in its four commits (order under
+- (Replaced by the 2026-10-18 update at the top: land the house-logo job,
+  then customer Batch 1a.) Previously: review and land the D40 change set in its four commits (order under
   CURRENT WORK item 1), then watch the first Gates run with the fail-closed
   summary and the first run of the CI job "Release scripts - behaviour
   tests". Then pick the first open P1 item in the private tracker.
