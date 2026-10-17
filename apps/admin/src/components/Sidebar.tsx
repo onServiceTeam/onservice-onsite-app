@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { ChevronLeft, ChevronRight, X } from '@/components/icons';
+import BrandMark from '@/components/BrandMark';
 import { visibleAdminNavGroups } from '@/config/admin-navigation';
 
 interface SidebarProps {
@@ -12,11 +13,13 @@ interface SidebarProps {
 }
 
 function environmentPresentation(): { label: string; dot: string } {
+  // UX-1394: admin.onservice.ph is the live TESTER server (tester pilot, not
+  // launched), so it must not call itself production.
   if (typeof window !== 'undefined' && window.location.hostname === 'admin.onservice.ph') {
-    return { label: 'Production environment', dot: 'bg-emerald-600' };
+    return { label: 'Tester server', dot: 'bg-[var(--color-primary)]' };
   }
   if (import.meta.env.MODE === 'production') {
-    return { label: 'Staging environment', dot: 'bg-[var(--color-accent)]' };
+    return { label: 'Staging environment', dot: 'bg-slate-400' };
   }
   return { label: 'Development environment', dot: 'bg-[var(--color-secondary)]' };
 }
@@ -57,9 +60,10 @@ function SidebarContent({
   return (
     <>
       <div className={`flex min-h-18 items-center gap-3 border-b border-[var(--color-border)] py-4 ${collapsed ? 'justify-center px-3' : 'px-5'}`}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[var(--color-primary)] text-sm font-bold text-white">
-          oS
-        </div>
+        {/* UX-1398: the house logo (blue tile, white house on the light
+            sidebar), replacing the "oS" text tile. In the collapsed rail the
+            tile stands alone, so it carries the name for screen readers. */}
+        <BrandMark tone="onLight" size={40} label={collapsed ? 'onService PH' : undefined} />
         <div className={`min-w-0 flex-1 ${collapsed ? 'hidden' : ''}`}>
           <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-text)]">
             onService PH

@@ -27,9 +27,35 @@ function request(url: URL): Promise<{ status: number; type: string; bytes: Buffe
   });
 }
 
-it('Bug UX-1374 — the built admin page serves the shared onService browser icon instead of an absent template asset', async () => {
+// The admin's own house favicon set (Ken, 2026-10-14; UX-1399 checks the
+// pictures). Until then the admin borrowed ../mobile/assets/icon.png, the old
+// slate "oS" launcher icon. Each link must reach the browser as a hashed file
+// under assets/: the tester release check (scripts/server/paired-web-release.mjs,
+// validateCandidateFiles) rejects any other admin file name except index.html
+// and build-audit.json, and a new hashed name is what gets past the long
+// browser cache when the art changes.
+const ICONS = [
+  { selector: 'link[rel="icon"][type="image/svg+xml"]', source: 'favicon.svg', type: 'image/svg+xml', name: /^\/assets\/favicon-[A-Za-z0-9_-]{8,}\.svg$/ },
+  { selector: 'link[rel="icon"]:not([type])', source: 'favicon.ico', type: 'image/x-icon', name: /^\/assets\/favicon-[A-Za-z0-9_-]{8,}\.ico$/ },
+  { selector: 'link[rel="apple-touch-icon"]', source: 'apple-touch-icon.png', type: 'image/png', name: /^\/assets\/apple-touch-icon-[A-Za-z0-9_-]{8,}\.png$/ },
+];
+// The admin rule from validateCandidateFiles in paired-web-release.mjs.
+const RELEASE_ADMIN_MUTABLE = ['build-audit.json', 'index.html'];
+const RELEASE_ADMIN_HASHED_ASSET = /^assets\/.+-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/;
+
+async function builtFiles(root: string, prefix = ''): Promise<string[]> {
+  const names: string[] = [];
+  for (const entry of await fs.readdir(path.join(root, prefix), { withFileTypes: true })) {
+    const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) names.push(...await builtFiles(root, name));
+    else names.push(name);
+  }
+  return names;
+}
+
+it('Bug UX-1374 — the built admin page serves the onService browser icons (the house favicon set) instead of an absent template asset', async () => {
   // Build the actual application and HTML, not an invented template or source
-  // string assertion. Vite's real preview server must serve the PNG bytes;
+  // string assertion. Vite's real preview server must serve the icon bytes;
   // a SPA fallback returning HTTP 200 with index.html cannot pass.
   const temporary = await fs.mkdtemp(path.join(tmpdir(), 'onservice-admin-brand-'));
   let server: PreviewServer | undefined;
@@ -67,19 +93,27 @@ it('Bug UX-1374 — the built admin page serves the shared onService browser ico
     dom = new JSDOM(page.bytes.toString('utf8'));
     const parsed = dom.window.document;
     expect(parsed.title).toBe('onService Admin');
-    const icon = parsed.querySelector('link[rel~="icon"]');
-    const href = icon?.getAttribute('href');
-    if (!href) throw new Error('Built admin page has no browser icon');
-    const iconUrl = new URL(href, base);
-    expect(iconUrl.origin).toBe(base.origin);
-    const served = await request(iconUrl);
-    const canonical = await fs.readFile(path.resolve(adminRoot, '../mobile/assets/icon.png'));
-    expect(served.status).toBe(200);
-    expect(served.type).toContain('image/png');
-    expect(served.bytes.equals(canonical)).toBe(true);
-    expect(served.bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-    expect(icon?.getAttribute('type')).toBe('image/png');
-    expect(iconUrl.pathname).toMatch(/^\/assets\/icon-[A-Za-z0-9_-]{8,}\.png$/);
+    expect(parsed.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')).toHaveLength(ICONS.length);
+    for (const icon of ICONS) {
+      const links = parsed.querySelectorAll(icon.selector);
+      expect(links).toHaveLength(1);
+      const href = links[0]?.getAttribute('href');
+      if (!href) throw new Error(`Built admin page has no ${icon.source} link`);
+      // Vite must link a file, never inline the icon as a data: URI.
+      expect(href.startsWith('data:')).toBe(false);
+      const iconUrl = new URL(href, base);
+      expect(iconUrl.origin).toBe(base.origin);
+      expect(iconUrl.pathname).toMatch(icon.name);
+      const served = await request(iconUrl);
+      const canonical = await fs.readFile(path.join(adminRoot, 'src/assets/brand', icon.source));
+      expect(served.status).toBe(200);
+      expect(served.type).toContain(icon.type);
+      expect(served.bytes.equals(canonical)).toBe(true);
+    }
+    // Every file the build wrote passes the release check's admin name rule.
+    const unreleasable = (await builtFiles(temporary))
+      .filter((name) => !RELEASE_ADMIN_MUTABLE.includes(name) && !RELEASE_ADMIN_HASHED_ASSET.test(name));
+    expect(unreleasable).toEqual([]);
   } finally {
     vi.unstubAllEnvs();
     dom?.window.close();

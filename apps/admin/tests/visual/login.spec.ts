@@ -20,6 +20,20 @@ async function submitCredentials(page: Page): Promise<void> {
 test.describe('LoginPage', () => {
   test.use({ authenticated: false });
 
+  // UX-1393: the global keyboard focus outline was orange (#ff8a00), about
+  // 2.4:1 against the white page (WCAG 2.2 AA needs 3:1) and off-brand. It is
+  // now the action blue #0052cc. Checked on the real built page in a browser.
+  test('Bug UX-1393 — the keyboard focus outline is the action blue, not orange', async ({ page }) => {
+    await page.goto(ROUTE);
+    const email = page.getByLabel('Email');
+    await email.focus();
+    const outline = await email.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { color: style.outlineColor, style: style.outlineStyle, width: style.outlineWidth };
+    });
+    expect(outline).toEqual({ color: 'rgb(0, 82, 204)', style: 'solid', width: '3px' });
+  });
+
   for (const width of [1280, 1440, 1920]) {
     test.describe(`@${width}`, () => {
       test.use({ viewport: { width, height: 800 } });

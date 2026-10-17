@@ -72,8 +72,12 @@ textarea {
   outline-offset: 2px;
 }
 
+/* UX-1393: the keyboard focus outline is the action blue (#0052cc, about
+   6.6:1 against white). The earlier orange (#ff8a00) was only about 2.4:1
+   against the white page, below the 3:1 WCAG 2.2 AA minimum for a focus
+   indicator, and orange is not part of the brand mark. */
 :focus-visible {
-  outline: 3px solid #ff8a00;
+  outline: 3px solid var(--color-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {

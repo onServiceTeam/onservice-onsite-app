@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { useAuthStore, type AdminUser } from '@/stores/auth.store';
 import api, { getErrorMessage } from '@/lib/api';
 import { Button, Label, Input } from '@/components/ui';
+import BrandMark from '@/components/BrandMark';
 import { DEMO_MODE, DEMO_ADMIN } from '@/config/demo';
 import { Loader2, RefreshCw } from 'lucide-react';
 
@@ -29,11 +30,16 @@ function AdminAuthShell({
       >
         <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full border border-white/15" />
         <div className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-[var(--color-secondary)]/25" />
-        <div className="relative z-10">
-          <p className="text-2xl font-bold tracking-tight">
-            <span className="text-[var(--color-accent)]">on</span>Service
-          </p>
-          <p className="mt-2 text-sm font-medium text-white/75">Philippines operations console</p>
+        {/* UX-1392: the house logo, the same mark as the sidebar and the phone
+            app's sign-in panel (Ken, 2026-10-14). This panel is brand blue, so
+            the tile is white with a blue house, and "onService PH" is one
+            colour. The orange accent is never part of the brand mark. */}
+        <div className="relative z-10 flex items-center gap-3" data-testid="admin-login-brand">
+          <BrandMark tone="onDark" size={48} />
+          <div>
+            <p className="text-2xl font-bold tracking-tight">onService PH</p>
+            <p className="text-sm font-medium text-white/75">Philippines operations console</p>
+          </div>
         </div>
 
         <div className="relative z-10 max-w-lg">
@@ -51,7 +57,7 @@ function AdminAuthShell({
               'Auditable decisions for customer and company protection',
             ].map((item) => (
               <li key={item} className="flex items-start gap-3">
-                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--color-accent)]" aria-hidden="true" />
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-white/80" aria-hidden="true" />
                 <span>{item}</span>
               </li>
             ))}
@@ -66,11 +72,14 @@ function AdminAuthShell({
         className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 md:px-10 lg:px-16"
       >
         <div className={`w-full ${wide ? 'max-w-xl' : 'max-w-md'}`}>
-          <div className="mb-8 md:hidden">
-            <p className="text-2xl font-bold tracking-tight text-[var(--color-text)]">
-              <span className="text-[var(--color-primary)]">on</span>Service
-            </p>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Philippines operations console</p>
+          {/* UX-1392: below 768px the logo sits on the light page, so the tile
+              is brand blue with a white house. */}
+          <div className="mb-8 flex items-center gap-3 md:hidden" data-testid="admin-login-brand-compact">
+            <BrandMark tone="onLight" size={48} />
+            <div>
+              <p className="text-2xl font-bold tracking-tight text-[var(--color-text)]">onService PH</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">Philippines operations console</p>
+            </div>
           </div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-primary)]">Admin operations</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--color-text)]">{title}</h1>

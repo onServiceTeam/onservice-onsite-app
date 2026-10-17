@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="../mobile/assets/icon.png" />
+    <!-- onService PH house favicons (docs/design-system/brand/README.md). They
+         live under src/assets so Vite gives each one a hashed file name: the
+         tester release check only accepts hashed files below assets/, and a
+         new name is what makes browsers fetch new art past the long cache. -->
+    <link rel="icon" href="/src/assets/brand/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/src/assets/brand/favicon.svg" />
+    <link rel="apple-touch-icon" href="/src/assets/brand/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>onService Admin</title>
   </head>
