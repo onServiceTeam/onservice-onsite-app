@@ -230,6 +230,15 @@ router.post(
       next(phoneSignInPaused());
       return;
     }
+    // D41 Q47: a number that is not invited is refused here, before the
+    // lockout check and before anything is recorded, so these refusals never
+    // count toward a lockout or a CAPTCHA for the phone or the network.
+    try {
+      await authService.assertPhoneSignInInvited(req.body.phone as string);
+    } catch (error) {
+      next(error);
+      return;
+    }
     try {
       const clientIp = getClientIp(req);
       const phone = req.body.phone as string;
@@ -293,7 +302,11 @@ router.post(
         success: false,
         userAgent: req.headers['user-agent'] as string | undefined,
       }).catch((err) => {
-        logger.warn('Failed to record OTP send attempt', { phone: req.body.phone ?? '', error: err instanceof Error ? err.message : 'Unknown' });
+        // Never log the full number (security basics): the last 4 digits only.
+        logger.warn('Failed to record OTP send attempt', {
+          phoneSuffix: String(req.body.phone ?? '').slice(-4),
+          error: err instanceof Error ? err.message : 'Unknown',
+        });
       });
       next(error);
     }
@@ -390,7 +403,11 @@ router.post(
         success: false,
         userAgent: req.headers['user-agent'] as string | undefined,
       }).catch((err) => {
-        logger.warn('Failed to record OTP verify attempt', { phone: req.body.phone ?? '', error: err instanceof Error ? err.message : 'Unknown' });
+        // Never log the full number (security basics): the last 4 digits only.
+        logger.warn('Failed to record OTP verify attempt', {
+          phoneSuffix: String(req.body.phone ?? '').slice(-4),
+          error: err instanceof Error ? err.message : 'Unknown',
+        });
       });
       next(error);
     }

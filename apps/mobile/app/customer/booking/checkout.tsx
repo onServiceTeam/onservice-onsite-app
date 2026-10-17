@@ -6,7 +6,7 @@ import { useBookingStore, type BookingDraft } from '@/stores/booking.store';
 import { createBooking } from '@/services/booking.service';
 import { createPaymentIntent, getWalletBalance } from '@/services/payment.service';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, TrustStrip, EmptyState } from '@/components/ui';
+import { Button, Card, EmptyState } from '@/components/ui';
 // B2 — inline validation feedback (toast for screen-level, inline for field).
 import { showToast } from '@/lib/toast';
 import { formatPHP } from '@/utils/currency';
@@ -14,8 +14,10 @@ import { getErrorMessage } from '@/utils/errors';
 import { formatDate } from '@/utils/date';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
-import { Smartphone, CreditCard, Wallet, ScanLine, Lock, Check } from '@/components/icons';
+import { Smartphone, CreditCard, Wallet, ScanLine, Check } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useFixedPriceFlowGuard } from '@/hooks/useFixedPriceFlowGuard';
+import FixedPriceFlowHold from '@/components/booking/FixedPriceFlowHold';
 
 import { Routes } from '@/config/navigation';
 type IconProps = { size?: number; color?: string };
@@ -44,6 +46,8 @@ export default function CheckoutScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
   const { draft, serviceFee, total, addonsTotal, setPaymentMethod, reset } = useBookingStore();
+  // D41 Q39: old fixed-price flow; while request-first is on, go to the request form.
+  const fixedPriceFlow = useFixedPriceFlowGuard();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
     draft.paymentMethod === 'wallet' ? 'wallet' : null,
   );
@@ -188,6 +192,10 @@ export default function CheckoutScreen(): React.ReactElement {
     draft.longitude != null,
   );
 
+  if (fixedPriceFlow !== 'stay') {
+    return <FixedPriceFlowHold flow={fixedPriceFlow} style={[styles.container, { paddingTop: insets.top }]} />;
+  }
+
   if (!bookingSetupComplete) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -298,23 +306,9 @@ export default function CheckoutScreen(): React.ReactElement {
           );
         })}
 
-        {/* Escrow info — Bug 834 (Phase 14 D04 SiguradoShield pull). */}
-        {/* Strips the SiguradoShield™ trademark; the escrow claim is */}
-        {/* verifiable on its own. Tap-to-safety affordance preserved as a */}
-        {/* link to /customer/safety-and-support for users curious about */}
-        {/* what "escrow" means in practice. */}
-          <TouchableOpacity
-            style={styles.escrowBanner}
-            onPress={() => router.push(Routes.CUSTOMER.SAFETY)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Open payment safety and support information"
-          >
-          <View style={styles.escrowIconWrap}><Lock size={22} color={colors.primary} /></View>
-          <Text style={styles.escrowText}>
-            After a wallet payment succeeds, your booking shows its paid and escrow status. Release follows customer confirmation or the platform completion timer. Tap for details.
-          </Text>
-        </TouchableOpacity>
+        {/* D41 Q39 and Q6 (Ken, 2026-10-18): the escrow banner that used to
+            sit here is removed, so this old screen makes no escrow claim if
+            request-first is ever switched off. Nothing replaces it. */}
 
         {/* Price breakdown */}
         <Card style={styles.priceBreakdown}>
@@ -345,13 +339,13 @@ export default function CheckoutScreen(): React.ReactElement {
 
         {/* Checkout facts only. The deferred insurance/guarantee product must
             not be advertised here, and E18 means release cannot be described
-            as customer-confirmation-only. */}
+            as customer-confirmation-only. D41 Q39 (Ken, 2026-10-18): the
+            escrow line, the Suki points line (Suki is hidden, Q33) and the
+            trust strip ("Verified escrow") are removed, adding nothing. */}
         <View style={styles.benefitsCard}>
           {[
             'The itemized total above is the amount this wallet payment will charge',
-            'Server-verified payment and escrow status stays visible in your booking',
             'Dispute filing and evidence review start from the booking record',
-            'Eligible completed bookings earn Suki points',
           ].map((benefit) => (
             <View key={benefit} style={styles.benefitLine}>
               <Check size={16} color={colors.success} />
@@ -359,8 +353,6 @@ export default function CheckoutScreen(): React.ReactElement {
             </View>
           ))}
         </View>
-
-        <TrustStrip style={styles.trustStrip} />
 
         {/* Legal — BUG-PHASE63-01 fix: pre-fix Terms/Privacy were plain
             text on the screen where the user is about to PAY. Now both
@@ -501,24 +493,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
 
-  escrowBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryLight,
-    padding: spacing.base,
-    borderRadius: borderRadius.lg,
-    marginTop: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  escrowIcon: { fontSize: 20, marginRight: spacing.sm },
-  escrowIconWrap: { marginRight: spacing.sm, alignItems: 'center' as const },
-  escrowText: { ...typography.bodySmall, color: colors.primary, flex: 1 },
-
   priceBreakdown: {
+    marginTop: spacing.md,
     marginBottom: spacing.base,
-  },
-  trustStrip: {
-    marginBottom: spacing.lg,
   },
   priceRow: {
     flexDirection: 'row',

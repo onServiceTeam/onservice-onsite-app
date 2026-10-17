@@ -14,6 +14,11 @@ jest.mock('../src/services/recurring-auto-charge.service', () => ({
   attemptAutoCharge: (...args: unknown[]) => attemptAutoChargeMock(...args),
 }));
 
+// Updated 2026-10-18 (customer review slice P2 fix round, D41 Q39): the daily worker now makes no booking from a series while request-first booking is on (CR-400).
+// This test pins the recurring path that still runs while that switch is off, so it reads as off.
+jest.mock('../src/services/settings.service', () => ({
+  isFixedPriceBookingRetired: jest.fn().mockResolvedValue(false),
+}));
 import { processRecurringBookings } from '../src/services/recurring.service';
 
 it('BUG-UX-190 — the recurring scheduler creates a manual-payment booking without entering auto-charge', async () => {

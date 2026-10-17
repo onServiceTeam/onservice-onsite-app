@@ -434,6 +434,11 @@ verifier exists.
 
 ## Final smoke test sweep
 
+Before the sweep, switch off the tester-only sign-in gate (D41 Q47, migration 188; LAUNCH-LIMITATIONS section 139). "Invited testers only" is seeded on, and on a server that runs in production mode the test-number list is never active, so with that setting on nobody could sign in by phone:
+
+1. In admin, System Settings, set "Invited testers only" to off (or replace it with the launch sign-up rule Ken chooses).
+2. Wait 60 seconds, then request a sign-in code for one phone number that is not on the test-number list, and check that the code arrives.
+
 After Items 1–12 complete, run the full Maestro + Playwright suite against staging-prod-mirror:
 
 ```bash
@@ -449,6 +454,7 @@ Success criterion: all flows pass with no visual diff and no console errors.
 - [ ] All catalogued 113 app/admin surfaces have the required behavioral and
       visual evidence; F#3 native baselines are complete
 - [ ] All launch-safe critical-path E2E flows pass and the E14 top-up/external-payment hold fails closed
+- [ ] "Invited testers only" is off (or replaced), and a number that is not on the test-number list received a sign-in code
 - [ ] Zero console errors in any flow
 
 ---

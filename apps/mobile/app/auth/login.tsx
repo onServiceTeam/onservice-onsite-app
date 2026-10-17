@@ -20,9 +20,11 @@ import AuthBrandPanel from '@/components/AuthBrandPanel';
 import { useAuthStore } from '@/stores/auth.store';
 import { useAuthMethods } from '@/hooks/useAuthMethods';
 import EmailSignInForm from '@/components/auth/EmailSignInForm';
+import { usePhoneSignInFlow } from '@/stores/phone-signin.store';
 
 export default function LoginScreen(): React.ReactElement {
   const router = useRouter();
+  const startPhoneFlow = usePhoneSignInFlow(state => state.start);
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
   const sessionExpired = useAuthStore(state => state.sessionExpired);
@@ -70,7 +72,10 @@ export default function LoginScreen(): React.ReactElement {
     try {
       const normalized = normalizePHPhone(phone);
       await requestOtpWithCaptcha(normalized);
-      router.push({ pathname: '/auth/otp-verify', params: { phone: normalized, mode: 'login' } });
+      // The number travels in memory, not in the route, so it never lands in
+      // the browser's address bar or history (same as the email flow).
+      startPhoneFlow(normalized, 'login');
+      router.push(Routes.AUTH.OTP_VERIFY);
     } catch (err: unknown) {
       // Phase D CRIT-69 fix — use canonical getErrorMessage helper
       // so server-side messages (e.g. "Too many attempts. Please
@@ -152,8 +157,15 @@ export default function LoginScreen(): React.ReactElement {
             errorVisible={error.length > 0}
             testID="login-phone-input"
           />
+          {/* The server's own reason (for example a text that could not be
+              sent, or onService being open to invited testers only) shows
+              here, on the number screen, instead of opening the code screen. */}
           {error.length > 0 && (
-            <Text style={{ color: colors.error, ...typography.bodySmall, marginTop: spacing.xs }}>
+            <Text
+              style={{ color: colors.error, ...typography.bodySmall, marginTop: spacing.xs }}
+              accessibilityRole="alert"
+              testID="login-phone-error"
+            >
               {error}
             </Text>
           )}

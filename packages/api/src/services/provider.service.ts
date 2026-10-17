@@ -68,16 +68,84 @@ export async function getProviderByUserId(userId: string): Promise<ProviderRow> 
   return provider;
 }
 
-export async function getProviderById(providerId: string): Promise<ProviderRow & { first_name?: string; last_name?: string }> {
-  const result = await db.query<ProviderRow & { first_name?: string; last_name?: string }>(
-    `SELECT p.*, u.first_name, u.last_name
-     FROM providers p
-     LEFT JOIN users u ON u.id = p.user_id
-     WHERE p.id = $1`,
+// --- Service Provider profile privacy fix (customer review 2026-10-17, P2) ---
+
+const PUBLIC_PROVIDER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The columns a customer may see on a Service Provider's profile. Nothing else is read. */
+export interface PublicProviderRow {
+  id: string;
+  business_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+  tier: string;
+  bio: string | null;
+  rating: string | null;
+  total_jobs: number;
+  acceptance_rate: string | null;
+  response_time_minutes: number | null;
+  years_experience: number | null;
+  service_radius_km: number | null;
+  city: string | null;
+  province: string | null;
+}
+
+/**
+ * Service Provider profile privacy fix: the profile a customer opens. Only an
+ * approved Service Provider whose account is active is found; anyone else
+ * (pending, rejected, suspended, deactivated, an inactive account, an unknown
+ * or malformed id) is the same 404, so the answer never says which. The SELECT
+ * names each public column; it never reads the row with *.
+ */
+export async function getPublicProviderById(providerId: string): Promise<PublicProviderRow> {
+  if (!PUBLIC_PROVIDER_ID_PATTERN.test(providerId)) {
+    throw createAppError('Service Provider not found.', 404);
+  }
+  const result = await db.query<PublicProviderRow>(
+    `SELECT p.id, p.business_name, u.first_name, u.last_name, u.avatar_url,
+            p.tier, p.bio, p.rating::text AS rating, p.total_jobs,
+            p.acceptance_rate::text AS acceptance_rate, p.response_time_minutes,
+            p.years_experience, p.service_radius_km, p.city, p.province
+       FROM providers p
+       JOIN users u ON u.id = p.user_id
+      WHERE p.id = $1
+        AND p.status = 'approved'
+        AND u.is_active = TRUE`,
     [providerId],
   );
-  if (result.rows.length === 0) throw createAppError('Provider not found.', 404);
-  return result.rows[0]!;
+  const row = result.rows[0];
+  if (!row) throw createAppError('Service Provider not found.', 404);
+  return row;
+}
+
+/**
+ * The public projection: the business name first, then the person's name in
+ * the same form the profile screen showed before this fix (first and last
+ * name), and the photo. An allow-list, so a column added to providers later
+ * never reaches customers by accident.
+ */
+export function formatPublicProvider(p: PublicProviderRow): Record<string, unknown> {
+  const name = [p.first_name, p.last_name]
+    .map((part) => (part ?? '').trim())
+    .filter(Boolean)
+    .join(' ');
+  return {
+    id: p.id,
+    businessName: p.business_name,
+    name: name || null,
+    avatarUrl: p.avatar_url ?? null,
+    tier: p.tier,
+    bio: p.bio,
+    rating: p.rating == null ? null : Number(p.rating),
+    totalJobs: p.total_jobs,
+    acceptanceRate: p.acceptance_rate == null ? null : Number(p.acceptance_rate),
+    responseTimeMinutes: p.response_time_minutes,
+    yearsExperience: p.years_experience,
+    serviceRadiusKm: p.service_radius_km,
+    city: p.city,
+    province: p.province,
+  };
 }
 
 export async function updateProfile(

@@ -100,8 +100,12 @@ describe('Phase B CRIT-11 — suki redeemPoints is race-safe', () => {
     jest.doMock('../src/utils/logger', () => ({
       logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
     }));
+    // Updated 2026-10-18 (customer review slice P2, D41 Q33): Redeem is refused
+    // while the Suki switch is off (its default, CR-262). This test pins the
+    // race guard for when Suki is on, so the switch reads as on here.
     jest.doMock('../src/services/settings.service', () => ({
       getSetting: jest.fn().mockResolvedValue('100'),
+      isSukiProgramEnabled: jest.fn().mockResolvedValue(true),
     }));
     // Simulate: read shows 200 points (passes initial check), but
     // concurrent redemption consumed them — UPDATE WHERE >= $1

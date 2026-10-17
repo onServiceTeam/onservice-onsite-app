@@ -7,6 +7,10 @@ import * as security from '../src/services/security.service';
 import { sessionIntegrationIt as it, sessionOwner, withSessionDatabase } from './helpers/account-session-postgres';
 
 jest.mock('../src/services/settings.service', () => ({
+  // Updated 2026-10-18 (customer review slice P2, D41 Q47): the invited-testers
+  // setting is on by default and refuses unlisted numbers (CR-254). This test
+  // pins the normal phone sign-in path, so the setting reads as off here.
+  getInvitedTestersGate: jest.fn().mockResolvedValue({ enabled: false, message: 'onService is open to invited testers for now.' }),
   getOtpPolicy: jest.fn().mockResolvedValue({ length: 6, expiryMinutes: 5, maxAttempts: 3, cooldownSeconds: 60 }),
 }));
 // External delivery/abuse providers only. OTP hashing/consumption, account SQL,

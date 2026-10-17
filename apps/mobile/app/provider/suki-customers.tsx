@@ -9,6 +9,7 @@ import { getProviderSukiCustomers, type SukiCustomer } from '@/services/suki.ser
 import { formatPHP } from '@/utils/currency';
 import { Routes, buildRoute } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useProgramSwitches } from '@/hooks/useProgramSwitches';
 import { colors, spacing, typography, borderRadius } from '@/config/theme';
 import type { ComponentType } from 'react';
 import { Sparkle, Star, Award, Crown, Heart } from '@/components/icons';
@@ -28,9 +29,11 @@ const TIER_DISPLAY: Record<string, { label: string; icon: IconComponent; color: 
 function CustomerCard({
   customer,
   onOpen,
+  showDiscount,
 }: {
   customer: SukiCustomer;
   onOpen: () => void;
+  showDiscount: boolean;
 }): React.ReactElement {
   const tierInfo = TIER_DISPLAY[customer.tier] ?? TIER_DISPLAY.new!;
   const TierIcon = tierInfo.icon;
@@ -53,7 +56,7 @@ function CustomerCard({
             <Text style={[styles.tierLabel, { color: tierInfo.color }]}>{tierInfo.label}</Text>
           </View>
         </View>
-        {customer.discount > 0 && (
+        {showDiscount && customer.discount > 0 && (
           <View style={styles.discountBadge}>
             <Text style={styles.discountText}>{customer.discount}% off</Text>
           </View>
@@ -90,6 +93,11 @@ function CustomerCard({
 export default function ProviderSukiCustomersScreen(): React.ReactElement {
   const router = useRouter();
   const { isPhone } = useResponsive();
+  // D41 Q33 (Ken, 2026-10-18): Suki is hidden until Ken decides its money
+  // rules (E25, D29), and while it is off the server takes no Suki discount
+  // from any price. So while off (or while the config loads) this list shows
+  // no "% off" badge and does not promise customers a discount.
+  const { sukiProgramEnabled } = useProgramSwitches();
 
   const {
     data: customers,
@@ -136,6 +144,7 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
             renderItem={({ item }) => (
               <CustomerCard
                 customer={item}
+                showDiscount={sukiProgramEnabled}
                 onOpen={() =>
                   router.push(buildRoute(Routes.PROVIDER.CLIENT_DETAIL, { id: item.customerId }))
                 }
@@ -161,7 +170,9 @@ export default function ProviderSukiCustomersScreen(): React.ReactElement {
                 </View>
                 <Text style={styles.heroTitle}>Your Repeat Customers</Text>
                 <Text style={styles.heroDesc}>
-                  Customers who book you multiple times build Suki loyalty and earn discounts.
+                  {sukiProgramEnabled
+                    ? 'Customers who book you multiple times build Suki loyalty and earn discounts.'
+                    : 'Customers who book you more than once appear here.'}
                 </Text>
               </View>
             }

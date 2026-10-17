@@ -15,7 +15,7 @@
 // stamps (the fixture's row times) are left out of the comparison.
 import { bookingIntegrationIt as it, customerA, providerA, providerB } from './helpers/booking-participant-postgres';
 import { requestCategory, quoteService } from './helpers/job-request-postgres';
-import { withRequestEngineDatabase } from './helpers/request-engine-postgres';
+import { upsertPlatformSetting, withRequestEngineDatabase } from './helpers/request-engine-postgres';
 import { acceptQuote } from '../src/services/booking.service';
 
 jest.mock('../src/utils/logger', () => ({
@@ -72,6 +72,12 @@ it('HA-M2-50: accept writes the same price, fee, total, suki discount and terms 
              ($2, $3, $5, 91000, 'Full service with a new drain pump.', 'submitted', NOW() + INTERVAL '1 day',
         ((NOW() AT TIME ZONE 'Asia/Manila')::date + 2), 'afternoon')`, [winningQuote, siblingQuote, booking, providerA, providerB]);
     await database.query(`INSERT INTO suki_memberships (customer_id, provider_id, tier) VALUES ($1, $2, 'suki')`, [customerA, providerA]);
+    // Updated 2026-10-18 (customer review slice P2, D41 Q33): Suki now has an
+    // off switch, suki_program_enabled, which is off by default and takes the
+    // discount out entirely (CR-263 pins that). The snapshot above was taken
+    // with the discount on, so this test turns the switch on to keep proving
+    // that path is unchanged. The money values are not edited.
+    await upsertPlatformSetting(database, 'suki_program_enabled', 'true');
 
     const result = await acceptQuote(booking, winningQuote, customerA);
 

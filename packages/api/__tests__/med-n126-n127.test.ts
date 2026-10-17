@@ -13,8 +13,14 @@ jest.mock('../src/utils/logger', () => ({
 }));
 
 const getSettingMock = jest.fn();
+// Updated 2026-10-18 (customer review slice P2, D41 Q33): Suki now has an off
+// switch, suki_program_enabled, off by default; while off, Redeem is refused
+// and no discount applies (CR-262 to CR-264 pin that). These tests pin the
+// tier and redemption-rate rules for when Suki is on, so the switch reads as
+// on here. The tier and rate settings are mocked exactly as before.
 jest.mock('../src/services/settings.service', () => ({
   getSetting: (...args: unknown[]) => getSettingMock(...args),
+  isSukiProgramEnabled: jest.fn().mockResolvedValue(true),
 }));
 
 import { redeemPoints, calculateSukiDiscountForBooking, getSukiTiersAsync } from '../src/services/suki.service';

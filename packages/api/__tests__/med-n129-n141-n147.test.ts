@@ -164,6 +164,11 @@ describe('MED-N147 — referral generateCode uses crypto.randomBytes (not Math.r
     // ON CONFLICT call per attempt (no separate dup check). Mock just
     // the SELECT existing + the INSERT.
     const svc = require('../src/services/referral.service');
+    // Updated 2026-10-18 (customer review slice P2, D41 Q32): a referral code
+    // is handed out only while the referral switch is on, and it is off by
+    // default (CR-259 pins that). This test checks the code generator, so the
+    // switch reads as on here; the database answers below are unchanged.
+    jest.spyOn(require('../src/services/settings.service'), 'isReferralProgramEnabled').mockResolvedValueOnce(true);
     // SELECT existing — none.
     dbQueryMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     // INSERT returning row (no conflict, first try succeeds).

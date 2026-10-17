@@ -138,6 +138,11 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   jwt_access_expires: '15m',
   jwt_refresh_expires: '30d',
   admin_session_timeout_hours: '8',
+  // D41 Q47 (migration 188), read through getInvitedTestersGate(). On: phone
+  // sign-in refuses a number that is not on the server's test-number list,
+  // with the message, before any code is made or sent.
+  invited_testers_only: 'true',
+  invited_testers_message: 'onService is open to invited testers for now.',
 
   // Provider
   provider_noshow_minutes: '30',
@@ -208,6 +213,14 @@ export const SETTING_DEFAULTS: Record<string, string> = {
     super_suki: { minBookings: 25, pointsPerPeso: 3, discount: 10 },
   }),
   suki_points_to_peso_rate: '100',
+  // D41 Q33 (migration 188), read through isSukiProgramEnabled(). Off: Suki
+  // Redeem is refused and no Suki discount is taken from any price. Read-only
+  // in admin (HELD_SETTING_SUMMARIES) while E25 and D29 are open.
+  suki_program_enabled: 'false',
+  // D41 Q32 (migration 188), read through isReferralProgramEnabled(). Off:
+  // redeeming a code and the referrer bonus are refused, no wallet changes.
+  // Read-only in admin (HELD_SETTING_SUMMARIES) until Ken decides the rules.
+  referral_program_enabled: 'false',
 
   // Stitch-aligned branding and dispatch defaults.
   brand_color_primary: '#003D9B',
@@ -315,6 +328,9 @@ const HELD_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   business_payment_terms: 'Business payment terms are constrained by the database and due-date calculation code. Editing this list is blocked under E58 until terms are prospective, versioned definitions with an explicit number of days.',
   suki_tiers: 'Suki tier thresholds, earning multipliers, and discounts are held under E25 and E44 until booking calculations, customer/provider displays, and the approved loyalty policy share one versioned source.',
   suki_points_to_peso_rate: 'Suki conversion is held under E25 and E44 because the current wallet credit has a peso-to-centavo mismatch and customer redemption copy does not read the live rate.',
+  // D41 Q33 and Q32 (Ken, 2026-10-18): both switches stay off and read-only.
+  suki_program_enabled: 'Suki stays off while E25 and D29 are open (D41 Q33). While off, Suki Redeem is refused and no Suki discount is taken from any price; points are still recorded. It stays read-only until Ken decides who pays the discount and the points rate is fixed.',
+  referral_program_enabled: 'Referral bonuses stay off until Ken decides the rules (D41 Q32). Turning this on today would credit wallet money before those rules exist, so it is read-only. While off, redeeming a code and the referrer bonus are refused and no wallet changes, and no referral code or referral list is handed out.',
   noshow_auto_resolve_window_minutes: 'This threshold can trigger an automatic full refund from completion timing alone. Editing is held under E59 until the evidence rule and E18 escrow timing are resolved without widening unsafe settlements.',
   provider_noshow_minutes: 'One value currently controls both provider-late alerts and a customer no-show money decision. Editing is held under E60 until the wait is measured from verified arrival and snapshotted prospectively for each booking.',
   change_order_approval_expiry_hours: 'This value currently moves the payment deadline for change orders that customers already approved. Editing is held under E61 until each approval stores and displays its own prospective expiry timestamp.',
@@ -340,7 +356,7 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   addon_price_max_cents: 'Within 60 seconds, this becomes the maximum for future add-on creation, add-on price changes, and inactive add-on reactivation, up to the platform hard ceiling of ₱100,000. Existing active add-ons remain customer-visible and bookable at their current price until an operator reviews them in Catalog; historical booking price snapshots never change.',
   max_service_radius_km: 'Provider applications, provider change requests, approval review, super-admin edits, and customer/provider guidance enforce this maximum for new changes.',
   quote_expiry_hours: 'New provider quotes snapshot this lifetime into their exact expiry timestamp, ending earlier when the provider\'s offered time window would otherwise pass first (window end minus request_slot_lead_minutes). Existing quotes keep the deadline shown to both parties when the quote was submitted.',
-  request_first_booking: 'Customer apps follow this switch the next time they load the app config (within about 5 minutes). On: every service opens "Book a service", where the customer describes the job and a provider sends the price. Off: fixed-price services book at their catalog price again, and quote, per-unit and unpriced services keep the request form. The server accepts a request for any active service either way, so an app that has not picked up the change yet is never stuck, and the price of a request always comes from the provider\'s quote. Existing requests, quotes and bookings are unchanged.',
+  request_first_booking: 'Customer apps follow this switch the next time they load the app config (within about 5 minutes). On: every service opens "Book a service", where the customer describes the job and a provider sends the price. Off: fixed-price services book at their catalog price again, and quote, per-unit and unpriced services keep the request form. The server accepts a request for any active service either way, and the price of a request always comes from the provider\'s quote. While on, starting 10 minutes after the switch is saved, the server refuses new fixed-price bookings (an older app version is told "Please update the app.") and new recurring series, and the daily recurring run makes no new booking; off accepts them again. Saving this switch again, even with the same value, restarts the 10 minutes. Existing requests, quotes and bookings are unchanged.',
   // D38 request engine (migration 183). Read through getRequestPolicy() and,
   // for the app-facing keys, getClientConfig().
   request_max_open_quotes: 'Within 60 seconds, a new quote is accepted only while fewer than this many providers hold a live quote on the request. 1 means the first provider to quote takes the request and it leaves every other provider\'s list; a higher number lets the customer compare quotes. Declined, withdrawn and expired quotes do not count. Quotes already sent are unchanged.',
@@ -359,6 +375,9 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   job_media_voice_max_seconds: 'Within 60 seconds, new voice notes on job requests and in request threads longer than this are refused. Uploads already started keep the limit they started with; attached voice notes are unchanged.',
   job_media_voice_max_bytes: 'Within 60 seconds, new voice-note uploads are refused above this size. Uploads already started keep the limit they started with; attached voice notes are unchanged.',
   refresh_token_strict_fingerprint: 'When enabled, future customer/provider refresh attempts from a different device fingerprint are rejected and require OTP sign-in. When disabled, mismatches are logged and the refresh continues.',
+  // D41 Q47 (migration 188). Read through getInvitedTestersGate().
+  invited_testers_only: 'Within 60 seconds, when on, phone sign-in works only for the numbers on the server\'s test-number list. Everyone else sees the message in "Message for people not invited", and no code is made or sent. Off: every number goes through the normal sign-in. Accounts already signed in are unchanged.',
+  invited_testers_message: 'Within 60 seconds, people whose number is not on the test-number list see these words on the sign-in screen while "Invited testers only" is on. 1 to 200 characters of plain text.',
   auth_rate_limit_window_ms: 'Within 60 seconds, this becomes the shared rolling window for OTP send/verify, admin sign-in, and admin 2FA verification attempts from one IP address. Routine session refresh is not charged to this low credential-attempt budget.',
   auth_rate_limit_max_requests: 'Within 60 seconds, this becomes the combined request cap for OTP and admin credential attempts from one IP address. Lowering it can block an address that already reached the new cap until its current window expires.',
   rate_limit_window_ms: 'Within 60 seconds, this becomes the rolling window for the total HTTP request budget. Valid server-signed session credentials are counted per user; missing, expired, unsigned, or signature-invalid credentials are counted by source IP.',
@@ -739,6 +758,86 @@ export function parseRequestFirstBooking(value: string | null | undefined): bool
   return value !== 'false' && value !== '0';
 }
 
+/**
+ * D41 Q39: how long after request_first_booking was last saved the server
+ * still accepts an old fixed-price booking. Customer apps keep GET
+ * /api/v1/config for 5 minutes (staleTime in
+ * apps/mobile/src/hooks/useRequestFirstBooking.ts) and this service caches a
+ * value for 60 seconds, so for a few minutes after an admin turns the switch
+ * on, an app can still be showing the fixed-price screens. This mirrors a
+ * build-time constant of the app, not a business rule, so it is not an admin
+ * setting: changing it in admin would not change what the apps cache.
+ */
+export const REQUEST_FIRST_SWITCH_GRACE_MINUTES = 10;
+
+/**
+ * D41 Q39 (Ken, 2026-10-18): true while new fixed-price bookings are refused,
+ * that is while request_first_booking is on and was last saved more than
+ * REQUEST_FIRST_SWITCH_GRACE_MINUTES ago. Read straight from the database
+ * (not the 60-second cache) so a switch turned off takes effect at once. A
+ * missing row or a failed read counts as "on, saved long ago" (the D38
+ * default), so the old flow is never opened by an outage.
+ */
+export async function isFixedPriceBookingRetired(): Promise<boolean> {
+  try {
+    const result = await db.query<{ value: string; recently_saved: boolean }>(
+      `SELECT value,
+              updated_at > NOW() - make_interval(mins => $1::int) AS recently_saved
+         FROM platform_settings
+        WHERE key = 'request_first_booking' AND is_active = TRUE`,
+      [REQUEST_FIRST_SWITCH_GRACE_MINUTES],
+    );
+    const row = result.rows[0];
+    if (!row) return parseRequestFirstBooking(SETTING_DEFAULTS.request_first_booking);
+    return parseRequestFirstBooking(row.value) && row.recently_saved !== true;
+  } catch (err) {
+    logger.warn('request_first_booking read failed; treating fixed-price booking as retired', {
+      error: (err as Error).message,
+    });
+    return parseRequestFirstBooking(SETTING_DEFAULTS.request_first_booking);
+  }
+}
+
+/** Most characters the invited-testers message may have (migration 188). */
+export const INVITED_TESTERS_MESSAGE_MAX = 200;
+
+export interface InvitedTestersGate {
+  /** True: numbers that are not on the server's test-number list are refused. */
+  enabled: boolean;
+  /** What a refused person sees. */
+  message: string;
+}
+
+/**
+ * D41 Q47 (migration 188): the invited-testers sign-in setting. The gate
+ * defaults on, as the seeded row does. A message that is empty or too long
+ * (it can only get that way through a direct database edit; the admin save
+ * path refuses it) falls back to the seeded words.
+ */
+export async function getInvitedTestersGate(): Promise<InvitedTestersGate> {
+  const [enabled, rawMessage] = await Promise.all([
+    getSettingBoolean('invited_testers_only'),
+    getSetting('invited_testers_message'),
+  ]);
+  const message = typeof rawMessage === 'string' ? rawMessage.trim() : '';
+  return {
+    enabled,
+    message: message.length > 0 && message.length <= INVITED_TESTERS_MESSAGE_MAX
+      ? message
+      : SETTING_DEFAULTS.invited_testers_message!,
+  };
+}
+
+/** D41 Q32 (migration 188): only an explicit 'true' (or '1') turns referral bonuses on. */
+export async function isReferralProgramEnabled(): Promise<boolean> {
+  return getSettingBoolean('referral_program_enabled');
+}
+
+/** D41 Q33 (migration 188): only an explicit 'true' (or '1') turns Suki redeem and discounts on. */
+export async function isSukiProgramEnabled(): Promise<boolean> {
+  return getSettingBoolean('suki_program_enabled');
+}
+
 /** Resolve the provider/customer no-show wait used by both route and worker. */
 export async function getProviderNoShowMinutes(): Promise<number> {
   return boundedInteger(
@@ -995,6 +1094,19 @@ export function validateSettingValue(setting: SettingRow, newValue: string): voi
       || minimums.some((value, index) => index > 0 && value <= minimums[index - 1]!)
     ) {
       throw createAppError('Suki tiers must define new, regular, suki, and super_suki with increasing booking thresholds and valid reward values.', 400);
+    }
+  }
+
+  if (key === 'invited_testers_message') {
+    const trimmed = newValue.trim();
+    if (trimmed.length === 0 || trimmed.length > INVITED_TESTERS_MESSAGE_MAX || trimmed !== newValue) {
+      throw createAppError(
+        `The message must be 1 to ${INVITED_TESTERS_MESSAGE_MAX} characters, with no space at the start or end.`,
+        400,
+      );
+    }
+    if (/[<>]/.test(newValue)) {
+      throw createAppError('The message must be plain text, without < or >.', 400);
     }
   }
 
@@ -1418,6 +1530,9 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     'request_threads_enabled',
     'job_media_max_photos', 'job_media_photo_max_bytes', 'job_media_video_max_seconds',
     'job_media_video_max_bytes', 'job_media_voice_max_seconds', 'job_media_voice_max_bytes',
+    // D41 Q32 / Q33 (migration 188): the apps show "Not available right now"
+    // while these are off. Same bulk query (MED-N107).
+    'referral_program_enabled', 'suki_program_enabled',
   ];
 
   let bulkMap = new Map<string, string>();
@@ -1491,6 +1606,10 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     requestProviderPollSeconds: lookupD38('request_provider_poll_seconds'),
     requestStillLookingMinutes: lookupD38('request_customer_still_looking_minutes'),
     requestThreadsEnabled: lookupBoolean('request_threads_enabled', true),
+    // D41 Q32 / Q33: display only. The server refuses referral redeem, the
+    // referrer bonus, Suki redeem and the Suki discount itself while off.
+    referralProgramEnabled: lookupBoolean('referral_program_enabled', false),
+    sukiProgramEnabled: lookupBoolean('suki_program_enabled', false),
     // D38 private job media limits; the server re-checks each upload.
     jobMedia: {
       maxPhotos: lookupD38('job_media_max_photos'),

@@ -265,13 +265,18 @@ router.get(
   // provider's profile" flow already has a logged-in actor. SEO/
   // landing-page browsing of providers would need a separate explicit
   // public endpoint with reduced fields (deferred to v1.1+).
+  //
+  // Service Provider profile privacy fix (customer review 2026-10-17, P2):
+  // the answer is the public projection only (formatPublicProvider, an
+  // allow-list), and only an approved Service Provider with an active account
+  // is found; every other id is the same 404.
   authMiddleware,
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['id'];
       if (typeof providerId !== 'string' || !providerId) throw createAppError('Provider ID is required.', 400);
 
-      const provider = await providerService.getProviderById(providerId);
+      const provider = await providerService.getPublicProviderById(providerId);
       const [services, schedule, ratings, portfolio, certifications, sukiCount] = await Promise.all([
         providerService.getProviderServices(provider.id),
         providerService.getSchedule(provider.id),
@@ -280,13 +285,11 @@ router.get(
         providerService.getPublicCertifications(provider.id),
         providerService.getSukiCount(provider.id),
       ]);
-      const providerName = [provider.first_name, provider.last_name].filter(Boolean).join(' ') || null;
 
       res.json({
         success: true,
         data: {
-          ...providerService.formatProvider(provider),
-          name: providerName,
+          ...providerService.formatPublicProvider(provider),
           services: services.map(providerService.formatProviderService),
           schedule: schedule.map(providerService.formatScheduleSlot),
           ratings,

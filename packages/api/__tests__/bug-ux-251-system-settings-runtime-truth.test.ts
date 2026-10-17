@@ -29,9 +29,12 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   // live to not_connected: 37 - 1 + 14 = 50 live, 12 + 1 = 13 not_connected.
   // D38 Milestone 3 (migration 186) adds 3 live controls: the amber and red
   // request-alert thresholds and the coverage threshold. 50 + 3 = 53 live.
-  expect(statuses.filter((status) => status === 'live')).toHaveLength(53);
+  // Migration 188 (customer review slice P2, D41) adds the two editable
+  // invited-testers controls (53 + 2 = 55 live) and the referral and Suki off
+  // switches, read-only until Ken decides their rules (31 + 2 = 33 held).
+  expect(statuses.filter((status) => status === 'live')).toHaveLength(55);
   expect(statuses.filter((status) => status === 'release_coupled')).toHaveLength(3);
-  expect(statuses.filter((status) => status === 'held')).toHaveLength(31);
+  expect(statuses.filter((status) => status === 'held')).toHaveLength(33);
   expect(statuses.filter((status) => status === 'not_connected')).toHaveLength(13);
 
   const disconnected = settingsService.getSettingRuntimeControl('jwt_access_expires');

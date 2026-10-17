@@ -1087,7 +1087,6 @@ export async function searchServices(
 
 interface ProviderSearchRow {
   id: string;
-  user_id: string;
   business_name: string;
   tier: string;
   rating: string | null;
@@ -1109,15 +1108,18 @@ export async function searchProviders(
   const fixtureExclusion = process.env.ENABLE_TEST_FIXTURES === '1'
     ? ''
     : `AND COALESCE(u.email, '') NOT LIKE '%@test.ph'`;
+  // Service Provider profile privacy fix (customer review 2026-10-17, P2):
+  // public search matches the business name only, never the person's own
+  // first or last name, and answers with the public fields only, as the
+  // profile does.
   const result = await db.query<ProviderSearchRow>(
-    `SELECT p.id, p.user_id, p.business_name, p.tier, p.rating, p.total_reviews,
+    `SELECT p.id, p.business_name, p.tier, p.rating, p.total_reviews,
             p.city, u.avatar_url
      FROM providers p
      JOIN users u ON u.id = p.user_id
      WHERE p.status = 'approved' AND u.is_active = TRUE
        ${fixtureExclusion}
-       AND (LOWER(p.business_name) LIKE $1
-            OR LOWER(CONCAT(u.first_name, ' ', u.last_name)) LIKE $1)
+       AND LOWER(p.business_name) LIKE $1
        AND ($3::text[] IS NULL OR EXISTS (
          SELECT 1
            FROM provider_services ps
@@ -1137,7 +1139,6 @@ export async function searchProviders(
 
   return result.rows.map((p) => ({
     id: p.id,
-    userId: p.user_id,
     businessName: p.business_name,
     tier: p.tier,
     averageRating: p.rating ? Number(p.rating) : null,

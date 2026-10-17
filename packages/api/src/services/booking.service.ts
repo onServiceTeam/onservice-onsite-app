@@ -164,6 +164,20 @@ export async function calculateServiceFee(servicePrice: number): Promise<number>
 }
 
 export async function createBooking(params: CreateBookingParams): Promise<BookingRow> {
+  // D41 Q39 (Ken, 2026-10-18): while request-first booking is on (D38), a new
+  // fixed-price booking is refused before anything else is read or written.
+  // Only an app older than request-first, or a direct call, still sends one;
+  // the current app opens the request form instead. For a few minutes after
+  // an admin turns the switch on, fixed-price bookings are still accepted
+  // (settingsService.isFixedPriceBookingRetired), so an app holding the old
+  // config is not stranded. Switch off: unchanged. A company booking is not
+  // refused here: it has its own launch hold below.
+  if (params.bookingType === 'fixed_price' && !params.businessAccountId
+      && await settingsService.isFixedPriceBookingRetired()) {
+    const retired = createAppError('Please update the app.', 409);
+    retired.code = 'APP_UPDATE_REQUIRED';
+    throw retired;
+  }
   await assertBookableLocation(params.latitude, params.longitude);
   if (params.businessAccountId && params.bookingType !== 'fixed_price') {
     throw createAppError(

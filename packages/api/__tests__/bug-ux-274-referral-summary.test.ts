@@ -8,6 +8,10 @@ jest.mock('../src/utils/logger', () => ({
 }));
 jest.mock('../src/services/settings.service', () => ({
   getNumericSetting: jest.fn(),
+  // Updated 2026-10-18 (customer review slice P2 fix round, D41 Q32): the my-referrals list is now
+  // refused while referral bonuses are off (CR-402). This test pins the list itself, which still
+  // works with that switch on.
+  isReferralProgramEnabled: jest.fn().mockResolvedValue(true),
 }));
 
 import { getMyReferrals } from '../src/services/referral.service';

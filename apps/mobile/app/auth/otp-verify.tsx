@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet } from 'react-native';
 import { showToast } from '@/lib/toast';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/auth.store';
+import { usePhoneSignInFlow } from '@/stores/phone-signin.store';
 import { getErrorMessage } from '@/utils/errors';
 import { Button, OTPInput, Card } from '@/components/ui';
 import { formatPHPhone } from '@/utils/phone';
@@ -23,18 +24,27 @@ export default function OTPVerifyScreen(): React.ReactElement {
   const runtimeConfig = getConfig();
   const otpLength = runtimeConfig.otpLength;
   const otpCooldownSeconds = runtimeConfig.otpCooldownSeconds;
-  const params = useLocalSearchParams<{
-    phone: string;
-    mode: 'login' | 'register';
-    firstName?: string;
-    lastName?: string;
-  }>();
+  // The number, mode and name come from memory, never from the route, so
+  // they stay out of the web address bar and history.
+  const flow = usePhoneSignInFlow();
 
   const { verifyOtp, register } = useAuthStore();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  // The server's reason a resend failed, shown under the Resend control.
+  const [resendError, setResendError] = useState('');
   const [resendCooldown, setResendCooldown] = useState<number>(otpCooldownSeconds);
+
+  // Set just before this screen leaves on purpose, so clearing the flow after
+  // a successful sign-in does not also queue the "start over" redirect below.
+  const leaving = useRef(false);
+
+  // Nothing in memory (for example the web page was reloaded): start over on
+  // the number screen, as the email code screen does.
+  useEffect(() => {
+    if (!flow.phone && !leaving.current) router.replace(Routes.AUTH.LOGIN);
+  }, [flow.phone, router]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -46,23 +56,28 @@ export default function OTPVerifyScreen(): React.ReactElement {
 
   const handleVerify = useCallback(async (otp: string) => {
     if (otp.length !== otpLength) return;
+    const { phone, mode, firstName, lastName } = usePhoneSignInFlow.getState();
+    if (!phone) return;
 
     setLoading(true);
     setError(false);
     try {
-      if (params.mode === 'register' && params.firstName && params.lastName) {
-        await verifyOtp(params.phone, otp);
-        await register(params.phone, params.firstName, params.lastName);
+      if (mode === 'register' && firstName && lastName) {
+        await verifyOtp(phone, otp);
+        await register(phone, firstName, lastName);
+        leaving.current = true;
         router.replace(Routes.PROVIDER_ONBOARDING.ROLE_SELECT);
       } else {
-        await verifyOtp(params.phone, otp);
+        await verifyOtp(phone, otp);
         const { user } = useAuthStore.getState();
+        leaving.current = true;
         if (user?.role === 'provider') {
           router.replace(Routes.PROVIDER_TABS.DASHBOARD);
         } else {
           router.replace(Routes.TABS.HOME);
         }
       }
+      usePhoneSignInFlow.getState().clear();
     } catch (err: unknown) {
       setError(true);
       // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
@@ -74,7 +89,7 @@ export default function OTPVerifyScreen(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [otpLength, params, verifyOtp, register, router]);
+  }, [otpLength, verifyOtp, register, router]);
 
   const handleCodeChange = (val: string): void => {
     setCode(val);
@@ -86,13 +101,18 @@ export default function OTPVerifyScreen(): React.ReactElement {
 
   const handleResend = async (): Promise<void> => {
     if (resendCooldown > 0) return;
+    const phone = usePhoneSignInFlow.getState().phone;
+    if (!phone) return;
+    setResendError('');
     try {
-      await requestOtpWithCaptcha(params.phone);
+      await requestOtpWithCaptcha(phone);
       setResendCooldown(otpCooldownSeconds);
       setCode('');
       setError(false);
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to resend code. Please try again.'), 'error');
+      // The server's reason stays on screen next to Resend, not in a toast
+      // that disappears.
+      setResendError(getErrorMessage(err, 'Failed to resend code. Please try again.'));
     }
   };
 
@@ -117,7 +137,7 @@ export default function OTPVerifyScreen(): React.ReactElement {
           <Text style={styles.title}>Enter Verification Code</Text>
           <Text style={styles.subtitle}>
             We sent a verification code with {otpLength} digits to{'\n'}
-            <Text style={styles.phone}>{formatPHPhone(params.phone)}</Text>
+            <Text style={styles.phone}>{flow.phone ? formatPHPhone(flow.phone) : ''}</Text>
           </Text>
         </View>
 
@@ -150,6 +170,11 @@ export default function OTPVerifyScreen(): React.ReactElement {
               />
             )}
           </View>
+          {resendError.length > 0 && (
+            <Text style={styles.resendError} accessibilityRole="alert" testID="otp-resend-error">
+              {resendError}
+            </Text>
+          )}
         </Card>
         </View>
       </View>
@@ -189,4 +214,5 @@ const styles = StyleSheet.create({
   verifyButton: { marginBottom: spacing.base },
   resendContainer: { alignItems: 'center' },
   resendText: { ...typography.body, color: colors.textTertiary },
+  resendError: { ...typography.bodySmall, color: colors.error, textAlign: 'center', marginTop: spacing.sm },
 });

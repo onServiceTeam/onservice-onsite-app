@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { ToastProvider, useToastStore } from '@/components/ui/Toast';
 import { useBookingStore } from '@/stores/booking.store';
+import api from '@/services/api';
 
 jest.mock('@/services/payment.service', () => ({
   createPaymentIntent: jest.fn(),
@@ -36,6 +37,12 @@ function renderCheckout(): { container: HTMLElement } {
 
 beforeEach(() => {
   (Alert.alert as jest.Mock).mockClear();
+  // D41 Q39 (customer review P2): the old checkout is only used while
+  // request-first booking is off, and it now waits for the config before
+  // showing anything. Before this change the test passed only because the old
+  // screen showed for a moment before the config answered. The server here
+  // says request-first is off, the only state this validation applies to.
+  (api.get as jest.Mock).mockReset().mockResolvedValue({ data: { success: true, data: { requestFirstBooking: false } } });
   act(() => {
     useBookingStore.getState().reset();
     useToastStore.getState().hide();

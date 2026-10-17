@@ -30,6 +30,11 @@ it('Bug UX-248 — admin OTP policy controls API generation, cooldown, expiry, S
     otp_expiry_minutes: '7',
     otp_max_attempts: '5',
     otp_cooldown_seconds: '45',
+    // Updated 2026-10-18 (customer review slice P2, D41 Q47): the invited-testers
+    // setting is on by default and refuses unlisted numbers (CR-254). This test
+    // pins the OTP policy on the normal sign-in path, so the stored row says off.
+    invited_testers_only: 'false',
+    invited_testers_message: 'onService is open to invited testers for now.',
   };
   mockDbQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
     if (sql.includes('FROM platform_settings')) {

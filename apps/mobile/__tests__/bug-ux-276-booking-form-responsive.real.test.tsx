@@ -1,6 +1,14 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 
+// D41 Q39 (Ken, 2026-10-18): this old fixed-price screen is used only while
+// request-first booking is off; with it on, the screen sends the customer to
+// the request form. This test pins the screen in the switched-off state.
+jest.mock('@/hooks/useRequestFirstBooking', () => ({
+  useRequestFirstBooking: () => false,
+  useRequestFirstBookingState: () => ({ requestFirst: false, settled: true }),
+}));
+
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),

@@ -10,6 +10,11 @@ jest.mock('../src/services/booking.service', () => ({
   calculateServiceFee: (...args: unknown[]) => calculateServiceFeeMock(...args),
 }));
 
+// Updated 2026-10-18 (customer review slice P2 fix round, D41 Q39): a new recurring series is now refused while request-first booking is on (CR-273).
+// This test pins the recurring path that still runs while that switch is off, so it reads as off.
+jest.mock('../src/services/settings.service', () => ({
+  isFixedPriceBookingRetired: jest.fn().mockResolvedValue(false),
+}));
 import { createRecurringBooking } from '../src/services/recurring.service';
 
 it('Bug SEC-021 — recurring creation requires an owned, completed, fixed-price source booking for the same service', async () => {

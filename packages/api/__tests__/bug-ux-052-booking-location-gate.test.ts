@@ -14,6 +14,7 @@ jest.mock('../src/services/service-area.service', () => ({
 
 import { createBooking, createJobRequest } from '../src/services/booking.service';
 import { createBookingSchema, createJobRequestSchema } from '../src/validators/booking.validators';
+import * as settingsService from '../src/services/settings.service';
 
 const location = { latitude: 14.5547, longitude: 121.0244 };
 
@@ -39,6 +40,10 @@ it('Bug UX-052 — fixed and quote bookings require coordinates inside an active
   }).success).toBe(false);
 
   coverageMock.mockResolvedValue({ covered: false, area: null, nearestArea: null, distanceKm: null });
+  // Updated 2026-10-18 (customer review slice P2, D41 Q39): createBooking first refuses a
+  // fixed-price booking while request-first booking is on (CR-265). The location gate
+  // this test pins still applies while that switch is off, so it reads as off here.
+  jest.spyOn(settingsService, 'isFixedPriceBookingRetired').mockResolvedValue(false);
 
   await expect(createBooking({
     customerId: 'customer-1',

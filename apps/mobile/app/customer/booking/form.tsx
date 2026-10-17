@@ -17,6 +17,8 @@ import { formatPHP } from '@/utils/currency';
 import { colors, spacing, typography, borderRadius, getCategoryTint } from '@/config/theme';
 import { ChevronLeft, ChevronRight, MapPin } from '@/components/icons';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useFixedPriceFlowGuard } from '@/hooks/useFixedPriceFlowGuard';
+import FixedPriceFlowHold from '@/components/booking/FixedPriceFlowHold';
 
 import { Routes } from '@/config/navigation';
 const TIME_SLOTS = [
@@ -45,6 +47,8 @@ export default function BookingFormScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const { isPhone, isDesktop } = useResponsive();
   const { draft, serviceFee, total, addonsTotal, setSchedule, setDescription } = useBookingStore();
+  // D41 Q39: old fixed-price flow; while request-first is on, go to the request form.
+  const fixedPriceFlow = useFixedPriceFlowGuard();
 
   const [selectedDate, setSelectedDate] = useState<string | null>(draft.scheduledDate);
   const [selectedTime, setSelectedTime] = useState<string | null>(draft.scheduledTime);
@@ -91,6 +95,10 @@ export default function BookingFormScreen(): React.ReactElement {
     setDescription(notes);
     router.push(Routes.CUSTOMER.CHECKOUT);
   };
+
+  if (fixedPriceFlow !== 'stay') {
+    return <FixedPriceFlowHold flow={fixedPriceFlow} style={[styles.container, { paddingTop: insets.top }]} />;
+  }
 
   if (!draft.categoryId || !draft.subcategoryId || !draft.categoryName || !draft.subcategoryName || draft.basePrice <= 0) {
     return (

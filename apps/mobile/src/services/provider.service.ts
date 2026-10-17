@@ -2,10 +2,21 @@ import api from './api';
 import type { ApiResponse } from './api';
 import type { ReviewAggregate } from './review.service';
 
+/**
+ * The public Service Provider profile (GET /api/v1/providers/:id). The screen
+ * reads only these public fields. It never needs the Service Provider's map
+ * location, account status or account id, so they are not part of this type
+ * (Service Provider profile privacy fix). Fields a newer or older server may
+ * leave out are optional.
+ */
 export interface Provider {
   id: string;
-  userId: string;
+  /** Shown first on the profile. */
+  businessName?: string | null;
+  /** The person's name, shown under the business name. */
   name: string | null;
+  /** Profile photo; the initials avatar is shown when it is missing. */
+  avatarUrl?: string | null;
   tier: 'new' | 'verified' | 'pro' | 'elite' | 'founding';
   bio: string | null;
   rating: number | null;
@@ -14,12 +25,9 @@ export interface Provider {
   responseTimeMinutes: number | null;
   yearsExperience: number | null;
   serviceRadiusKm: number | null;
-  isAvailable: boolean;
-  latitude: number | null;
-  longitude: number | null;
   city: string | null;
   province: string | null;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface ProviderService {

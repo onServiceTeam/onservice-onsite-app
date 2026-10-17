@@ -832,11 +832,22 @@ router.get(
       // less competitive window). Admin observability of these
       // weights now lives on the admin-only /admin/matching/config
       // endpoint.
+      //
+      // Service Provider profile privacy fix (matching list, customer review
+      // 2026-10-17, P2): the customer gets the public fields only, in the
+      // matcher's order. An allow-list, so a field added to the matcher later
+      // never reaches customers by accident.
       res.json({
         success: true,
         data: {
           bookingId: id,
-          providers,
+          providers: providers.map((provider) => ({
+            providerId: provider.providerId,
+            businessName: provider.businessName,
+            tier: provider.tier,
+            rating: provider.rating,
+            totalJobs: provider.totalJobs,
+          })),
         },
       });
     } catch (error) {

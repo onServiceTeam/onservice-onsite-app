@@ -31,11 +31,16 @@ let send: jest.SpyInstance;
 let check: jest.SpyInstance;
 let lockout: jest.SpyInstance;
 let record: jest.SpyInstance;
+let invited: jest.SpyInstance;
 beforeEach(() => {
   send = jest.spyOn(authService, 'sendOtp').mockResolvedValue({ message: 'Verification code sent to your phone.' });
   check = jest.spyOn(authService, 'verifyOtp').mockRejectedValue(new Error('verifyOtp must not run while paused'));
   lockout = jest.spyOn(securityService, 'checkOtpLockout').mockResolvedValue({ locked: false, captchaRequired: false });
   record = jest.spyOn(securityService, 'recordLoginAttempt').mockResolvedValue(undefined);
+  // Updated 2026-10-18 (customer review slice P2, D41 Q47): send-otp now asks the
+  // invited-testers setting first (on by default, CR-254). This test is about the
+  // D37 pause switch, so the number counts as invited here.
+  invited = jest.spyOn(authService, 'assertPhoneSignInInvited').mockResolvedValue(undefined);
 });
 afterEach(() => {
   jest.restoreAllMocks();
@@ -55,6 +60,7 @@ it('D37 - with PHONE_OTP_SIGN_IN_ENABLED=0 neither phone route sends, checks or 
   expect(send).not.toHaveBeenCalled();
   expect(check).not.toHaveBeenCalled();
   expect(lockout).not.toHaveBeenCalled();
+  expect(invited).not.toHaveBeenCalled();
   // Paused requests (e.g. from older apps) must not count toward any lockout.
   expect(record).not.toHaveBeenCalled();
 });

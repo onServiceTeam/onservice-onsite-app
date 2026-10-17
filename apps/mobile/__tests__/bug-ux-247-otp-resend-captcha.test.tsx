@@ -25,15 +25,18 @@ jest.mock('@/services/config.service', () => ({
 }));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn() }),
-  useLocalSearchParams: () => ({ phone: '+639171234567', mode: 'login' }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ isPhone: true }),
 }));
 
 import OTPVerifyScreen from '../app/auth/otp-verify';
+import { usePhoneSignInFlow } from '../src/stores/phone-signin.store';
 
 it('Bug UX-247 — OTP resend uses the same captcha-aware request path as initial login', async () => {
+  // The number travels in memory (phone-signin store), not in route params
+  // (account-signin-9, 2026-10-18), so the test seeds the store.
+  usePhoneSignInFlow.getState().start('+639171234567', 'login');
   render(<OTPVerifyScreen />);
 
   fireEvent.click(screen.getByRole('button', { name: 'Resend Code' }));

@@ -6,6 +6,7 @@
 import { bookingIntegrationIt as it } from './helpers/booking-participant-postgres';
 import {
   withRequestFlowDatabase, flowHttp, insertQuoteRequest, quoteBody, customerA, providerA, providerUserA,
+  upsertPlatformSetting,
 } from './helpers/request-flow-postgres';
 
 jest.mock('../src/utils/logger', () => ({
@@ -15,6 +16,11 @@ jest.mock('../src/utils/logger', () => ({
 it('HA-M2-52: preview totals and job time equal what accept writes', async () => {
   await withRequestFlowDatabase(async database => {
     await database.query(`INSERT INTO suki_memberships (customer_id, provider_id, tier) VALUES ($1, $2, 'suki')`, [customerA, providerA]);
+    // Updated 2026-10-18 (customer review slice P2, D41 Q33): Suki now has an
+    // off switch, suki_program_enabled, off by default (CR-264 pins the preview
+    // with it off). This test proves the preview and accept agree WITH a Suki
+    // discount, so it turns the switch on. The expected numbers are not edited.
+    await upsertPlatformSetting(database, 'suki_program_enabled', 'true');
     const bookingId = await insertQuoteRequest(database);
     const quoteId = (await flowHttp(providerUserA, 'provider').quote(bookingId, quoteBody({ quotedPrice: 83000 }))).body.data.id;
     const customer = flowHttp(customerA, 'customer');

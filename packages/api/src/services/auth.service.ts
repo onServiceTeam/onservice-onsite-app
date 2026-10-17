@@ -231,6 +231,26 @@ function parseDurationToSeconds(duration: string): number {
   return value * (multipliers[unit!] ?? 60);
 }
 
+/**
+ * D41 Q47 (Ken, 2026-10-18): while the admin setting invited_testers_only is
+ * on, phone sign-in is open only to the numbers on the server's test-number
+ * list (DEV_OTP_ALLOWED_PHONES, see config/dev-otp.ts). Any other number is
+ * refused with the admin-editable message before a code is made or a text is
+ * sent. Off: every number takes the normal path. The send-otp route calls
+ * this before its lockout check and before it records an attempt, so a
+ * refused number never counts toward a lockout or a CAPTCHA (a CAPTCHA would
+ * then also be asked of invited testers on the same network). sendOtp calls
+ * it again for any other caller.
+ */
+export async function assertPhoneSignInInvited(phone: string): Promise<void> {
+  if (isDevOtpPhoneAllowed(phone)) return;
+  const gate = await settingsService.getInvitedTestersGate();
+  if (!gate.enabled) return;
+  const refused = createAppError(gate.message, 403);
+  refused.code = 'invited_testers_only';
+  throw refused;
+}
+
 export async function sendOtp(phone: string): Promise<{ message: string }> {
   if (!/^\+63\d{10}$/.test(phone)) {
     throw createAppError('Invalid Philippine phone number. Use +63 9XX XXX XXXX format.', 400);
@@ -246,6 +266,8 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
     });
     return { message: 'Verification code is available from the protected test-account vault.' };
   }
+
+  await assertPhoneSignInInvited(phone);
 
   const otpPolicy = await settingsService.getOtpPolicy();
 
@@ -302,9 +324,19 @@ export async function sendOtp(phone: string): Promise<{ message: string }> {
     );
   });
 
+  // D41 (customer review 2026-10-17, sign-in honesty): a failed send is an
+  // error in every environment, not only in production. Before this, a
+  // staging or test server answered "Verification code sent to your phone."
+  // when no text had gone out (no SMS key, or the SMS provider refused it).
+  // Development without a key is unchanged: sendSms reports success there.
+  // The stored code is left as it is: if the provider did send it late, it
+  // still works, and the resend cooldown applies as for any other code.
   const sent = await sendOtpSms(phone, otp, otpPolicy.expiryMinutes);
-  if (!sent && process.env.NODE_ENV === 'production') {
-    throw createAppError('Failed to send verification code. Please try again.', 502);
+  if (!sent) {
+    logger.warn('OTP text was not sent', { phoneSuffix: phone.slice(-4) });
+    const notSent = createAppError('We could not send a code to this number. Please try again later.', 502);
+    notSent.code = 'sms_not_sent';
+    throw notSent;
   }
 
   logger.info('OTP sent', { phone: phone.slice(-4) });

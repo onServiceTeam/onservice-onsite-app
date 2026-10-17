@@ -82,6 +82,24 @@ async function loadPointsToPesoRate(): Promise<number> {
   return 100; // default: 100 points = ₱1
 }
 
+/**
+ * Suki off switch (D41 Q33, Ken 2026-10-18). While the admin setting
+ * suki_program_enabled is off (the default, migration 188): Redeem is refused
+ * before any row is read or written, no Suki discount is taken from any price
+ * (calculateSukiDiscountForBooking returns zero, so acceptQuote, the confirm
+ * preview and a direct assignment keep the quoted or catalog price), and the
+ * tier-up notice, which promises a discount, is not sent. Bookings and points
+ * are still recorded, so nothing is lost if Ken turns it on later. The
+ * setting is read-only in admin while E25 and D29 are open.
+ */
+export const SUKI_PROGRAM_OFF_MESSAGE = 'Suki rewards are not available right now.';
+
+function sukiProgramOffError(): Error {
+  const off = createAppError(SUKI_PROGRAM_OFF_MESSAGE, 409);
+  off.code = 'suki_program_off';
+  return off;
+}
+
 function computeTier(totalBookings: number, tiers: SukiTiersMap): string {
   if (totalBookings >= (tiers['super_suki']?.minBookings ?? Infinity)) return 'super_suki';
   if (totalBookings >= (tiers['suki']?.minBookings ?? Infinity)) return 'suki';
@@ -123,6 +141,9 @@ export async function recordBookingForSuki(
 
   const tierConfig = tiers[newTier] ?? DEFAULT_TIER;
   const pointsEarned = Math.floor((bookingAmount / 100) * tierConfig.pointsPerPeso);
+  // Suki off switch: points and the tier are still recorded, but the tier-up
+  // notice (it promises a discount that is not given while off) is not sent.
+  const sukiProgramOn = await settingsService.isSukiProgramEnabled();
 
   return db.transaction(async (client) => {
     const updated = await client.query<SukiMembershipRow>(
@@ -156,7 +177,7 @@ export async function recordBookingForSuki(
         `SELECT p.business_name, p.user_id FROM providers p WHERE p.id = $1`,
         [providerId],
       );
-      if (provInfo.rows[0]) {
+      if (provInfo.rows[0] && sukiProgramOn) {
         const discount = tiers[newTier]?.discount ?? 0;
         await client.query(
           `INSERT INTO notifications (user_id, type, title, body, data)
@@ -181,6 +202,8 @@ export async function redeemPoints(
   membershipId: string,
   points: number,
 ): Promise<{ amountCredited: number; remainingPoints: number }> {
+  // Suki off switch: refused before any read or write.
+  if (!(await settingsService.isSukiProgramEnabled())) throw sukiProgramOffError();
   if (points <= 0 || points % POINTS_REDEMPTION_MIN_MULTIPLE !== 0) {
     throw createAppError(
       `Points must be positive and a multiple of ${POINTS_REDEMPTION_MIN_MULTIPLE}.`,
@@ -324,6 +347,9 @@ export async function calculateSukiDiscountForBooking(
   providerId: string,
   servicePrice: number,
 ): Promise<{ discountPercent: number; discountAmount: number }> {
+  // Suki off switch: no discount at all, so the stored price is the quoted
+  // (or catalog) price for every customer, whatever their tier.
+  if (!(await settingsService.isSukiProgramEnabled())) return { discountPercent: 0, discountAmount: 0 };
   const result = await db.query<{ tier: string }>(
     `SELECT tier FROM suki_memberships WHERE customer_id = $1 AND provider_id = $2`,
     [customerId, providerId],

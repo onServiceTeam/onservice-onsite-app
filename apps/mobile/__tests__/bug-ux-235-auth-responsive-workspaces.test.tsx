@@ -5,7 +5,6 @@ jest.mock('expo-router', () => {
   const ReactModule = require('react') as typeof React;
   return {
     useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-    useLocalSearchParams: () => ({ phone: '+639171234567', mode: 'login' }),
     Link: ({ children, href, ...props }: { children: React.ReactNode; href: string }) =>
       ReactModule.createElement('a', { href, ...props }, children),
   };
@@ -32,6 +31,7 @@ jest.mock('@/stores/auth.store', () => {
 
 import LoginScreen from '../app/auth/login';
 import OTPVerifyScreen from '../app/auth/otp-verify';
+import { usePhoneSignInFlow } from '../src/stores/phone-signin.store';
 import RegisterScreen from '../app/auth/register';
 
 it('Bug UX-235 — login, registration, and OTP use bounded desktop workspaces', () => {
@@ -47,6 +47,9 @@ it('Bug UX-235 — login, registration, and OTP use bounded desktop workspaces',
   expect(screen.getByText('Create Account')).toBeTruthy();
   registration.unmount();
 
+  // The number travels in memory (phone-signin store), not in route params
+  // (account-signin-9, 2026-10-18), so the test seeds the store.
+  usePhoneSignInFlow.getState().start('+639171234567', 'login');
   const otp = render(<OTPVerifyScreen />);
   expect(screen.getByLabelText('Desktop verification workspace')).toBeTruthy();
   expect(screen.getByText('Confirm the number tied to your records.')).toBeTruthy();

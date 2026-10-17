@@ -4,6 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockCopy = jest.fn().mockResolvedValue(undefined);
 
+// D41 Q32 (Ken, 2026-10-18): the referral program is switched off by
+// default and the screen then shows only "Not available right now". This test
+// pins the screen's switched-on view, which stays in the app for later.
+jest.mock('@/hooks/useProgramSwitches', () => ({
+  useProgramSwitches: () => ({ status: 'ready', referralProgramEnabled: true, sukiProgramEnabled: false }),
+}));
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn() }) }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ width: 1280, breakpoint: 'desktop', isPhone: false, isTablet: false, isDesktop: true }),

@@ -9,6 +9,10 @@ jest.mock('../src/services/auth.service', () => ({
   sendOtp: jest.fn(),
 }));
 jest.mock('../src/services/settings.service', () => ({
+  // Updated 2026-10-18 (customer review slice P2, D41 Q47): the invited-testers
+  // setting is on by default and refuses unlisted numbers (CR-254). This test
+  // pins the normal phone sign-in path, so the setting reads as off here.
+  getInvitedTestersGate: jest.fn().mockResolvedValue({ enabled: false, message: 'onService is open to invited testers for now.' }),
   getSettingInteger: jest.fn(),
   getOtpPolicy: jest.fn().mockResolvedValue({ length: 6, expiryMinutes: 5, maxAttempts: 3, cooldownSeconds: 60 }),
 }));

@@ -24,8 +24,8 @@ export function resolveRequestFirstBooking(config: { requestFirstBooking?: unkno
   return config?.requestFirstBooking !== false;
 }
 
-export function useRequestFirstBooking(): boolean {
-  const { data } = useQuery<ClientConfig & { requestFirstBooking?: unknown }>({
+function useClientConfigQuery() {
+  return useQuery<ClientConfig & { requestFirstBooking?: unknown }>({
     // Same cache entry as useFeatureFlags, so one request serves both.
     queryKey: ['client-config'],
     queryFn: async () => {
@@ -34,7 +34,22 @@ export function useRequestFirstBooking(): boolean {
     },
     staleTime: 5 * 60_000,
   });
+}
+
+export function useRequestFirstBooking(): boolean {
+  const { data } = useClientConfigQuery();
   return resolveRequestFirstBooking(data);
+}
+
+/**
+ * The same switch, plus whether the server has answered yet (or failed).
+ * D41 Q39: the old fixed-price screens send the customer to the request form
+ * only once this is settled, so a customer is not bounced away while the
+ * config loads after admin has switched request-first off.
+ */
+export function useRequestFirstBookingState(): { requestFirst: boolean; settled: boolean } {
+  const { data, isSuccess, isError } = useClientConfigQuery();
+  return { requestFirst: resolveRequestFirstBooking(data), settled: isSuccess || isError };
 }
 
 export default useRequestFirstBooking;

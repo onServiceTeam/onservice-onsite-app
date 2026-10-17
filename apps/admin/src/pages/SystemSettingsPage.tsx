@@ -155,6 +155,11 @@ function describeActor(entry: AuditEntry): string {
 }
 
 const MARKETING_CHANNEL_SLUG = /^[a-z0-9_-]{1,40}$/;
+// D41 Q47 (migration 188): words shown to people, as plain text. The server
+// applies the same limits (settings.service validateSettingValue).
+const PLAIN_TEXT_SETTING_MAX_LENGTH: Readonly<Record<string, number>> = {
+  invited_testers_message: 200,
+};
 const MATCHING_TIER_KEYS = ['founding', 'new', 'verified', 'pro', 'elite'] as const;
 type MatchingTier = typeof MATCHING_TIER_KEYS[number];
 const DISPATCH_MAP_SETTING_KEYS = new Set([
@@ -360,6 +365,11 @@ export default function SystemSettingsPage(): React.ReactElement {
     if (!value && setting.key !== 'map_tile_api_key') return 'Enter a value before continuing.';
     if (setting.allowedValues && !setting.allowedValues.includes(value)) {
       return `Choose one of: ${setting.allowedValues.join(', ')}.`;
+    }
+    const plainTextMax = PLAIN_TEXT_SETTING_MAX_LENGTH[setting.key];
+    if (plainTextMax !== undefined) {
+      if (value.length > plainTextMax) return `Use ${plainTextMax} characters or fewer.`;
+      if (/[<>]/.test(value)) return 'Use plain text, without < or >.';
     }
     if (setting.key === 'marketing_channels') {
       const channels = parseMarketingChannels(value);
@@ -594,6 +604,7 @@ export default function SystemSettingsPage(): React.ReactElement {
         value={editValue}
         onChange={(event) => setEditValue(event.target.value)}
         aria-label={ariaLabel}
+        maxLength={PLAIN_TEXT_SETTING_MAX_LENGTH[setting.key]}
         placeholder={setting.isSensitive ? 'Enter a replacement value' : undefined}
         autoComplete={setting.isSensitive ? 'new-password' : undefined}
         className={inputClass}

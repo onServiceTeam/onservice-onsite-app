@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import api from '@/services/api';
 
 const mockPush = jest.fn();
 const mockSetCategory = jest.fn();
@@ -95,6 +96,10 @@ jest.mock('@/services/suki.service', () => ({
 import ProviderProfileScreen from '../app/customer/provider/[id]';
 
 it('Bug UX-310 — provider detail uses a wide relationship workspace and starts only the chosen service with truthful assignment copy', async () => {
+  // D41 Q33 (customer review P2): the Suki relationship card shows only while
+  // the server's Suki switch is on (it is off by default). This test is about
+  // the workspace with that card, so the server here says Suki is on.
+  (api.get as jest.Mock).mockReset().mockResolvedValue({ data: { success: true, data: { sukiProgramEnabled: true } } });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(
     <QueryClientProvider client={client}>
@@ -105,7 +110,7 @@ it('Bug UX-310 — provider detail uses a wide relationship workspace and starts
   expect(
     await screen.findByLabelText('Tablet and desktop customer provider workspace'),
   ).toBeTruthy();
-  expect(screen.getByLabelText('Your Suki relationship with this provider')).toBeTruthy();
+  expect(await screen.findByLabelText('Your Suki relationship with this provider')).toBeTruthy();
   const service = screen.getByLabelText(
     'Start Deep Cleaning booking; provider assignment confirmed later',
   );

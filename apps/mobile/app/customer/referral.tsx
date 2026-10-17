@@ -14,21 +14,30 @@ import { ClipboardList, Gift, Send, ChevronLeft } from '@/components/icons';
 import { SkeletonCard, ErrorState, SectionHeader } from '@/components/ui';
 import { showToast } from '@/lib/toast';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useProgramSwitches } from '@/hooks/useProgramSwitches';
+import NotAvailableState from '@/components/NotAvailableState';
 
 export default function ReferralScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
   const [redeemInput, setRedeemInput] = useState('');
+  // D41 Q32 (Ken, 2026-10-18): the referral program is off until Ken decides
+  // its rules. While off, the screen shows no code box and no ₱ amount, and
+  // asks the server for nothing.
+  const programs = useProgramSwitches();
+  const programOn = programs.status === 'ready' && programs.referralProgramEnabled;
 
   const { data: code, isLoading: codeLoading, isError: codeError, refetch: refetchCode } = useQuery({
     queryKey: ['myReferralCode'],
     queryFn: getMyCode,
+    enabled: programOn,
   });
 
   const { data: referrals, isLoading: referralsLoading, isError: referralsError, refetch: refetchReferrals } = useQuery({
     queryKey: ['myReferrals'],
     queryFn: getMyReferrals,
+    enabled: programOn,
   });
 
   const redeemMutation = useMutation({
@@ -75,7 +84,7 @@ export default function ReferralScreen(): React.ReactElement {
     }
   };
 
-  const isLoading = codeLoading || referralsLoading;
+  const isLoading = programs.status === 'loading' || codeLoading || referralsLoading;
   const isError = codeError || referralsError;
   const refetchAll = (): void => { void refetchCode(); void refetchReferrals(); };
 
@@ -86,7 +95,8 @@ export default function ReferralScreen(): React.ReactElement {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back from referrals">
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Referral Program</Text>
+          {/* D41 Q32: no program name in the header while it is off. */}
+          <Text style={styles.headerTitle}>{programOn ? 'Referral Program' : ''}</Text>
           <View style={styles.placeholder} />
         </View>
       </View>
@@ -97,6 +107,8 @@ export default function ReferralScreen(): React.ReactElement {
           <SkeletonCard />
           <SkeletonCard />
         </View>
+      ) : !programOn ? (
+        <NotAvailableState />
       ) : isError ? (
         <View style={[styles.stateContent, !isPhone && styles.stateContentWide]}>
           <ErrorState

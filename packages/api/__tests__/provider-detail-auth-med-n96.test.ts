@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 
-const mockGetProviderById = jest.fn();
+const mockGetPublicProviderById = jest.fn();
 const mockGetProviderServices = jest.fn();
 const mockGetSchedule = jest.fn();
 const mockGetProviderRating = jest.fn();
@@ -34,13 +34,13 @@ jest.mock('../src/models/db', () => ({
 }));
 
 jest.mock('../src/services/provider.service', () => ({
-  getProviderById: (...args: unknown[]) => mockGetProviderById(...args),
+  getPublicProviderById: (...args: unknown[]) => mockGetPublicProviderById(...args),
   getProviderServices: (...args: unknown[]) => mockGetProviderServices(...args),
   getSchedule: (...args: unknown[]) => mockGetSchedule(...args),
   getPortfolio: (...args: unknown[]) => mockGetPortfolio(...args),
   getPublicCertifications: (...args: unknown[]) => mockGetPublicCertifications(...args),
   getSukiCount: (...args: unknown[]) => mockGetSukiCount(...args),
-  formatProvider: (value: unknown) => value,
+  formatPublicProvider: (value: unknown) => value,
   formatProviderService: (value: unknown) => value,
   formatScheduleSlot: (value: unknown) => value,
   formatPortfolioItem: (value: unknown) => value,
@@ -53,12 +53,20 @@ jest.mock('../src/services/review.service', () => ({
 
 import providerRouter from '../src/routes/provider.routes';
 
-it('MED-N96 - provider detail blocks anonymous access without changing the authenticated payload contract', async () => {
-  mockGetProviderById.mockResolvedValue({
+// Updated 2026-10-18 (customer review slice P2, Service Provider profile
+// privacy fix): the route now reads the public projection
+// (getPublicProviderById, formatPublicProvider) instead of the whole provider
+// row, and the person's name is built by formatPublicProvider, not by the
+// route. Both are passed through here, so this test still pins what it was
+// written for: anonymous callers are refused before any read, and the
+// authenticated answer is the formatted profile plus the profile lists.
+// CR-250 and CR-251 test the projection itself on a real database.
+
+it('MED-N96 - provider detail blocks anonymous access and returns the formatted public profile to signed-in callers', async () => {
+  mockGetPublicProviderById.mockResolvedValue({
     id: 'provider-med-n96',
-    first_name: 'Ana',
-    last_name: 'Reyes',
-    business_name: 'Ana Home Services',
+    businessName: 'Ana Home Services',
+    name: 'Ana Reyes',
   });
   mockGetProviderServices.mockResolvedValue([{ id: 'service-med-n96' }]);
   mockGetSchedule.mockResolvedValue([{ id: 'schedule-med-n96' }]);
@@ -72,7 +80,7 @@ it('MED-N96 - provider detail blocks anonymous access without changing the authe
 
   const anonymous = await request(app).get('/providers/provider-med-n96');
   expect(anonymous.status).toBe(401);
-  expect(mockGetProviderById).not.toHaveBeenCalled();
+  expect(mockGetPublicProviderById).not.toHaveBeenCalled();
 
   const authenticated = await request(app)
     .get('/providers/provider-med-n96')
@@ -83,9 +91,7 @@ it('MED-N96 - provider detail blocks anonymous access without changing the authe
     success: true,
     data: {
       id: 'provider-med-n96',
-      first_name: 'Ana',
-      last_name: 'Reyes',
-      business_name: 'Ana Home Services',
+      businessName: 'Ana Home Services',
       name: 'Ana Reyes',
       services: [{ id: 'service-med-n96' }],
       schedule: [{ id: 'schedule-med-n96' }],

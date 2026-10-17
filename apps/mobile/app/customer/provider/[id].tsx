@@ -19,6 +19,7 @@ import { useBookingStore } from '@/stores/booking.store';
 import { Routes } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useRequestFirstBooking } from '@/hooks/useRequestFirstBooking';
+import { useProgramSwitches } from '@/hooks/useProgramSwitches';
 // A7 — shared UI kit for loading/empty/error states.
 import { Badge, Skeleton, SkeletonCard, EmptyState, ErrorState } from '@/components/ui';
 // Phase 14 R5-complete — Avatar with initials fallback in provider header.
@@ -88,6 +89,11 @@ function RatingBar({
   );
 }
 
+/** The server answers 404 for a profile that is not public. */
+function isNotFoundError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { status?: unknown }).status === 404;
+}
+
 function formatResponseTime(minutes: number | null): string {
   if (minutes == null) return 'N/A';
   if (minutes < 60) return `~${minutes} min`;
@@ -105,6 +111,11 @@ export default function ProviderProfileScreen(): React.ReactElement {
   // services show no set price and every one opens the describe-your-job
   // request. Off restores the old priced rows and routing below.
   const requestFirst = useRequestFirstBooking();
+  // D41 Q33 (Ken, 2026-10-18): Suki is hidden until Ken decides its money
+  // rules (E25, D29). While off (or while the config loads), the profile shows
+  // no Suki count, no Suki relationship card and asks the server for no Suki
+  // memberships.
+  const { sukiProgramEnabled } = useProgramSwitches();
 
   // D29 — this seeds only the selected service. It does not reserve or assign
   // the viewed provider. The UI must remain explicit about that until the
@@ -155,6 +166,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
     data: provider,
     isLoading: providerLoading,
     isError: providerError,
+    error: providerQueryError,
     refetch: refetchProvider,
     isRefetching: providerRefetching,
   } = useQuery({
@@ -162,7 +174,10 @@ export default function ProviderProfileScreen(): React.ReactElement {
     queryFn: () => getProviderProfile(id),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
+    // A profile that is not public (404) will not appear on a retry.
+    retry: (failureCount, err) => !isNotFoundError(err) && failureCount < 3,
   });
+  const providerNotFound = isNotFoundError(providerQueryError);
 
   const {
     data: reviewsData,
@@ -180,20 +195,32 @@ export default function ProviderProfileScreen(): React.ReactElement {
   const membershipsQuery = useQuery({
     queryKey: ['sukiMemberships'],
     queryFn: getMemberships,
-    enabled: !!id,
+    enabled: !!id && sukiProgramEnabled,
     staleTime: 5 * 60 * 1000,
   });
 
   const onRefresh = useCallback(() => {
     void refetchProvider();
     void refetchReviews();
-    void membershipsQuery.refetch();
-  }, [membershipsQuery, refetchProvider, refetchReviews]);
+    if (sukiProgramEnabled) void membershipsQuery.refetch();
+  }, [membershipsQuery, refetchProvider, refetchReviews, sukiProgramEnabled]);
 
   const reviews = reviewsData?.reviews ?? [];
   const aggregate = reviewsData?.aggregate;
-  const membership = membershipsQuery.data?.find((item) => item.providerId === id);
-  const availableSchedule = provider?.schedule.filter((slot) => slot.isAvailable) ?? [];
+  const membership = sukiProgramEnabled
+    ? membershipsQuery.data?.find((item) => item.providerId === id)
+    : undefined;
+  const availableSchedule = (provider?.schedule ?? []).filter((slot) => slot.isAvailable);
+  // Service Provider profile privacy fix: the profile reads only public
+  // fields. Lists a server leaves out count as empty instead of crashing.
+  const services = provider?.services ?? [];
+  const portfolio = provider?.portfolio ?? [];
+  const certifications = provider?.certifications ?? [];
+  // Business name first, the person's name under it (D41 Q4 pattern).
+  const businessName = provider?.businessName?.trim() || null;
+  const personName = provider?.name?.trim() || null;
+  const headline = businessName ?? personName;
+  const subline = businessName && personName && personName !== businessName ? personName : null;
 
   if (providerLoading) {
     return (
@@ -218,7 +245,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
     );
   }
 
-  if (providerError) {
+  if (providerError && !providerNotFound) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
@@ -275,7 +302,11 @@ export default function ProviderProfileScreen(): React.ReactElement {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={providerRefetching || reviewsRefetching || membershipsQuery.isRefetching}
+            refreshing={
+              providerRefetching ||
+              reviewsRefetching ||
+              (sukiProgramEnabled && membershipsQuery.isRefetching)
+            }
             onRefresh={onRefresh}
           />
         }
@@ -288,9 +319,11 @@ export default function ProviderProfileScreen(): React.ReactElement {
         >
           <View style={[styles.workspaceRail, !isPhone && styles.workspaceRailWide]}>
             <View style={[styles.profileCard, styles.profileCardSurface]}>
-              {/* Phase 14 R5-complete — Avatar with initials fallback */}
-              <Avatar name={provider.name ?? undefined} size={96} />
-              {provider.name && <Text style={styles.providerNameText}>{provider.name}</Text>}
+              {/* Phase 14 R5-complete: Avatar with initials fallback; the
+                  photo shows when the Service Provider has one. */}
+              <Avatar uri={provider.avatarUrl ?? null} name={headline ?? undefined} size={96} />
+              {headline && <Text style={styles.providerNameText}>{headline}</Text>}
+              {subline && <Text style={styles.providerPersonText}>{subline}</Text>}
               <View style={styles.tierRow}>
                 <Badge
                   label={TIER_LABELS[provider.tier] ?? provider.tier}
@@ -338,7 +371,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
                     <Text style={styles.infoBadgeText}> {provider.serviceRadiusKm} km radius</Text>
                   </View>
                 )}
-                {provider.sukiCount > 0 && (
+                {sukiProgramEnabled && provider.sukiCount > 0 && (
                   <View style={styles.infoBadge}>
                     <Heart size={12} color={colors.success} />
                     <Text style={styles.infoBadgeText}>
@@ -360,7 +393,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
               </View>
             </View>
 
-            {membershipsQuery.isError && (
+            {sukiProgramEnabled && membershipsQuery.isError && (
               <View style={styles.relationshipError} accessibilityRole="alert">
                 <Text style={styles.relationshipErrorText}>
                   Your Suki relationship could not be checked. This does not mean you have no history with this provider.
@@ -429,14 +462,14 @@ export default function ProviderProfileScreen(): React.ReactElement {
               </View>
             )}
 
-            {provider.services.length > 0 ? (
+            {services.length > 0 ? (
               <View style={[styles.section, styles.sectionCard]}>
                 <Text style={styles.sectionTitle}>Services Offered</Text>
                 <Text style={styles.sectionHint}>
                   Choose a service to start booking. onService confirms provider assignment after
                   the request details and availability are checked.
                 </Text>
-                {provider.services.map((svc) => (
+                {services.map((svc) => (
                   <TouchableOpacity
                     key={svc.id}
                     style={styles.serviceRow}
@@ -482,7 +515,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
               </View>
             )}
 
-            {provider.portfolio.length > 0 && (
+            {portfolio.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Portfolio</Text>
                 {isPhone ? (
@@ -491,7 +524,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
                     showsHorizontalScrollIndicator={false}
                     style={styles.portfolioScroll}
                   >
-                    {provider.portfolio.map((item) => (
+                    {portfolio.map((item) => (
                       <View key={item.id} style={styles.portfolioCard}>
                         <Image
                           source={{ uri: item.imageUrl }}
@@ -508,7 +541,7 @@ export default function ProviderProfileScreen(): React.ReactElement {
                   </ScrollView>
                 ) : (
                   <View style={styles.portfolioGrid} accessibilityLabel="Provider portfolio grid">
-                    {provider.portfolio.map((item) => (
+                    {portfolio.map((item) => (
                       <View key={item.id} style={styles.portfolioCardWide}>
                         <Image
                           source={{ uri: item.imageUrl }}
@@ -527,10 +560,10 @@ export default function ProviderProfileScreen(): React.ReactElement {
               </View>
             )}
 
-            {provider.certifications.length > 0 && (
+            {certifications.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Certifications</Text>
-                {provider.certifications.map((cert) => (
+                {certifications.map((cert) => (
                   <View key={cert.id} style={styles.certRow}>
                     <View style={styles.certIcon}>
                       {cert.isVerified ? (
@@ -693,6 +726,11 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.text,
     marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  providerPersonText: {
+    ...typography.body,
+    color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
   tierRow: {

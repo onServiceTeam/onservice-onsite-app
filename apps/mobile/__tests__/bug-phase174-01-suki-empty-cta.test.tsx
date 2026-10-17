@@ -7,6 +7,12 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// D41 Q33 (Ken, 2026-10-18): the Suki program is switched off by
+// default and the screen then shows only "Not available right now". This test
+// pins the screen's switched-on view, which stays in the app for later.
+jest.mock('@/hooks/useProgramSwitches', () => ({
+  useProgramSwitches: () => ({ status: 'ready', referralProgramEnabled: false, sukiProgramEnabled: true }),
+}));
 jest.mock('@/services/suki.service', () => ({
   getMemberships: jest.fn(),
   getTiers: jest.fn(),

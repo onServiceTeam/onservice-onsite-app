@@ -30,6 +30,7 @@ import { showToast } from '@/lib/toast';
 import { getErrorMessage } from '@/utils/errors';
 import { useResponsive } from '@/hooks/useResponsive';
 import { resolveNotificationRoute } from '@/utils/notification-navigation';
+import { Routes } from '@/config/navigation';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -123,7 +124,9 @@ export default function NotificationsScreen(): React.ReactElement {
     // marked them read with no further action. Now: route to the
     // most specific destination available based on the data payload.
     const route = resolveNotificationRoute(notif.type, notif.data, 'customer');
-    if (route) router.push(route);
+    // A notice whose destination is this inbox (for example a referral or
+    // promo notice while the referral program is off) is already open here.
+    if (route && route !== Routes.CUSTOMER.NOTIFICATIONS) router.push(route);
   };
 
   const renderItem = ({ item }: { item: Notification }): React.ReactElement => {

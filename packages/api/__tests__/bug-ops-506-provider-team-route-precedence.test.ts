@@ -66,10 +66,25 @@ it('Bug OPS-506 — the provider team URL lists owned staff instead of treating 
       await database.query("UPDATE providers SET status='pending' WHERE id=$1", [providerId]);
       expect((await readTeam()).status).toBe(403);
       await database.query("UPDATE providers SET status='approved' WHERE id=$1", [providerId]);
+      // Updated 2026-10-18 (customer review slice P2, Service Provider profile
+      // privacy fix): the profile read now names each public column instead of
+      // reading the row with *, so this scoped fixture gets the production
+      // columns it reads (migrations 001, 002 and 013), and the not-found
+      // answer says "Service Provider". The route-precedence check is unchanged.
+      await database.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name varchar(100), ADD COLUMN IF NOT EXISTS last_name varchar(100),
+          ADD COLUMN IF NOT EXISTS avatar_url text;
+        ALTER TABLE providers ADD COLUMN IF NOT EXISTS tier varchar(20) NOT NULL DEFAULT 'new',
+          ADD COLUMN IF NOT EXISTS bio text, ADD COLUMN IF NOT EXISTS rating numeric(3,2) NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS total_jobs integer NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS acceptance_rate numeric(5,2) NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS response_time_minutes integer, ADD COLUMN IF NOT EXISTS years_experience integer,
+          ADD COLUMN IF NOT EXISTS city varchar(100), ADD COLUMN IF NOT EXISTS province varchar(100);
+      `);
       const missingProfile = await request(app).get('/api/v1/providers/11111111-1111-4111-8111-111111111111')
         .auth(token(applicantId, 'provider'), { type: 'bearer' });
       expect(missingProfile.status).toBe(404);
-      expect(missingProfile.body.error.message).toBe('Provider not found.');
+      expect(missingProfile.body.error.message).toBe('Service Provider not found.');
       expect((await database.query('SELECT * FROM provider_staff ORDER BY id')).rows).toEqual(before);
       expect((await database.query('SELECT * FROM admin_actions')).rows).toEqual([]);
     });

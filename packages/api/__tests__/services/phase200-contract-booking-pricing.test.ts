@@ -19,6 +19,10 @@ jest.mock('../../src/services/suki.service', () => ({ calculateSukiDiscountForBo
 jest.mock('../../src/services/socket.service', () => ({ emitAdminEvent: jest.fn(), ADMIN_EVENTS: {} }));
 jest.mock('../../src/services/booking/promo.service', () => ({ resolvePromo: jest.fn(), recordPromoRedemption: jest.fn() }));
 jest.mock('../../src/services/settings.service', () => ({
+  // Updated 2026-10-18 (customer review slice P2, D41 Q39): createBooking now refuses a
+  // fixed-price booking while request-first booking is on (CR-265). This test pins the
+  // fixed-price path, which still runs while that switch is off, so it reads as off.
+  isFixedPriceBookingRetired: jest.fn().mockResolvedValue(false),
   getSettingBoolean: jest.fn().mockResolvedValue(true),
   getSettingPercent: jest.fn().mockResolvedValue(0.1),
   getSettingNumber: jest.fn().mockImplementation((k: string) =>

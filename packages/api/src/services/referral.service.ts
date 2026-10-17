@@ -3,7 +3,26 @@ import { db } from '../models/db';
 import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as walletService from './wallet.service';
+import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+
+/**
+ * Referral off switch (D41 Q32, Ken 2026-10-18). While the admin setting
+ * referral_program_enabled is off (the default, migration 188), redeeming a
+ * code, the referrer bonus, handing out a new code and the my-referrals list
+ * (an existing code and its peso amounts) are refused before any row is read
+ * or written, so no wallet changes and no code or amount is shown. The rules
+ * for turning it on are not built yet (LAUNCH-LIMITATIONS); the setting is
+ * read-only in admin.
+ */
+export const REFERRAL_PROGRAM_OFF_MESSAGE = 'Referral bonuses are not available right now.';
+
+export async function assertReferralProgramEnabled(): Promise<void> {
+  if (await settingsService.isReferralProgramEnabled()) return;
+  const off = createAppError(REFERRAL_PROGRAM_OFF_MESSAGE, 409);
+  off.code = 'referral_program_off';
+  throw off;
+}
 
 interface ReferralCodeRow {
   id: string;
@@ -70,6 +89,7 @@ function generateCode(length = 8): string {
 }
 
 export async function getOrCreateReferralCode(userId: string): Promise<ReferralCodeRow> {
+  await assertReferralProgramEnabled();
   const existing = await db.query<ReferralCodeRow>(
     `SELECT * FROM referral_codes WHERE user_id = $1 AND type = 'standard' AND is_active = TRUE`,
     [userId],
@@ -117,6 +137,8 @@ export async function redeemReferralCode(
   // constraint on referee_id would catch one but a raw 23505 error
   // surfaced). Also locks the referral_codes row to serialize the
   // uses_count increment so max_uses isn't violated under concurrency.
+  // Referral off switch: refused before the transaction opens.
+  await assertReferralProgramEnabled();
   return db.transaction(async (client) => {
     const codeResult = await client.query<ReferralCodeRow>(
       `SELECT * FROM referral_codes WHERE code = $1 FOR UPDATE`,
@@ -194,13 +216,26 @@ export async function redeemReferralCode(
   });
 }
 
-export async function creditReferrerAfterBooking(bookingId: string, customerId: string): Promise<void> {
+/**
+ * What creditReferrerAfterBooking did. 'program_off': the referral off switch
+ * refused the bonus and nothing was read or written; a pending bonus stays
+ * pending.
+ */
+export type ReferrerCreditOutcome = 'credited' | 'nothing_to_credit' | 'program_off';
+
+export async function creditReferrerAfterBooking(bookingId: string, customerId: string): Promise<ReferrerCreditOutcome> {
+  // Referral off switch: refused before any read or write. The caller (the
+  // booking confirm route) treats this as a normal outcome, not an error.
+  if (!(await settingsService.isReferralProgramEnabled())) {
+    logger.info('Referrer bonus refused: the referral program is off', { bookingId });
+    return 'program_off';
+  }
   const redemption = await db.query<RedemptionRow>(
     `SELECT * FROM referral_redemptions
      WHERE referee_id = $1 AND referrer_credited = FALSE AND qualifying_booking_id IS NULL`,
     [customerId],
   );
-  if (redemption.rows.length === 0) return;
+  if (redemption.rows.length === 0) return 'nothing_to_credit';
   const rd = redemption.rows[0]!;
 
   const referrerWallet = await walletService.getUserWallet(rd.referrer_id, 'customer');
@@ -232,6 +267,7 @@ export async function creditReferrerAfterBooking(bookingId: string, customerId: 
   });
 
   logger.info('Referrer credited', { referrerId: rd.referrer_id, refereeId: customerId, bookingId });
+  return 'credited';
 }
 
 export async function getMyReferrals(
@@ -244,6 +280,9 @@ export async function getMyReferrals(
   total: number;
   summary: { totalReferrals: number; creditedReferrals: number; pendingReferrals: number; totalEarned: number };
 }> {
+  // Referral off switch: refused before any read, so an older app or a direct
+  // call gets no code and no peso amounts while bonuses are off.
+  await assertReferralProgramEnabled();
   const code = await db.query<ReferralCodeRow>(
     `SELECT * FROM referral_codes
       WHERE user_id = $1 AND type = 'standard'

@@ -15,6 +15,8 @@ import { ChevronLeft, Check } from '@/components/icons';
 import { platformConfig } from '@/config/platform.config';
 import { useResponsive } from '@/hooks/useResponsive';
 import ServiceScopeNotice from '@/components/ServiceScopeNotice';
+import { useFixedPriceFlowGuard } from '@/hooks/useFixedPriceFlowGuard';
+import FixedPriceFlowHold from '@/components/booking/FixedPriceFlowHold';
 
 import { Routes } from '@/config/navigation';
 interface Addon {
@@ -31,6 +33,8 @@ export default function ConfigureScreen(): React.ReactElement {
   const insets = useSafeAreaInsets();
   const { draft, setAddons, setEstimatedHours } = useBookingStore();
   const { isPhone } = useResponsive();
+  // D41 Q39: old fixed-price flow; while request-first is on, go to the request form.
+  const fixedPriceFlow = useFixedPriceFlowGuard();
 
   const [selected, setSelected] = useState<Map<string, SelectedAddon>>(
     new Map(draft.addons.map((a) => [a.id, a])),
@@ -79,6 +83,10 @@ export default function ConfigureScreen(): React.ReactElement {
     setAddons([]);
     router.push(Routes.CUSTOMER.BOOKING_FORM);
   }, [setAddons, router]);
+
+  if (fixedPriceFlow !== 'stay') {
+    return <FixedPriceFlowHold flow={fixedPriceFlow} style={[styles.container, { paddingTop: insets.top }]} />;
+  }
 
   if (!draft.categoryId || !draft.subcategoryId || !draft.categoryName || !draft.subcategoryName) {
     return (
@@ -133,8 +141,8 @@ export default function ConfigureScreen(): React.ReactElement {
         />
 
         {/* D27 Phase 4b — hourly estimate stepper. The amount above is the
-            authorization (estimate x rate); the customer is billed for actual
-            time and refunded the rest. */}
+            authorization (estimate x rate). D41 Q39: the screen makes no
+            refund promise (refund rules wait on E09 and the attorney). */}
         {draft.isHourly && (
           <View style={styles.hourlyBox}>
             <Text style={styles.hourlyTitle}>How many hours do you estimate?</Text>
@@ -160,8 +168,7 @@ export default function ConfigureScreen(): React.ReactElement {
               </TouchableOpacity>
             </View>
             <Text style={styles.hourlyHelp}>
-              You authorize up to {formatPHP(draft.basePrice)}. You're only charged for the actual time worked
-              (capped at your estimate) — the rest is refunded to your wallet.
+              You authorize up to {formatPHP(draft.basePrice)}.
             </Text>
           </View>
         )}

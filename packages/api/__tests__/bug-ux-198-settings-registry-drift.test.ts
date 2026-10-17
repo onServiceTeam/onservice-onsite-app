@@ -15,7 +15,9 @@ import {
   checkSettingsDriftAtBoot,
 } from '../src/services/settings.service';
 
-// Independent snapshot of the active registry after migration 186 (182 added
+// Independent snapshot of the active registry after migration 188 (188 added
+// invited_testers_only, invited_testers_message, referral_program_enabled
+// and suki_program_enabled for the customer review slice P2, D41; 182 added
 // request_first_booking for D38; D38 Milestone 2 added seven request keys in
 // 183, six job-media keys in 184 and request_threads_enabled in 185; D38
 // Milestone 3 added the three ops_* alert and coverage keys in 186; the list
@@ -76,6 +78,8 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'jwt_access_expires',
   'jwt_refresh_expires',
   'admin_session_timeout_hours',
+  'invited_testers_only',
+  'invited_testers_message',
   'provider_noshow_minutes',
   'nbi_expiry_warning_days',
   'max_service_radius_km',
@@ -110,6 +114,8 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'business_payment_terms',
   'suki_tiers',
   'suki_points_to_peso_rate',
+  'suki_program_enabled',
+  'referral_program_enabled',
   'brand_color_primary',
   'brand_color_secondary',
   'brand_color_accent',

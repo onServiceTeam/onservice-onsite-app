@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 // Phase 14 remediation — audited (D14r-9 markers pass)
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Pressable } from 'react-native';
-import { showToast } from '@/lib/toast';
 import { useRouter, Link } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getErrorMessage } from '@/utils/errors';
@@ -16,9 +15,11 @@ import AuthBrandPanel from '@/components/AuthBrandPanel';
 import { Routes } from '@/config/navigation';
 import { useAuthMethods } from '@/hooks/useAuthMethods';
 import EmailSignInForm from '@/components/auth/EmailSignInForm';
+import { usePhoneSignInFlow } from '@/stores/phone-signin.store';
 
 export default function RegisterScreen(): React.ReactElement {
   const router = useRouter();
+  const startPhoneFlow = usePhoneSignInFlow(state => state.start);
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
   const { requestOtpWithCaptcha, captchaModal } = useCaptchaOtp();
@@ -38,6 +39,8 @@ export default function RegisterScreen(): React.ReactElement {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string; phone?: string }>({});
+  // The server's reason the code could not be sent, shown on this screen.
+  const [sendError, setSendError] = useState('');
 
   const validate = (): boolean => {
     const newErrors: typeof errors = {};
@@ -49,26 +52,23 @@ export default function RegisterScreen(): React.ReactElement {
   };
 
   const handleSubmit = async (): Promise<void> => {
+    setSendError('');
     if (!validate()) return;
 
     setLoading(true);
     try {
       const normalized = normalizePHPhone(phone);
       await requestOtpWithCaptcha(normalized);
-      router.push({
-        pathname: '/auth/otp-verify',
-        params: {
-          phone: normalized,
-          mode: 'register',
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-        },
-      });
+      // The number and name travel in memory, not in the route, so they never
+      // land in the browser's address bar or history (same as the email flow).
+      startPhoneFlow(normalized, 'register', { firstName: firstName.trim(), lastName: lastName.trim() });
+      router.push(Routes.AUTH.OTP_VERIFY);
     } catch (err: unknown) {
       // Phase D CRIT-69 / K-MED-K04 fix — canonical error helper.
-      // A7 — toast instead of a modal alert.
+      // The server's reason (for example a text that could not be sent, or
+      // onService being open to invited testers only) stays on this screen.
       const msg = getErrorMessage(err, 'Failed to send verification code. Please try again.');
-      showToast(msg, 'error');
+      setSendError(msg);
     } finally {
       setLoading(false);
     }
@@ -154,13 +154,23 @@ export default function RegisterScreen(): React.ReactElement {
             onChange={(t) => {
               setPhone(t);
               setErrors((e) => ({ ...e, phone: undefined }));
+              setSendError('');
             }}
             label="Mobile Number"
-            errorVisible={!!errors.phone}
+            errorVisible={!!errors.phone || sendError.length > 0}
             testID="register-phone-input"
           />
           {errors.phone && (
             <Text style={{ color: colors.error, ...typography.bodySmall }}>{errors.phone}</Text>
+          )}
+          {sendError.length > 0 && (
+            <Text
+              style={{ color: colors.error, ...typography.bodySmall }}
+              accessibilityRole="alert"
+              testID="register-phone-error"
+            >
+              {sendError}
+            </Text>
           )}
 
           <Button

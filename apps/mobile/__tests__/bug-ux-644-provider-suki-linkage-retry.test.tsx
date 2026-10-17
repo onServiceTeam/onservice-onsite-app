@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import api from '@/services/api';
 
 const mockGetMemberships = jest.fn();
 
@@ -30,6 +31,10 @@ jest.mock('@/services/suki.service', () => ({
 import ProviderProfileScreen from '../app/customer/provider/[id]';
 
 it('Bug UX-644 — a failed Suki lookup does not falsely look like the customer has no provider relationship', async () => {
+  // D41 Q33 (customer review P2): the profile looks up Suki memberships only
+  // while the server's Suki switch is on (it is off by default), so the server
+  // here says Suki is on.
+  (api.get as jest.Mock).mockReset().mockResolvedValue({ data: { success: true, data: { sukiProgramEnabled: true } } });
   mockGetMemberships.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   render(<QueryClientProvider client={client}><ProviderProfileScreen /></QueryClientProvider>);

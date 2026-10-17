@@ -73,7 +73,10 @@ export function resolveNotificationRoute(
     if (bookingId) return buildRoute(Routes.CUSTOMER.BOOKING_DETAIL, { id: bookingId });
     if (recurringBookingId) return buildRoute(Routes.CUSTOMER.RECURRING_DETAIL, { id: recurringBookingId });
     if (providerId) return buildRoute(Routes.CUSTOMER.PROVIDER_PROFILE, { id: providerId });
-    if (type === 'promo' || type === 'referral') return Routes.CUSTOMER.REFERRAL;
+    // D41 Q32 (Ken, 2026-10-18): the referral program is off and its page is
+    // hidden until Ken decides its rules, so these notices open the
+    // Notifications inbox instead of the referral page.
+    if (type === 'promo' || type === 'referral') return Routes.CUSTOMER.NOTIFICATIONS;
     if (type === 'rating_received' || type === 'job_completed') return Routes.TABS.BOOKINGS;
     if (type === 'payment_released') return Routes.TABS.WALLET;
     if (type === 'area_launch') return Routes.TABS.HOME;

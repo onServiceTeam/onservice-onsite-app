@@ -14,6 +14,14 @@ jest.mock('../src/utils/logger', () => ({
 jest.mock('../src/services/wallet.service', () => ({
   getUserWallet: jest.fn().mockResolvedValue({ id: 'w1' }),
 }));
+// Updated 2026-10-18 (customer review slice P2, D41 Q32): the referral switch
+// referral_program_enabled is off by default, and while off both functions
+// refuse before any query (CR-257 and CR-259 pin that). These tests pin the
+// race-safety rules for when the switch is on, so it reads as on here; the
+// database answers below are unchanged.
+jest.mock('../src/services/settings.service', () => ({
+  isReferralProgramEnabled: jest.fn().mockResolvedValue(true),
+}));
 
 import { getOrCreateReferralCode, redeemReferralCode } from '../src/services/referral.service';
 

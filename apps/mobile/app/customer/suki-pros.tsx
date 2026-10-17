@@ -21,6 +21,8 @@ import { SkeletonCard, EmptyState, ErrorState, SectionHeader } from '@/component
 import { showToast } from '@/lib/toast';
 import { Routes, buildRoute } from '@/config/navigation';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useProgramSwitches } from '@/hooks/useProgramSwitches';
+import NotAvailableState from '@/components/NotAvailableState';
 
 type IconProps = { size?: number; color?: string };
 type IconComponent = ComponentType<IconProps>;
@@ -231,6 +233,11 @@ export default function SukiProsScreen(): React.ReactElement {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isPhone } = useResponsive();
+  // D41 Q33 (Ken, 2026-10-18): Suki is hidden until Ken decides its money
+  // rules (E25, D29). While off, the screen shows one short line and asks the
+  // server for nothing; the server also refuses Redeem.
+  const programs = useProgramSwitches();
+  const programOn = programs.status === 'ready' && programs.sukiProgramEnabled;
 
   const {
     data: memberships,
@@ -240,11 +247,13 @@ export default function SukiProsScreen(): React.ReactElement {
   } = useQuery({
     queryKey: ['sukiMemberships'],
     queryFn: getMemberships,
+    enabled: programOn,
   });
 
   const { data: tiers, isError: tiersError, isFetching: tiersFetching, refetch: refetchTiers } = useQuery({
     queryKey: ['sukiTiers'],
     queryFn: getTiers,
+    enabled: programOn,
   });
 
   const redeemMutation = useMutation({
@@ -269,16 +278,19 @@ export default function SukiProsScreen(): React.ReactElement {
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back from Suki Pros" onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Suki Pros</Text>
+        {/* D41 Q33: no program name in the header while it is off. */}
+        <Text style={styles.headerTitle}>{programOn ? 'My Suki Pros' : ''}</Text>
         <View style={styles.headerPlaceholder} />
       </View>
 
-      {membershipsLoading ? (
+      {programs.status === 'loading' || membershipsLoading ? (
         <View style={styles.bodyContent}>
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
         </View>
+      ) : !programOn ? (
+        <NotAvailableState />
       ) : isError ? (
         <ErrorState
           message="We couldn't load your Suki memberships. Please check your connection and try again."

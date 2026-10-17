@@ -4,7 +4,19 @@ import { createAppError } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
 import * as notificationService from './notification.service';
 import { calculateServiceFee } from './booking.service';
+import * as settingsService from './settings.service';
 import { formatPHP } from '../utils/currency';
+
+/**
+ * D41 Q39 (Ken, 2026-10-18): every recurring booking is a fixed-price
+ * booking, so while request-first booking is on (and past its short grace,
+ * settingsService.isFixedPriceBookingRetired) no new recurring series is
+ * started and the daily worker makes no new booking from an existing series.
+ * A series that is skipped this way is left exactly as it was (its next date
+ * is not moved), so it picks up again if request-first is turned off.
+ */
+export const RECURRING_NOT_AVAILABLE_MESSAGE =
+  'Recurring bookings are not available right now. Please send a new request instead.';
 
 interface RecurringBookingRow {
   id: string;
@@ -244,6 +256,13 @@ function calculateNextDate(frequency: string, preferredDay: number, fromDate?: D
 export async function createRecurringBooking(
   params: CreateRecurringParams,
 ): Promise<RecurringBookingRow> {
+  // D41 Q39: refused before anything is read or written while new
+  // fixed-price bookings are refused.
+  if (await settingsService.isFixedPriceBookingRetired()) {
+    const notAvailable = createAppError(RECURRING_NOT_AVAILABLE_MESSAGE, 409);
+    notAvailable.code = 'recurring_not_available';
+    throw notAvailable;
+  }
   // Phase 14 Dispatch 05 — Bug 208.
   // Resolve the canonical service price server-side from
   // service_subcategories.base_price. Reject hourly subcats per
@@ -783,6 +802,16 @@ export async function processRecurringBookings(): Promise<number> {
         AND u.is_active = TRUE`,
     [today],
   );
+
+  // D41 Q39: while new fixed-price bookings are refused, no booking is made
+  // from a series. Nothing is claimed or moved, so each series stays due
+  // and picks up again if request-first booking is turned off.
+  if (dueBookings.rows.length > 0 && await settingsService.isFixedPriceBookingRetired()) {
+    logger.info('Recurring bookings skipped while request-first booking is on', {
+      dueSeries: dueBookings.rows.length,
+    });
+    return 0;
+  }
 
   let created = 0;
   for (const rb of dueBookings.rows) {

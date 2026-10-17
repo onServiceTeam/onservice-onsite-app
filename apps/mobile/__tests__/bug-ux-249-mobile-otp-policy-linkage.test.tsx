@@ -17,15 +17,18 @@ jest.mock('@/stores/auth.store', () => {
 });
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn() }),
-  useLocalSearchParams: () => ({ phone: '+639171234567', mode: 'login' }),
 }));
 jest.mock('@/hooks/useResponsive', () => ({
   useResponsive: () => ({ isPhone: false }),
 }));
 
 import OTPVerifyScreen from '../app/auth/otp-verify';
+import { usePhoneSignInFlow } from '../src/stores/phone-signin.store';
 
 it('Bug UX-249 — mobile verification renders the admin-published OTP length instead of a six-digit constant', () => {
+  // The number travels in memory (phone-signin store), not in route params
+  // (account-signin-9, 2026-10-18), so the test seeds the store.
+  usePhoneSignInFlow.getState().start('+639171234567', 'login');
   render(<OTPVerifyScreen />);
 
   expect(screen.getByText(/verification code with 8 digits/)).toBeTruthy();
