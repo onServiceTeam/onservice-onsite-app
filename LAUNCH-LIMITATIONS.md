@@ -4245,6 +4245,7 @@ Limits (open):
 - **Content gaps (admin):** all 29 live services have no description, and 4 categories have no services.
 - **A "same day" request's job time is still invented (now plus 4 hours).** Milestone 2 sets it from the provider's proposed time. E83 covers the money rules that read it.
 - **Not built (needs Ken):** the Inter font, real category photos, a real logo and app icon.
+  - *Dated note (2026-10-18):* the logo and app icon are now built and Verified on master 66f79967, not yet Deployed (section 138). The Inter font and category photos are still not built.
 
 ## 132. First-come quotes, request media, threads and back-office alerts (2026-10-14)
 
@@ -4417,3 +4418,27 @@ Still open:
   - at 1280 px a settings card behind the dialog is squeezed into a narrow column, one word per line (less so at 1440 px).
 
   Whether the narrow column also happens in a normal browser was not checked.
+
+**Dated note (2026-10-18):** these baseline files landed with the logo change in commits 370e17e3 (admin), 07a5cfd8 (mobile), acea7354 (legal pages) and 66f79967 (baselines). F#4 is Verified locally at 66f79967 (Windows only; Gate D still does not run in CI).
+
+## 138. House logo everywhere: what changed and what is still open (2026-10-18)
+
+Ken decided on 2026-10-14 that the onService PH logo is the house, the same everywhere (`docs/design-system/brand/README.md`). Commits 370e17e3, 07a5cfd8, acea7354 and 66f79967.
+
+**Status: Verified (local suites, agent review) on master 66f79967. Not Deployed.** Under Ken's 2026-10-18 build program (`docs/qa/customer-review-2026-10-17/03-BUILD-PROGRAM.md`) it goes to the tester server and a new APK with the one final release, not on its own.
+
+What changed:
+- **Admin:** sidebar (expanded, collapsed, phone drawer) and both sign-in layouts show the house tile instead of "oS"; own house browser icons; blue keyboard focus outline instead of orange; "Tester server" label with a non-orange dot.
+- **Phone and web app:** start screen, desktop web menu, customer home header, wide onboarding panels and sign-in panel draw one shared house tile with fixed colours. New launcher, adaptive, themed (monochrome), notification and splash images. Web tab icon with a version link so returning visitors get the new one. Three Service Provider icons changed from orange to blue.
+- **Server pages:** the feedback page header, and the house tile (no words) on the privacy and terms pages. Their wording is unchanged.
+
+Still open:
+- **No APK yet.** The release must raise the version (1.0.6, build 7 or later, with `apps/mobile/__tests__/android-standalone-config.test.ts`) and build after `npx expo prebuild -p android --clean`, or the APK keeps the old icons (`docs/runbooks/tester-server-release.md` step 5).
+- **Not checked on a phone:** launcher icon, themed icon, the splash hand-off, the notification icon.
+- **Email** keeps a one-colour text wordmark until Ken answers D42 (`.ai-coder/decisions/D42-house-logo-in-email.md`). The official receipt and BIR 2307 PDFs are untouched.
+- **The public homepage job** (apps/home, not committed) still shows "oS"; it is a separate job.
+- **Orange tab-bar badges** stay until the new-look slice (D41 Q21 moves them to red).
+- **Admin wordmark colour** and the 768 px sign-in subtitle wrap (section 137).
+- **Design questions for Ken:** a logo on the phone sign-in screens; two houses stacked on onboarding slide 1; the logo on the purple onboarding slide. These are folded into the new-look preview (D41 Q18).
+- **No admin editor is needed** (standing rule 9): the logo is a fixed asset, not a business value.
+- Supersedes, without removing, the section 131 line "a real logo and app icon" under "Not built (needs Ken)": the logo and app icon are now Verified, not Deployed. The Inter font and real category photos in that line are still not built.

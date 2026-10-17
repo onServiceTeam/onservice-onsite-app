@@ -16,10 +16,20 @@ and are kept as written, with the lines this update replaces marked)
   his storage decision S1, and the audit, gap analysis, design audit and
   batch plan). His questions are in
   .ai-coder/decisions/D41-customer-review-2026-10-18.md (OPEN).
-- Order now: Batch 0 = the house-logo and orange-removal job (in review,
-  then APK 1.0.6 build 7), then customer Batch 1a (needs no answer from Ken),
-  then the batches that wait on D41. The P1 repair items come after the
-  customer side unless Ken says otherwise.
+- Order now: the customer build program,
+  docs/qa/customer-review-2026-10-17/03-BUILD-PROGRAM.md (slices P0 to P7).
+  Ken answered nearly all of D41 on 2026-10-18 and chose ONE release at the
+  end: each slice is pushed to master when verified, but nothing goes to the
+  tester server or a new APK until P7, unless Ken says otherwise. The P1
+  repair items come after the customer side unless Ken says otherwise.
+- P0 (house logo) landed on master: 370e17e3, 07a5cfd8, acea7354, 66f79967
+  (LAUNCH-LIMITATIONS sections 137 and 138). Verified locally; not Deployed.
+- P1 (Google address search, server) and P2 (privacy and money-safety
+  switches) are being built by helper agents in two extra git worktrees
+  outside OneDrive (branches claude/geo-address-search and
+  claude/p2-privacy-money-switches). Only this session commits; their work
+  is merged onto master when verified. Both were cut before section 137 and
+  138 existed, so their LAUNCH-LIMITATIONS sections get renumbered on merge.
 - The two 2026-10-17 private notes listed under OUTSTANDING OPERATIONS as
   "NOT done" were copied into the main checkout's private records on
   2026-10-17 and compared by hash.

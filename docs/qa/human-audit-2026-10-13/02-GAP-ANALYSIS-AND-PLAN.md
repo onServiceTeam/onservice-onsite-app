@@ -121,6 +121,7 @@ After each piece: tests (real renders and real database), an independent review 
 - **Push notifications on Android:** needs a Firebase project (Ken's Google account). Steps will be written down.
 - **Real card, GCash or Maya payments:** E14, Ken's PayMongo choice and test keys.
 - **A real app icon and logo:** needs brand artwork. The current "oS" text mark stays until then.
+  - *Dated note (2026-10-18):* superseded. Ken chose the house logo on 2026-10-14; it is built and Verified on master 66f79967, not yet Deployed (LAUNCH-LIMITATIONS section 138).
 - **Real photos of Cebu providers** for category and provider cards: needs real, permitted photos. No stock models and no AI-generated people, which would undercut trust.
 - **Service descriptions:** the 29 blank descriptions are content for admin to fill in. Where pricing is by quote, the app no longer shows "pending" labels.
 - **Hiding phone numbers and contact details typed into chat** (brief Feature 5): in June Ken said no masking (D26), but the October brief asks for it. This conflict is listed in D38 for Ken. Today's keyword flagging stays.

@@ -265,6 +265,7 @@ Rules for this step:
 
 1. **Raise the version in the release commit itself.** Raise both `version` and `android.versionCode` in `apps/mobile/app.config.ts`, and the matching test `apps/mobile/__tests__/android-standalone-config.test.ts`. An installed app accepts only a strictly higher `versionCode`.
 2. **Build** the signed release APK on the build machine with the private APK build procedure (private records, not in the repo). The signing key never leaves that machine. It is never copied, printed or committed.
+   - Regenerate the native Android project first with `npx expo prebuild -p android --clean` (in `apps/mobile` of the build copy). Without `--clean`, the old launcher, splash and notification images stay in the generated project and the APK keeps them (added 2026-10-18 for the house logo, LAUNCH-LIMITATIONS section 138).
 3. **Inspect it** with the repo's checker. All four paths must be absolute:
 
    ```bash

@@ -40,7 +40,7 @@ The marketplace has no AI features (no AI SDK in the app or API code, checked 20
 Ken applies `v1.0.0-launch-ready`, not you (launch-cutover.md). It needs all of these at one commit:
 
 - **F#3** mobile screenshot baselines captured and committed. Not done. Needs an emulator or device session (`.ai-coder/handoff/F3-maestro-baseline-capture.md`).
-- **F#4** admin screenshot baselines current. Verified locally on 2026-10-14 at commit `18097e1f` (588 baselines, Windows only). Gate D does not run in CI, so they can go stale without anyone noticing. Re-run the admin visual specs locally after any admin UI change.
+- **F#4** admin screenshot baselines current. Re-captured for the house logo and verified locally on 2026-10-18 at commit `66f79967` (588 baselines, Windows only; LAUNCH-LIMITATIONS section 137). The 2026-10-14 check at `18097e1f` meant "passes within tolerance", not "shows today's screen". Gate D does not run in CI, so they can go stale without anyone noticing. Re-run the admin visual specs locally after any admin UI change.
 - **F#10** attorney-reviewed disclaimer wording in production. Still open (`.ai-coder/decisions/D14r-10-legal-disclaimer.md`, launch-cutover.md).
 - All 12 operational items in launch-cutover.md signed off.
 - Every gate ran in BLOCKING mode and passed. Today Gates D and E are in report mode and Gate B does not run on master, so "all gates green" is not yet evidence of anything.
