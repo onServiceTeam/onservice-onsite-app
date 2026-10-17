@@ -12,6 +12,8 @@ import { logger } from '../utils/logger';
 import { createAppError } from '../middleware/error.middleware';
 import { ADDON_PRICE_HARD_MAX_CENTAVOS } from '../config/catalog.config';
 import { platformConfig } from '../config/platform.config';
+import { isGoogleMapsServerKeyConfigured } from '../config/google-maps.config';
+import { isAddressSearchOpenToday } from './geo/address-search-state';
 import apiPackageJson from '../../package.json';
 
 const CACHE_PREFIX = 'settings:';
@@ -236,6 +238,15 @@ export const SETTING_DEFAULTS: Record<string, string> = {
   ops_request_alert_amber_minutes: '5',
   ops_request_alert_red_minutes: '10',
   ops_coverage_min_responsive_providers: '3',
+  // D24 Option A Google address search (migration 189), read through
+  // getAddressSearchPolicy() and, for the on/off switch, getClientConfig().
+  // Conservative engineering defaults Ken has not set; all admin-editable.
+  address_search_enabled: 'true',
+  address_search_user_daily_autocomplete_limit: '60',
+  address_search_user_daily_lookup_limit: '30',
+  address_search_platform_daily_limit: '500',
+  address_search_timeout_ms: '3000',
+  address_search_cooldown_minutes: '10',
 
   // Cache TTLs
   cache_ttl_categories: '86400',
@@ -403,6 +414,13 @@ const LIVE_SETTING_SUMMARIES: Readonly<Record<string, string>> = {
   ops_request_alert_amber_minutes: 'Within about a minute, the back-office check raises an amber alert for a quote request that has had no live quote for this many minutes since it opened or reopened. Alerts are for the back office only: they never contact a provider and never change the request. Alerts already raised are unchanged.',
   ops_request_alert_red_minutes: 'Within about a minute, the back-office check raises a red alert (and a Slack message when Slack is configured on the server) for a quote request that has had no live quote for this many minutes. A value that is not above the amber value is treated as amber + 1. Alerts never contact a provider and never change the request. Alerts already raised are unchanged.',
   ops_coverage_min_responsive_providers: 'Within 60 seconds, the Marketplace coverage grid shows an area and category in red when fewer approved providers than this sent a quote there in the last 7 days. Display only: it does not rank, notify or change any provider.',
+  // D24 Option A (migration 189). Read through getAddressSearchPolicy().
+  address_search_enabled: 'Within 60 seconds, when on and the server has a Google key, signed-in users can get address suggestions, choose one, and turn a map pin into an address through Google. Off: the address search endpoints refuse without calling Google, and the apps hide search the next time they load the app config (within about 5 minutes) and keep their own picker. Saved addresses and bookings are unchanged.',
+  address_search_user_daily_autocomplete_limit: 'Within 60 seconds, each signed-in user can get this many address suggestion lists per Manila calendar day. After that the server answers "limit reached" and the app falls back to typing the address. 0 turns suggestions off for everyone: the server answers "unavailable" without calling Google, and when the lookup limit is 0 as well the apps hide search the next time they load the app config. Counts restart at midnight Manila time.',
+  address_search_user_daily_lookup_limit: 'Within 60 seconds, each signed-in user can turn this many chosen suggestions or map pins into an address per Manila calendar day. After that the server answers "limit reached" and the customer types the address. 0 turns these lookups off for everyone: the server answers "unavailable" without calling Google, and when the suggestion limit is 0 as well the apps hide search the next time they load the app config. Counts restart at midnight Manila time.',
+  address_search_platform_daily_limit: 'Within 60 seconds, once this many Google address calls (suggestions, chosen suggestions and pin lookups, for all users together) have been made in one Manila calendar day, every further call that day is refused without reaching Google, and the apps hide search the next time they load the app config. This is the bill guard. 0 stops all Google address calls.',
+  address_search_timeout_ms: 'Within 60 seconds, a Google address call that takes longer than this is abandoned, the customer is told address search is unavailable, and the cool-down starts (one slow answer pauses search for every user for the cool-down time).',
+  address_search_cooldown_minutes: 'Within 60 seconds, after Google refuses a call (for example billing off, the key not allowed or a quota reached) or a call times out, the server stops calling Google for this many minutes and the apps hide search. A cool-down already running keeps its end time.',
 };
 
 /**
@@ -743,6 +761,66 @@ export async function getMarketplaceAlertPolicy(): Promise<MarketplaceAlertPolic
     maxRounds: boundedD38Integer('request_max_rounds', maxRounds),
     coverageMinResponsive: boundedInteger(coverageMinResponsive, 1, 50, 3),
     lookbackHours: platformConfig.unmatchedBookingExpiryHours ?? 72,
+  };
+}
+
+/**
+ * D24 Option A Google address search (migration 189). The bounds match the
+ * min_value / max_value of the 189 rows (the admin save path enforces the
+ * same range); a value outside them, or not a number, resolves to the seeded
+ * default, as getQuotePolicy() does. The defaults are conservative
+ * engineering choices, not values Ken has set.
+ */
+export const ADDRESS_SEARCH_INTEGER_BOUNDS = {
+  address_search_user_daily_autocomplete_limit: { min: 0, max: 1000, fallback: 60 },
+  address_search_user_daily_lookup_limit: { min: 0, max: 500, fallback: 30 },
+  address_search_platform_daily_limit: { min: 0, max: 100000, fallback: 500 },
+  address_search_timeout_ms: { min: 1000, max: 10000, fallback: 3000 },
+  address_search_cooldown_minutes: { min: 1, max: 1440, fallback: 10 },
+} as const;
+
+type AddressSearchIntegerKey = keyof typeof ADDRESS_SEARCH_INTEGER_BOUNDS;
+
+function boundedAddressSearchInteger(key: AddressSearchIntegerKey, value: number): number {
+  const bounds = ADDRESS_SEARCH_INTEGER_BOUNDS[key];
+  return boundedInteger(value, bounds.min, bounds.max, bounds.fallback);
+}
+
+export interface AddressSearchPolicy {
+  /** Admin on/off switch (the server key must also be set). */
+  enabled: boolean;
+  /** Suggestion lists per signed-in user per Manila day. */
+  userDailyAutocompleteLimit: number;
+  /** Place details plus pin-to-address lookups per signed-in user per Manila day. */
+  userDailyLookupLimit: number;
+  /** All Google address calls per Manila day, every user together (bill guard). */
+  platformDailyLimit: number;
+  /** Abandon a Google call after this long. */
+  timeoutMs: number;
+  /** Stop calling Google this long after a refusal or a timeout. */
+  cooldownMinutes: number;
+}
+
+/**
+ * Resolve the address search controls. Each value goes through getSetting(),
+ * so a database outage falls back to SETTING_DEFAULTS (the caps still apply).
+ */
+export async function getAddressSearchPolicy(): Promise<AddressSearchPolicy> {
+  const [enabled, autocomplete, lookup, platform, timeoutMs, cooldownMinutes] = await Promise.all([
+    getSettingBoolean('address_search_enabled'),
+    getSettingInteger('address_search_user_daily_autocomplete_limit'),
+    getSettingInteger('address_search_user_daily_lookup_limit'),
+    getSettingInteger('address_search_platform_daily_limit'),
+    getSettingInteger('address_search_timeout_ms'),
+    getSettingInteger('address_search_cooldown_minutes'),
+  ]);
+  return {
+    enabled,
+    userDailyAutocompleteLimit: boundedAddressSearchInteger('address_search_user_daily_autocomplete_limit', autocomplete),
+    userDailyLookupLimit: boundedAddressSearchInteger('address_search_user_daily_lookup_limit', lookup),
+    platformDailyLimit: boundedAddressSearchInteger('address_search_platform_daily_limit', platform),
+    timeoutMs: boundedAddressSearchInteger('address_search_timeout_ms', timeoutMs),
+    cooldownMinutes: boundedAddressSearchInteger('address_search_cooldown_minutes', cooldownMinutes),
   };
 }
 
@@ -1533,6 +1611,9 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     // D41 Q32 / Q33 (migration 188): the apps show "Not available right now"
     // while these are off. Same bulk query (MED-N107).
     'referral_program_enabled', 'suki_program_enabled',
+    // D24 Option A address search switch and caps (migration 189), same bulk query.
+    'address_search_enabled', 'address_search_user_daily_autocomplete_limit',
+    'address_search_user_daily_lookup_limit', 'address_search_platform_daily_limit',
   ];
 
   let bulkMap = new Map<string, string>();
@@ -1565,6 +1646,24 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
     key, parseStoredInteger(lookup(key, String(D38_INTEGER_BOUNDS[key].fallback))),
   );
   const lookupBoolean = (key: string, fallback: boolean): boolean => parseStoredBoolean(lookup(key, String(fallback)));
+
+  // D24 Option A (2026-10-18): the apps show Google address search only while
+  // this is true: the server key is set, the admin switch is on, no cool-down
+  // is running (Google refused or timed out a moment ago), and the daily caps
+  // leave calls for today (the platform cap is neither 0 nor reached, and a
+  // per-user cap is not 0). The key and the switch are checked first, so with
+  // no key no Redis call is made. A Redis outage reads as "not available"
+  // (the search endpoints refuse without Redis).
+  const lookupAddressSearchCap = (key: AddressSearchIntegerKey): number => boundedAddressSearchInteger(
+    key, parseStoredInteger(lookup(key, String(ADDRESS_SEARCH_INTEGER_BOUNDS[key].fallback))),
+  );
+  const addressSearchAvailable = isGoogleMapsServerKeyConfigured()
+    && lookupBoolean('address_search_enabled', true)
+    && await isAddressSearchOpenToday({
+      userDailyAutocompleteLimit: lookupAddressSearchCap('address_search_user_daily_autocomplete_limit'),
+      userDailyLookupLimit: lookupAddressSearchCap('address_search_user_daily_lookup_limit'),
+      platformDailyLimit: lookupAddressSearchCap('address_search_platform_daily_limit'),
+    });
 
   return {
     featureFlags,
@@ -1619,6 +1718,8 @@ export async function getClientConfig(): Promise<Record<string, unknown>> {
       voiceMaxSeconds: lookupD38('job_media_voice_max_seconds'),
       voiceMaxBytes: lookupD38('job_media_voice_max_bytes'),
     },
+    // D24 Option A: show Google address search (POST /api/v1/geo/*) only when true.
+    addressSearchAvailable,
     // Bug 1324 fix: brand colors live in platform_settings (admin-editable)
     // and are consumed by getClientConfig so any caller (mobile, admin web)
     // resolves the same value. The static fallbacks in theme.ts / index.css

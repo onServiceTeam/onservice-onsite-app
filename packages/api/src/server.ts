@@ -8,6 +8,11 @@ import {
   isJobMediaFileUrl,
   redactJobMediaTokens,
 } from './utils/job-media-redaction';
+import {
+  dropAddressSearchTransaction,
+  redactAddressSearchDetails,
+  redactAddressSearchUrl,
+} from './utils/address-search-redaction';
 
 // Initialize Sentry before any other imports.
 // Accept SENTRY_DSN or SENTRY_API_DSN — the launch-cutover runbook (Item 6)
@@ -19,9 +24,19 @@ const SENTRY_DSN = process.env.SENTRY_DSN || process.env.SENTRY_API_DSN;
 // review fix). Both are standard Sentry v9 init options; the local type shim
 // (types/sentry.d.ts) lists only the four options it was written for, so
 // they are spread in from here.
+// D24 Option A: what a customer typed, their pin and the place they chose
+// (the POST body of /api/v1/geo/*, or a URL of the old query shape), and
+// Google's key=, latlng= and sessionToken= URL values and Place Details IDs,
+// never reach Sentry either: such transactions are dropped and error events
+// redacted, with the request query string and body of an address search
+// event replaced whole (utils/address-search-redaction.ts). Each hook returns
+// the same event object it was given when it keeps it.
 const sentryMediaLinkPrivacy = {
-  beforeSendTransaction: dropJobMediaFileTransaction,
-  beforeSend: redactJobMediaTokens,
+  beforeSendTransaction: <T>(event: T): T | null => {
+    const kept = dropJobMediaFileTransaction(event);
+    return kept === null ? null : dropAddressSearchTransaction(kept);
+  },
+  beforeSend: <T>(event: T): T => redactAddressSearchDetails(redactJobMediaTokens(event)),
 };
 if (SENTRY_DSN) {
   Sentry.init({
@@ -83,6 +98,8 @@ import notificationRoutes from './routes/notification.routes';
 import notificationTemplateRoutes from './routes/notification-template.routes';
 import messagingRoutes from './routes/messaging.routes';
 import addressRoutes from './routes/address.routes';
+import geoRoutes from './routes/geo.routes';
+import geoAdminRoutes from './routes/geo-admin.routes';
 import referralRoutes from './routes/referral.routes';
 import recurringRoutes from './routes/recurring.routes';
 import sukiRoutes from './routes/suki.routes';
@@ -191,7 +208,18 @@ app.use(compression());
 // D38: signed private-media links carry a bearer token in the path, so those
 // reads are not written to the request log (critique L11). Every other
 // request, including the other /api/v1/job-media routes, is still logged.
-app.use(morgan('combined', {
+// D24 Option A: the request log is morgan's "combined" format with the URL
+// passed through redactAddressSearchUrl. Address search is POST with the
+// details in the body, so its lines read "POST /api/v1/geo/autocomplete". As
+// a backstop, a URL of the old query shape is logged as
+// "/api/v1/geo/autocomplete?[redacted]" and the like, in any letter case:
+// never what a customer typed, their coordinates or the place ID. Every
+// other URL is unchanged.
+morgan.token('safe-url', (req) => redactAddressSearchUrl(
+  (req as express.Request).originalUrl || req.url,
+));
+const REQUEST_LOG_FORMAT = ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"';
+app.use(morgan(REQUEST_LOG_FORMAT, {
   stream: { write: (message: string): void => { logger.info(message.trim()); } },
   skip: (req) => isJobMediaFileUrl(req.originalUrl || req.url),
 }));
@@ -292,6 +320,9 @@ app.use('/api/v1/admin/projects', projectAdminRoutes);
 // (admin and super_admin only). Mounted BEFORE the generic admin routes so
 // `/admin/marketplace-health/...` never falls through to `/admin/*`.
 app.use('/api/v1/admin/marketplace-health', marketplaceHealthAdminRoutes);
+// D24 Option A: read-only Google address search status (admin and
+// super_admin). Mounted BEFORE the generic admin routes.
+app.use('/api/v1/admin/geo', geoAdminRoutes);
 // Phase 07: booking 360 + dispute detail sub-routes mounted BEFORE generic
 // admin routes so `/admin/bookings/:id/...` and `/admin/disputes/:id/...` match
 // before any `/admin/bookings` or `/admin/disputes` (list) fallthrough.
@@ -363,6 +394,8 @@ app.use('/api/v1/messaging', messagingRoutes);
 // /messaging mount and unblocks mobile without requiring a mobile rebuild.
 app.use('/api/v1/conversations', messagingRoutes);
 app.use('/api/v1/addresses', addressRoutes);
+// D24 Option A: Google address search for signed-in users (any role).
+app.use('/api/v1/geo', geoRoutes);
 app.use('/api/v1/referrals', referralRoutes);
 app.use('/api/v1/recurring', recurringRoutes);
 app.use('/api/v1/projects', projectRoutes);

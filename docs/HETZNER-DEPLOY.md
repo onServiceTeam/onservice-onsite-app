@@ -161,6 +161,8 @@ From `.env.production.example` — the AI coder fills the rest:
 - `AWS_S3_BUCKET`, `AWS_REGION`, and AWS credentials only after launch-cutover
   Item 8's separate BIR receipt-retention backend is approved and provisioned.
 - Push (`FCM_*`) and email (`RESEND_API_KEY`) keys, if used.
+- `GOOGLE_MAPS_SERVER_KEY` for Google address search, if used (added
+  2026-10-18; off while empty; see `docs/runbooks/google-address-search.md`).
 - `DOMAIN` + `CERTBOT_EMAIL` for TLS (the AI coder sets these with you).
 
 The AI coder generates `JWT_SECRET`, the database password, and

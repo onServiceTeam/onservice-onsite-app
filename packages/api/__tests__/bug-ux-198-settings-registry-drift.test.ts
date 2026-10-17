@@ -15,7 +15,8 @@ import {
   checkSettingsDriftAtBoot,
 } from '../src/services/settings.service';
 
-// Independent snapshot of the active registry after migration 188 (188 added
+// Independent snapshot of the active registry after migration 189 (189 added
+// the six address_search_* keys for D24 Option A; 188 added
 // invited_testers_only, invited_testers_message, referral_program_enabled
 // and suki_program_enabled for the customer review slice P2, D41; 182 added
 // request_first_booking for D38; D38 Milestone 2 added seven request keys in
@@ -126,6 +127,12 @@ const ACTIVE_DATABASE_SETTING_KEYS = [
   'ops_request_alert_amber_minutes',
   'ops_request_alert_red_minutes',
   'ops_coverage_min_responsive_providers',
+  'address_search_enabled',
+  'address_search_user_daily_autocomplete_limit',
+  'address_search_user_daily_lookup_limit',
+  'address_search_platform_daily_limit',
+  'address_search_timeout_ms',
+  'address_search_cooldown_minutes',
   'cache_ttl_categories',
   'cache_ttl_provider_profile',
   'cache_ttl_search_results',

@@ -32,7 +32,9 @@ it('Bug UX-251 — disconnected and launch-held settings are reported and enforc
   // Migration 188 (customer review slice P2, D41) adds the two editable
   // invited-testers controls (53 + 2 = 55 live) and the referral and Suki off
   // switches, read-only until Ken decides their rules (31 + 2 = 33 held).
-  expect(statuses.filter((status) => status === 'live')).toHaveLength(55);
+  // D24 Option A (migration 189) adds 6 live address search controls:
+  // 55 + 6 = 61 live.
+  expect(statuses.filter((status) => status === 'live')).toHaveLength(61);
   expect(statuses.filter((status) => status === 'release_coupled')).toHaveLength(3);
   expect(statuses.filter((status) => status === 'held')).toHaveLength(33);
   expect(statuses.filter((status) => status === 'not_connected')).toHaveLength(13);

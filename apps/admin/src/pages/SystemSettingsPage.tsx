@@ -12,6 +12,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
+import AddressSearchStatusCard, { ADDRESS_SEARCH_STATUS_QUERY_KEY } from '@/components/settings/AddressSearchStatusCard';
 import {
   Dialog,
   DialogContent,
@@ -171,6 +172,10 @@ const DISPATCH_MAP_SETTING_KEYS = new Set([
 function invalidateSettingConsumers(queryClient: QueryClient, key: string): void {
   if (DISPATCH_MAP_SETTING_KEYS.has(key)) {
     void queryClient.invalidateQueries({ queryKey: ['dispatch', 'map-config'] });
+  }
+  // D24 Option A: the address search status card shows the switch and the limits.
+  if (key.startsWith('address_search_')) {
+    void queryClient.invalidateQueries({ queryKey: ADDRESS_SEARCH_STATUS_QUERY_KEY });
   }
 }
 
@@ -785,6 +790,9 @@ export default function SystemSettingsPage(): React.ReactElement {
                 </div>
               </div>
             </div>
+
+            {/* D24 Option A: live status of the Google address search controls in this category. */}
+            {currentCategory === 'dispatch' && <AddressSearchStatusCard />}
 
             {currentSettings.length === 0 ? (
               <div className="p-8 text-center">

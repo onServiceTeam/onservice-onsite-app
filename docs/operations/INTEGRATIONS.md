@@ -43,6 +43,7 @@ evidence is missing, the label stays lower.
 | Cloudflare Turnstile | Anti-bot check after repeated wrong codes | Documented. Request contract tested in CI (`docs/SECURITY-POSTURE.md` SEC-002). | No keys as of 2026-10-11 (`LAUNCH-LIMITATIONS.md` section 126). | Yes (create keys) |
 | Expo push service and Firebase Cloud Messaging | Phone notifications | Documented (send path built) | Not configured: no Firebase project, so Android phones get no push (sections 131 and 132). | Yes (Firebase project) |
 | Google Maps SDK for Android | Maps in the Android app | Documented. A key is built into each tester APK. | Not checked on a real phone. Maps key settings in Google Cloud: a Ken check tracked in the private records. | Yes (console check) |
+| Google Places API (New) and Geocoding API | Address suggestions, chosen suggestion to address, map pin to address (D24 Option A, added 2026-10-18) | Documented (server side built and tested with stand-ins; the app does not call it yet) | Not live yet. Off until a server key is set; billing on the Google Cloud project was off on 2026-10-18. | Yes (billing, server key, privacy notice line) |
 | OpenStreetMap tiles | Map background in the admin Dispatch Console | Documented | Probably blocked on live by the admin content rules. Not checked in a browser. | No |
 | Google Maps and Waze directions links | Turn-by-turn directions for a provider going to a job | Documented (a hand-off, not an integration with a key) | Works today whenever a provider taps for directions. Not checked on a real phone. | Yes (privacy notice wording) |
 | Sentry | Error reports from API, admin and app | Documented (wired in all three) | Not set up, according to the records: `docs/runbooks/launch-cutover.md` Item 6 is still open. Not re-checked on the server. | Yes (account) |
@@ -158,7 +159,51 @@ evidence is missing, the label stays lower.
   in the repo).
 - **Failure behaviour:** not checked.
 - **Owner decisions:** the Maps key settings check in Google Cloud (private
-  records). No address search service is built (D24).
+  records). Address search is a separate server-side service, added
+  2026-10-18 (next section).
+
+### Google Places API (New) and Geocoding API (address search)
+
+Added 2026-10-18 (D24 Option A, D41 Q16). Server side only; the app does
+not call it yet.
+
+- **Code:** `packages/api/src/services/geo/address-search.service.ts`,
+  routes `packages/api/src/routes/geo.routes.ts` (POST
+  `/api/v1/geo/autocomplete`, `/place` and `/reverse` with the details in a
+  JSON body, never the URL; signed-in users of any role), admin status
+  `packages/api/src/routes/geo-admin.routes.ts`, settings from migration 189.
+  Calls use Node's built-in fetch with a time limit and refuse redirects.
+- **Data sent:** from our server to Google: what the user types in the
+  address search, the map pin they drop, the place ID of the suggestion they
+  pick, a random session token per search, and a location bias (their pin,
+  or the default service area's centre). No name, phone, email or account
+  id. Nothing from Google's answers is stored or cached on our side (Google
+  Maps Platform Service Specific Terms sections A.3, 6.3 and 14.3, read
+  2026-10-18).
+- **Credential scope:** one server key (`GOOGLE_MAPS_SERVER_KEY`), separate
+  from the Android map key. It should be restricted to these two APIs. It
+  is never logged or returned; the admin status card shows only "Set" or
+  "Not set".
+- **Failure behaviour:** tested with stand-ins only. A refusal (billing off,
+  key not allowed, quota), a time-out or a network failure answers 503,
+  logs Google's status word only, and pauses calls for an admin-set number
+  of minutes; while paused, `GET /api/v1/config` says
+  `addressSearchAvailable: false`. Over a daily cap the API answers 429; a
+  cap set to 0 answers 503, and the config flag is false once the all-users
+  cap is reached or set to 0. On 2026-10-18 the real APIs answered
+  REQUEST_DENIED (Geocoding) and 403 PERMISSION_DENIED (Places) because
+  billing was off.
+- **Cost and limits:** per-user and platform-wide daily caps in System
+  Settings (defaults 60 suggestion lists and 30 lookups per user, 500 calls
+  for all users, per Manila day). Google's prices and free amounts were not
+  checked.
+- **Owner decisions:** billing and the server key (Ken,
+  `docs/runbooks/google-address-search.md`); the privacy notice line about
+  sending addresses and pins to Google (attorney, `LAUNCH-LIMITATIONS.md`
+  section 140); Google attribution in the app when no Google map is shown;
+  whether Google-prefilled addresses and coordinates may be saved, shown to
+  providers and drawn on the OpenStreetMap dispatch map (Google terms 14.2
+  and 6.2, "no use with a non-Google map"; same section).
 
 ### OpenStreetMap tiles (admin Dispatch Console)
 
@@ -299,7 +344,7 @@ evidence is missing, the label stays lower.
 |---|---|
 | Provider payouts by API | Not built. An admin pays each provider by hand and records it (`LAUNCH-LIMITATIONS.md` section 38). |
 | Identity check vendor for providers | None. ID documents and NBI clearances are reviewed by hand. |
-| Address search and autocomplete | Not built (D24). |
+| Address search and autocomplete | Server side built on 2026-10-18 (D24 Option A, see "Google Places API (New) and Geocoding API" above); the app side is not built yet. |
 | Calls and video | Not built. The plan is a self-hosted server (D26). |
 | Zoho Books and Odoo | Not used by this repository. |
 | Google Play and the Apple App Store | Not used. Ken chose the wording "Google Play listing coming soon" for the homepage (2026-10-14). Whether and when to list is open; the app is not listed. See `PLATFORM-SUPPORT.md` section 7. |
@@ -317,7 +362,10 @@ nginx web server. They are covered by the server and backup notes above.
 3. Firebase: a project for Android push.
 4. Sentry and Slack: accounts and an alert channel, then one test alert sent
    end to end (backlog BL-11).
-5. Google Cloud: the Maps key settings check (private records).
+5. Google Cloud: the Maps key settings check (private records). Added
+   2026-10-18: billing on, Places API (New) and Geocoding API enabled, and a
+   restricted server key for address search
+   (`docs/runbooks/google-address-search.md`).
 6. Turnstile: create the keys.
 7. Off-site backup storage and recovery targets (BL-10).
 8. Whether integration prerequisites (Resend and DNS, Semaphore registration,
