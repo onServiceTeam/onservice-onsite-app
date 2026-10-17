@@ -147,8 +147,34 @@ export async function withRefundDatabase(run: (database: Pool) => Promise<void>)
     await run(database);
   } finally {
     Object.assign(pool, original);
-    try { if (created) await database.query(`DROP SCHEMA "${schema}" CASCADE`); }
+    try { if (created) await dropSchemaWhenQuiet(database, schema); }
     finally { await database.end(); }
+  }
+}
+
+// Teardown only. Work that a route or socket handler starts without awaiting
+// it (a notification INSERT, a device-push lookup) can still be running on this
+// pool when a test body returns, and dropping the schema under it can end in a
+// deadlock (HA-M2-140 in CI on 2026-10-17; request-media-postgres.ts has the
+// same wait for the request fan-out). Wait until the pool stays free over 4
+// timer turns (best effort, at most 10 s), then drop, retrying a deadlock up to
+// 3 times. Assertions have already run, so nothing here can turn a red test green.
+async function dropSchemaWhenQuiet(database: Pool, schema: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  let quietTurns = 0;
+  while (quietTurns < 4 && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const busy = database.totalCount - database.idleCount + database.waitingCount;
+    quietTurns = busy === 0 ? quietTurns + 1 : 0;
+  }
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await database.query(`DROP SCHEMA "${schema}" CASCADE`);
+      return;
+    } catch (error) {
+      if ((error as { code?: string }).code !== '40P01' || attempt >= 3) throw error;
+      await new Promise(resolve => setTimeout(resolve, 200 * attempt));
+    }
   }
 }
 
