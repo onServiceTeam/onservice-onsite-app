@@ -21,13 +21,20 @@ const REPO_ROOT = resolve(__dirname, '../../..');
 const ACCESS_LOG_TF = resolve(REPO_ROOT, 'infra/terraform/s3-access-log-bucket.tf');
 
 describe('MED-O03 — S3 server access logging', () => {
-  it('s3-access-log-bucket.tf exists', () => {
-    expect(existsSync(ACCESS_LOG_TF)).toBe(true);
-  });
-
   let TF: string;
   beforeAll(() => {
+    // A missing file fails every test below here, so no separate
+    // "file exists" test is needed.
+    expect(existsSync(ACCESS_LOG_TF)).toBe(true);
     TF = readFileSync(ACCESS_LOG_TF, 'utf8');
+  });
+
+  // 2026-10-14 (D40): this test used to be "s3-access-log-bucket.tf exists"
+  // with expect(existsSync(...)).toBe(true) as its only assertion. CLAUDE.md
+  // bans that shape and Gate C article no-fake-tests rejects it. It now checks
+  // a real setting: each environment gets its own log bucket name.
+  it('names the log bucket per environment so staging and production logs never share a bucket', () => {
+    expect(TF).toMatch(/bucket\s*=\s*"\$\{var\.log_bucket_name\}-\$\{var\.environment\}"/);
   });
 
   it('declares the access-logs S3 bucket resource', () => {

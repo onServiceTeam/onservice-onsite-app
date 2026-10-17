@@ -101,12 +101,21 @@ describe('D-J27 — server.ts mounts the router behind the same gate', () => {
 });
 
 describe('D-J27 — shell scripts exist and are executable', () => {
+  // 2026-10-14 (D40): this used to be "%s exists" with
+  // expect(existsSync(...)).toBe(true) as its only assertion. CLAUDE.md bans
+  // that shape and Gate C article no-fake-tests rejects it. It now checks the
+  // thing the original bug was about: each script calls an endpoint that the
+  // router really defines.
   it.each([
-    'scripts/maestro/force-error.sh',
-    'scripts/maestro/seed-empty.sh',
-    'scripts/maestro/seed-success.sh',
-  ])('%s exists', (path) => {
-    expect(existsSync(resolve(REPO_ROOT, path))).toBe(true);
+    ['scripts/maestro/force-error.sh', '/force-next-error'],
+    ['scripts/maestro/seed-empty.sh', '/seed/empty'],
+    ['scripts/maestro/seed-success.sh', '/seed/success'],
+  ])('%s posts to /__test%s, a route the router defines', (path, route) => {
+    const scriptPath = resolve(REPO_ROOT, path);
+    expect(existsSync(scriptPath)).toBe(true);
+    const script = readFileSync(scriptPath, 'utf8');
+    expect(script).toContain(`-X POST "\${API_URL}/__test${route}"`);
+    expect(ROUTES).toContain(`router.post('${route}'`);
   });
 
   it('scripts have a #!/usr/bin/env bash shebang', () => {

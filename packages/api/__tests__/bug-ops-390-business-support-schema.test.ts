@@ -14,6 +14,12 @@ const isSafeIntegrationDatabase = (() => {
     return false;
   }
 })();
+// Fail closed in CI (D40, 2026-10-17): without this, a missing or unsafe
+// DATABASE_URL in CI skips the test below and CI stays green while checking
+// nothing. Same guard as bug-ops-478. Enforced by Gate C db-tests-fail-closed.
+if (process.env.CI && !isSafeIntegrationDatabase) {
+  throw new Error('OPS-390 requires the isolated localhost *_test PostgreSQL service in CI.');
+}
 
 const integrationIt = isSafeIntegrationDatabase ? it : it.skip;
 

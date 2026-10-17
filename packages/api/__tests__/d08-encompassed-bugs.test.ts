@@ -4,8 +4,34 @@
 // assertions tying it to its closing fix, satisfying Gate B's parser
 // without duplicating behavioral tests.
 
+//
+// 2026-10-14 (D40): Gate C article no-fake-tests rejects assertions that only
+// check a source file contains a "Bug NNNN" comment. Those lines were taken
+// out below. Where the behaviour is tested elsewhere, a comment names the
+// file. Where it is not, an it.todo says so. Bug 397 is now a real behaviour
+// test. The other checks in this file still read source text only; they are
+// not behaviour tests.
+
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+
+// Bug 397 drives the real rejectDsr; the database is a mock so the test can
+// prove validation happens before any database work.
+const dbTransactionMock = jest.fn();
+jest.mock('../src/models/db', () => ({
+  db: {
+    query: jest.fn(),
+    transaction: (callback: unknown) => dbTransactionMock(callback),
+  },
+}));
+jest.mock('../src/utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
+jest.mock('../src/services/notification.service', () => ({
+  createPushNotification: jest.fn(),
+}));
+
+import { rejectDsr } from '../src/services/compliance-admin.service';
 
 const PII_MASK = readFileSync(resolve(__dirname, '../src/utils/pii-mask.ts'), 'utf8');
 const COMPLIANCE_ADMIN = readFileSync(resolve(__dirname, '../src/routes/compliance-admin.routes.ts'), 'utf8');
@@ -136,9 +162,24 @@ describe('Bug 350 — provider phone/email plain in admin list (encompassed by B
 });
 
 describe('Bug 397 — DSR rejection reason ≥30 chars', () => {
-  it('compliance-admin.service.rejectDsr enforces 30-char minimum', () => {
-    expect(COMPLIANCE_SVC).toMatch(/Bug 397/);
-    expect(COMPLIANCE_SVC).toMatch(/at least 30 characters/);
+  it('compliance-admin.service.rejectDsr enforces 30-char minimum', async () => {
+    const dsr = {
+      dsrId: 'd0000000-0000-0000-0000-000000000397',
+      adminUserId: 'a0000000-0000-0000-0000-000000000397',
+    };
+    dbTransactionMock.mockReset();
+
+    // 29 characters (also 29 once trimmed): refused with 400, no database work.
+    await expect(rejectDsr({ ...dsr, reason: `  ${'r'.repeat(29)}  ` })).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Rejection reason must be at least 30 characters.',
+    });
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+
+    // 30 characters: passes the check and reaches the database step.
+    dbTransactionMock.mockRejectedValueOnce(new Error('stopped after validation'));
+    await expect(rejectDsr({ ...dsr, reason: 'r'.repeat(30) })).rejects.toThrow('stopped after validation');
+    expect(dbTransactionMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -153,22 +194,33 @@ describe('Bug 399 — publishConsentVersion changeSummary ≥30 chars', () => {
 
 describe('Bug 401 — audit CSV export self-audits', () => {
   it('compliance-admin.routes audit-log/export.csv inserts admin_actions row', () => {
-    expect(COMPLIANCE_ADMIN).toMatch(/Bug 401/);
+    // 2026-10-14 (D40): removed expect(COMPLIANCE_ADMIN).toMatch(<Bug 401 citation>),
+    // which only proved a comment exists. The line below reads source text only.
     expect(COMPLIANCE_ADMIN).toMatch(/'audit_log_exported'/);
   });
+
+  it.todo(
+    'Bug 401 — behaviour test missing: call GET audit-log/export.csv as a DPO and assert one admin_actions row with action audit_log_exported is written (no route-level test exists as of 2026-10-14)',
+  );
 });
 
 describe('Bug 402 — searchConsent DPO-only', () => {
   it('compliance-admin.routes searchConsent uses requireDpoRole', () => {
-    expect(COMPLIANCE_ADMIN).toMatch(/Bug 402/);
+    // 2026-10-14 (D40): removed expect(COMPLIANCE_ADMIN).toMatch(<Bug 402 citation>),
+    // which only proved a comment exists. The lines below read source text only.
     expect(COMPLIANCE_ADMIN).toMatch(/requireDpoRole/);
     expect(COMPLIANCE_ADMIN).toMatch(/'consent_search'/);
   });
+
+  it.todo(
+    'Bug 402 — behaviour test missing: call GET /api/v1/admin/compliance/consent with the real requireDpoRole as a plain admin and expect 403 (bug-ops-439-consent-search-uuid-case.routes.test.ts covers the DPO 200 + consent_search audit row with requireDpoRole mocked to pass; e01-dpo-role.test.ts covers the middleware alone; no test as of 2026-10-14 shows the route applies it)',
+  );
 });
 
 describe('Bug 969 — marketing opt-out backend honored', () => {
   it('migration 081 adds granular per-channel marketing flags + acknowledged_at', () => {
-    expect(M081).toMatch(/Bug 969/);
+    // 2026-10-14 (D40): removed expect(M081).toMatch(<Bug 969 citation>),
+    // which only proved a comment exists. The lines below read migration text only.
     expect(M081).toMatch(/marketing_push_enabled/);
     expect(M081).toMatch(/marketing_consent_acknowledged_at/);
   });
@@ -176,13 +228,20 @@ describe('Bug 969 — marketing opt-out backend honored', () => {
   it('notification.service exposes isMarketingChannelEligible + listMarketingEligibleUsers helpers', () => {
     expect(NOTIFICATION_SVC).toMatch(/isMarketingChannelEligible/);
     expect(NOTIFICATION_SVC).toMatch(/listMarketingEligibleUsers/);
-    expect(NOTIFICATION_SVC).toMatch(/Bug 969/);
+    // 2026-10-14 (D40): removed expect(NOTIFICATION_SVC).toMatch(<Bug 969 citation>),
+    // which only proved a comment exists. The lines above read source text only.
   });
+
+  it.todo(
+    'Bug 969 — behaviour test missing: a user with marketing push turned off must be left out by isMarketingChannelEligible and listMarketingEligibleUsers (no behaviour test of these helpers exists as of 2026-10-14)',
+  );
 });
 
 describe('Bug 1366 — 72h breach SLA surfaced', () => {
   it('migration 082 + breach-log.service expose sla72h_expired enrichment', () => {
-    expect(M082).toMatch(/Bug 1366/);
+    // 2026-10-14 (D40): removed expect(M082).toMatch(<Bug 1366 citation>),
+    // which only proved a comment exists. Behaviour of the 72-hour SLA
+    // fields is tested in __tests__/services/breach-log.service.test.ts.
     expect(M082).toMatch(/CREATE TABLE breach_log/);
     const breachSvc = readFileSync(
       resolve(__dirname, '../src/services/breach-log.service.ts'),

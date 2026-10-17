@@ -1,4 +1,10 @@
 // Phase 14 Dispatch 09 — Gate B reference coverage for D09 bugs.
+//
+// 2026-10-14 (D40): Gate C article no-fake-tests rejects assertions that only
+// check a source file contains a "Bug NNNN" comment. Those lines were taken
+// out below, and a comment names the behaviour test for each bug. The other
+// checks in this file still read source or migration text only; they are
+// not behaviour tests.
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -13,7 +19,9 @@ const LAUNCH_LIMITATIONS = readFileSync(resolve(__dirname, '../../../LAUNCH-LIMI
 describe('Bug 162 — identity verification non-silent', () => {
   it('provider-onboarding.service writes durable submitForReview record (no silent bypass)', () => {
     expect(ONBOARDING_SVC).toMatch(/submitForReview/);
-    expect(ONBOARDING_SVC).toMatch(/Bug 162/);
+    // 2026-10-14 (D40): removed the check for a "Bug 162" comment. Behaviour
+    // is tested in __tests__/services/provider-onboarding.service.test.ts
+    // ("Bug 162 + 1199 — submitForReview" and "Bug 162 — adminDecide").
     expect(ONBOARDING_SVC).toMatch(/'provider_application_submitted'/);
   });
 });
@@ -38,7 +46,9 @@ describe('Bug 1199 — onboarding timeline surfaced', () => {
   it('OnboardingProgress shape includes estimatedDecisionAt + estimatedReviewHours', () => {
     expect(ONBOARDING_SVC).toMatch(/estimatedDecisionAt/);
     expect(ONBOARDING_SVC).toMatch(/estimatedReviewHours/);
-    expect(ONBOARDING_SVC).toMatch(/Bug 1199/);
+    // 2026-10-14 (D40): removed the check for a "Bug 1199" comment. Behaviour
+    // is tested in __tests__/services/provider-onboarding.service.test.ts
+    // ("Bug 1199 — getProgress returns timeline").
   });
 
   it('migration 084 stores estimated_review_hours default 72', () => {
@@ -48,7 +58,9 @@ describe('Bug 1199 — onboarding timeline surfaced', () => {
 
 describe('Bug 1200 — submitted application editable after sent_back', () => {
   it('trackProgress allows edits when admin_decision = sent_back', () => {
-    expect(ONBOARDING_SVC).toMatch(/Bug 1200/);
+    // 2026-10-14 (D40): removed the check for a "Bug 1200" comment. Behaviour
+    // is tested in __tests__/services/provider-onboarding.service.test.ts
+    // ("Bug 1200 — trackProgress (resumable)").
     expect(ONBOARDING_SVC).toMatch(/sent_back/);
   });
 
@@ -70,7 +82,10 @@ describe('Bug 1268 — service area change has pending state', () => {
   it('service-area-change.service exports requestChange + decide', () => {
     expect(AREA_CHANGE_SVC).toMatch(/requestChange/);
     expect(AREA_CHANGE_SVC).toMatch(/export async function decide/);
-    expect(AREA_CHANGE_SVC).toMatch(/Bug 1268/);
+    // 2026-10-14 (D40): removed the check for a "Bug 1268" comment. Pending
+    // area-change behaviour is tested in
+    // __tests__/bug-ux-260-provider-area-change-request.test.ts and
+    // __tests__/bug-ux-269-provider-area-withdrawal.test.ts.
   });
 });
 
