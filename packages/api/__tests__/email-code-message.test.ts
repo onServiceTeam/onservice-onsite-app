@@ -75,6 +75,24 @@ it('D37 - malformed codes and windows are refused rather than sent', () => {
   }
 });
 
+// House logo (Ken, 2026-10-14). Email is the one place the house tile cannot go:
+// Gmail and Outlook drop inline SVG and block data: images, and D37 bans
+// images and links (see the first test). Whether to add the tile as an inline
+// (CID) picture is Ken's open question in
+// .ai-coder/decisions/D42-house-logo-in-email.md. Until he answers, every
+// sign-in email carries the logo as the one-colour text wordmark only: brand
+// blue, never two-tone, never orange, and never the old "oS" letters.
+it('D37 guard (house logo, 2026-10-14): every sign-in email shows the one-colour "onService PH" wordmark, with no oS mark and no orange', () => {
+  for (const purpose of ['sign_in', 'admin_sign_in', 'link_email'] as const) {
+    const message = buildEmailCodeMessage({ code: '204816', purpose, expiresAt, validMinutes: 5 });
+    expect(message.html).toContain('font-weight:bold;color:#003D9B;">onService PH</td>');
+    expect(message.html).not.toMatch(/>\s*oS\s*</);
+    expect(message.html).not.toMatch(/#?(FE8A00|FF8A00|FF6B35)\b|orange/i);
+    expect(message.html).not.toMatch(/<svg|<img|<b>on|<span[^>]*>Service/i);
+    expect(message.text.split('\n\n').at(-1)).toBe('onService PH');
+  }
+});
+
 it('D37 - Manila time is shown without daylight saving all year', () => {
   expect(formatManilaTime(new Date('2026-01-15T16:05:00Z'))).toBe('12:05 AM');
   expect(formatManilaTime(new Date('2026-07-15T04:30:59Z'))).toBe('12:30 PM');

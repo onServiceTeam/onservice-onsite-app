@@ -15,6 +15,12 @@
   Plain ES2017 so it runs on older Android Chrome: no optional chaining,
   no object spread, no CSS :has().
 -->
+<!-- onService PH tab icon: the house logo (Ken, 2026-10-14), favicon cut from
+     docs/design-system/brand/README.md. Inline, so this page never shows the
+     app's long-cached /favicon.ico. The PNG (apps/mobile/assets/favicon.png) is
+     for browsers without SVG tab icons. -->
+<link rel="icon" type="image/png" sizes="48x48" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAD+0lEQVR4nOyaeVBNURzHv/f2SPYaFQozKLuRJoUijHrNGJ5lLDNkTX8w8YexZx3GDMb4r7xEQ4a/KiMSMchYknUwyTaWyJItS6Tn/O7zjtckne67r+fO9Pnjzu+c+zvnfn/37Pc9A+wJ3zUDkEzMCoOEjvifsKCEXS8yIxP58/fZsiXlOjS5M2TJzJJR0AWWXFRZ4nA+/omspCX5gH7EE0yrJKUrFsLNs9k1FXrEgjkGJn4K9ArTLrMoBkCvMO3UAr7QK0y7AU5i4YTeiAzqoNgnr5QgKesunIGECLMFGuLr6YHMzaMR1senWn7+zZeYlJiH0ndfoSUyNKRfV08UpphqiCfC+7dX7vXq0hZaolkAMaH+uJRsgp93C56XdqwY6bn3eZruFewywTjIH1qhSReaN6YHkpeEQ5atC/u7TxUwLsnB5buvlfSgXt7I2WaEZyt3JV1VZUH8tnykHCmCozjUAqR3Z8JgmJdGcPEPSz4ieF4mF0+QTXl0TynHfKnMjoVhv/cyDmiASjzc3XB0qxEJk/rwPBqoJPTRi081/CmP7pGPjcWT++LwliilLrWoCsDHsxkuJo1DtF1fPpj3ACMWZeN9+fday9E98iFfG2OGdFbqojrVUO8AaKa5mjIe/bt58bw1uwsxbf1pVP6seziRD/mu33OV51FdVKeaGapegzgqxA8Zm0ajeTPr+vf9x09MZWIyzj6GGqaM7Ip9qyPRxGB9j+VffmBi4knkFjwXrkO4BWKjA3B8ewwX//ZDBSITslWLJw6deohRi4/ybteyeRPlGdOjugvXIRRASE9vpCyL4Ol7Tz8gZH4mLtx+BUc5xwb1wLkZfIYiUpcPQ2hvb6HyQgGsmRXEm/n8rVKExmf9daZRC9UVEpeFS3esL4SetWK62CZZuAVsTFh14p8zjVrK2OJHeyUbwYHthMoJ7UZ9vTy4/er9NziLZ68/c9vfp4VQGU230wH+rTEq2A/t7QK252XZV+QVPkfxs4/QCs0CoJkjbeVwvqWoDdoHzdx8BvvtNnmOoNlulAZdXeKVBzIf0QEqgmYtENipDbftV1l71s4eWMPXUTQLwOD25+2vqyMAe19H0fRE5goaA3A1jQG4msYAXE29A/Boqv4A7oy6hQK4XvyW27HGADiLWTGB3C4seiNURuhMnDgzCBvmBqMhWZFcgC3pN+r0E2qBjWnXcPNBGRoK+hAmIp5wQ5ex60Qc9x67x/qoQfn67NXaHc7gPjsnpGYXIXbTGaFPNITmn9cbmsZ1wNXQj3yl0CtMu8xGwXXoFaaddSEpCbpFSrKe7SLMOewaDX2RhXNxJusgrpIXsQ5VAd1gKUdl5QKyqp+udfh3m18AAAD//yWczbwAAAAGSURBVAMA0DlFXrpRy1sAAAAASUVORK5CYII=">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2048%2048'%3E%3Crect%20width%3D'48'%20height%3D'48'%20rx%3D'6'%20fill%3D'%23003D9B'%2F%3E%3Cg%20transform%3D'translate(6%206)%20scale(1.5)'%20fill%3D'none'%20stroke%3D'%23FFFFFF'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M15%2021v-8a1%201%200%200%200-1-1h-4a1%201%200%200%200-1%201v8'%2F%3E%3Cpath%20d%3D'M3%2010a2%202%200%200%201%20.709-1.528l7-5.999a2%202%200%200%201%202.582%200l7%205.999A2%202%200%200%201%2021%2010v9a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2z'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style>
   :root {
     --teal: #0d9488;
@@ -45,10 +51,15 @@
     line-height: 1.5;
     overflow-x: hidden;
   }
-  .top { background: var(--navy); color: #fff; }
+  /* Brand bar: the house logo (Ken, 2026-10-14; docs/design-system/brand/README.md).
+     On brand blue the tile is white with a blue house, and "onService PH" is one
+     colour (white). The tile-to-word gap is 25% of the tile, as a margin because
+     flex gap needs Chrome 84+. */
+  .top { background: #003D9B; color: #fff; }
   .top-in { max-width: 640px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
-  .mark { font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
-  .mark b { color: #5eead4; font-weight: 800; }
+  .brand { display: flex; align-items: center; }
+  .brand-tile { display: block; width: 32px; height: 32px; flex: 0 0 32px; margin-right: 8px; }
+  .brand-word { font-weight: 800; font-size: 18px; line-height: 1.2; letter-spacing: -0.01em; color: #fff; white-space: nowrap; }
   .top-note { font-size: 14px; color: #cbd5e1; }
   .wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 120px; outline: none; }
   h1 { font-size: 26px; line-height: 1.25; margin: 8px 0 12px; color: var(--navy); outline: none; }
@@ -163,7 +174,7 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="top-in"><span class="mark">on<b>Service</b></span><span class="top-note">App test</span></div></header>
+<header class="top"><div class="top-in"><span class="brand" role="img" aria-label="onService PH"><svg class="brand-tile" viewBox="0 0 48 48" width="32" height="32" aria-hidden="true" focusable="false"><rect width="48" height="48" rx="6" fill="#FFFFFF"/><g transform="translate(10.56 10.56) scale(1.12)" fill="none" stroke="#003D9B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></g></svg><span class="brand-word">onService PH</span></span><span class="top-note">App test</span></div></header>
 <main id="app" class="wrap" tabindex="-1"><p class="loading">Loading the test...</p></main>
 <div id="reportBar" class="report-bar" hidden><button type="button" id="reportBtn" class="btn">Report a problem</button></div>
 <noscript><div class="wrap"><p class="err">This page needs JavaScript. Please turn it on, or open the page in Chrome.</p></div></noscript>

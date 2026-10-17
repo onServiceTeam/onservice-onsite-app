@@ -5,7 +5,9 @@
  * - A plain-text part AND a simple HTML part. Spam filters distrust
  *   HTML-only mail.
  * - No images, no links, no tracking pixels. A short transactional message
- *   with one clear purpose.
+ *   with one clear purpose. So the logo here is the one-colour text wordmark
+ *   "onService PH" in #003D9B, with no house tile: adding the tile as an
+ *   inline picture is Ken's open question, D42-house-logo-in-email.md.
  * - The code is NOT in the subject. The hidden preview line states the fixed
  *   expiry and is padded, so inbox lists and most notification previews show
  *   that line rather than running on into the code. (The plain-text part, used
