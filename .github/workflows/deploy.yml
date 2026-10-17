@@ -1,3 +1,24 @@
+# NOT USED. Releases do not go through this workflow. (Header added
+# 2026-10-14 under D40; the workflow below is unchanged.)
+#
+# Checked read-only on 2026-10-14:
+# - It has never run on GitHub (0 runs).
+# - The repository has no Actions secrets, so DEPLOY_HOST, DEPLOY_USER and
+#   DEPLOY_SSH_KEY below are not set.
+# - The "production" environment it names does not exist on GitHub (the only
+#   environment is "copilot").
+# - It is still enabled and can be started by hand. Disabling or removing it
+#   is Ken's decision.
+# Re-checked read-only on 2026-10-17: still 0 runs, still no Actions secrets,
+# still only the "copilot" environment, still enabled.
+#
+# The live server is the tester server, not a real-customer production.
+# Tester-server releases follow docs/runbooks/tester-server-release.md, using
+# scripts/release/deploy-tester-release.sh and
+# scripts/release/publish-web-builds.sh.
+#
+# Nothing is enforced by GitHub: branch protection and rulesets are off by
+# Ken's choice (D40).
 name: Deploy to Production
 
 on:

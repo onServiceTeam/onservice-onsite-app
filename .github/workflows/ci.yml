@@ -182,6 +182,42 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  release-scripts-check:
+    name: Release scripts - behaviour tests
+    # Runs the tester-release script tests (docs/runbooks/tester-server-release.md,
+    # section 10). They run the real scripts with fake sudo, docker and node
+    # programs against throwaway git repositories in the runner's temp folder.
+    # No server, daemon or secret is used, and nothing needs npm ci: the tests
+    # import only Node built-ins. The only network use is one switched-off
+    # check in the mutation step that makes git try a fetch from
+    # example.invalid, which can never resolve. On Linux this also runs the
+    # file-mode checks that Git Bash on Windows skips.
+    runs-on: ubuntu-latest
+    # 20 minutes is a guess: this job has never run on GitHub. On a busy
+    # Windows PC one test file alone took about 43 minutes, so Linux timing is
+    # unknown. Check the real time on the first GitHub run and adjust.
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Release script tests
+        shell: bash
+        run: node --test "scripts/release/__tests__/*.test.mjs"
+
+      # Switches off each preflight refusal of deploy-tester-release.sh and
+      # publish-web-builds.sh in turn (in a temporary copy, never the real
+      # script) and fails if that refusal's own test still passes. Keeps
+      # "every preflight refusal has a test that catches it" true. It also
+      # fails if the real scripts changed.
+      - name: Release script preflight mutation check
+        shell: bash
+        run: node scripts/release/__tests__/preflight-mutation-check.mjs
+
   docker-build:
     name: Docker — API Image Build
     runs-on: ubuntu-latest
